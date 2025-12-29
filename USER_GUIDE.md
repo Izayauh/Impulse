@@ -386,3 +386,4 @@ If the application becomes unresponsive:
 **License:** MIT  
 **Based on:** [Whisper.cpp](https://github.com/ggerganov/whisper.cpp)
 
+

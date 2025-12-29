@@ -8,12 +8,112 @@ import pyautogui
 import tkinter as tk
 from tkinter import Canvas, font as tkfont
 import ctypes
+from ctypes import wintypes
 import numpy as np
 from PIL import Image, ImageDraw
 import pystray
 import re
 import json
 import math
+
+# ============================================================================
+# FAST WIN32 CLIPBOARD & INPUT - Zero-latency paste
+# ============================================================================
+# Win32 constants
+CF_UNICODETEXT = 13
+GMEM_MOVEABLE = 0x0002
+INPUT_KEYBOARD = 1
+KEYEVENTF_KEYUP = 0x0002
+VK_CONTROL = 0x11
+VK_V = 0x56
+
+# Win32 structures for SendInput
+class KEYBDINPUT(ctypes.Structure):
+    _fields_ = [
+        ("wVk", wintypes.WORD),
+        ("wScan", wintypes.WORD),
+        ("dwFlags", wintypes.DWORD),
+        ("time", wintypes.DWORD),
+        ("dwExtraInfo", ctypes.POINTER(ctypes.c_ulong)),
+    ]
+
+class INPUT(ctypes.Structure):
+    class _INPUT(ctypes.Union):
+        _fields_ = [("ki", KEYBDINPUT)]
+    _anonymous_ = ("_input",)
+    _fields_ = [("type", wintypes.DWORD), ("_input", _INPUT)]
+
+def fast_clipboard_copy(text: str) -> bool:
+    """Direct Win32 clipboard copy - faster than pyperclip."""
+    try:
+        user32 = ctypes.windll.user32
+        kernel32 = ctypes.windll.kernel32
+        
+        if not user32.OpenClipboard(None):
+            return False
+        try:
+            user32.EmptyClipboard()
+            # Encode as UTF-16LE (Windows native)
+            data = text.encode('utf-16-le') + b'\x00\x00'
+            h_mem = kernel32.GlobalAlloc(GMEM_MOVEABLE, len(data))
+            if not h_mem:
+                return False
+            p_mem = kernel32.GlobalLock(h_mem)
+            if not p_mem:
+                kernel32.GlobalFree(h_mem)
+                return False
+            ctypes.memmove(p_mem, data, len(data))
+            kernel32.GlobalUnlock(h_mem)
+            user32.SetClipboardData(CF_UNICODETEXT, h_mem)
+            return True
+        finally:
+            user32.CloseClipboard()
+    except Exception:
+        return False
+
+def fast_send_paste() -> bool:
+    """Direct SendInput for Ctrl+V - faster than pyautogui."""
+    try:
+        user32 = ctypes.windll.user32
+        
+        # Create input events: Ctrl down, V down, V up, Ctrl up
+        inputs = (INPUT * 4)()
+        
+        # Ctrl down
+        inputs[0].type = INPUT_KEYBOARD
+        inputs[0].ki.wVk = VK_CONTROL
+        
+        # V down
+        inputs[1].type = INPUT_KEYBOARD
+        inputs[1].ki.wVk = VK_V
+        
+        # V up
+        inputs[2].type = INPUT_KEYBOARD
+        inputs[2].ki.wVk = VK_V
+        inputs[2].ki.dwFlags = KEYEVENTF_KEYUP
+        
+        # Ctrl up
+        inputs[3].type = INPUT_KEYBOARD
+        inputs[3].ki.wVk = VK_CONTROL
+        inputs[3].ki.dwFlags = KEYEVENTF_KEYUP
+        
+        user32.SendInput(4, ctypes.byref(inputs), ctypes.sizeof(INPUT))
+        return True
+    except Exception:
+        return False
+
+def instant_paste(text: str) -> bool:
+    """Ultra-fast paste using Win32 APIs with fallback."""
+    # Try fast path first
+    if fast_clipboard_copy(text) and fast_send_paste():
+        return True
+    # Fallback to pyperclip + pyautogui
+    try:
+        pyperclip.copy(text)
+        pyautogui.hotkey("ctrl", "v")
+        return True
+    except Exception:
+        return False
 
 # ============================================================================
 # THEME CONSTANTS - Pink/Black Dark Mode
@@ -155,6 +255,7 @@ class StatsTracker:
         preview = text[:100] + "..." if len(text) > 100 else text
         self.data["recent_transcripts"].insert(0, {
             "text": preview,
+            "full_text": text,  # Store complete text for copying
             "words": word_count,
             "time": datetime.datetime.now().strftime("%H:%M")
         })
@@ -304,6 +405,9 @@ selected_input_device_name = None
 
 # Dashboard window reference
 dashboard_window = None
+
+# Last transcription for easy copy access
+last_transcription = None
 
 # ============================================================================
 # FLOATING PILL STATUS BAR
@@ -530,12 +634,12 @@ class FloatingPill:
     
     def _animate_pulse(self):
         """Animate the pulsing effect for listening state."""
-        self.pulse_phase += 0.15
+        self.pulse_phase += 0.2  # Slightly faster phase for smoother visual at lower FPS
         pulse = (math.sin(self.pulse_phase) + 1) / 2  # 0 to 1
         self._draw_pill("listening", pulse)
         
         if self.current_state == "listening":
-            self.animation_id = self.root.after(50, self._animate_pulse)
+            self.animation_id = self.root.after(67, self._animate_pulse)  # 15fps (reduced from 20fps)
     
     def _on_click(self, event):
         """Handle left click - open dashboard."""
@@ -569,7 +673,7 @@ class FloatingPill:
                     pass
         except queue.Empty:
             pass
-        self.root.after(30, self.pump_queue)
+        self.root.after(50, self.pump_queue)  # Reduced from 30ms - less CPU overhead
     
     def bind_context_menu(self, on_settings):
         """Compatibility method - already handled internally."""
@@ -739,10 +843,23 @@ class DashboardWindow(tk.Toplevel):
         self.recent_frame = tk.Frame(content, bg=Theme.BG_CARD, highlightthickness=1, highlightbackground=Theme.BORDER_SUBTLE)
         self.recent_frame.pack(fill="both", expand=True, pady=(0, 12))
         
+        # Status label for feedback
+        self.status_label = tk.Label(
+            content,
+            text="",
+            font=(Theme.FONT_FAMILY, 9),
+            fg=Theme.SUCCESS,
+            bg=Theme.BG_DARK,
+            anchor="center"
+        )
+        self.status_label.pack(fill="x", pady=(0, 8))
+        
         # Quick actions
         actions_frame = tk.Frame(content, bg=Theme.BG_DARK)
         actions_frame.pack(fill="x")
         
+        self.copy_last_btn = self._create_action_button(actions_frame, "📋 Copy Last", self._copy_last_message)
+        self.copy_last_btn.pack(side="left", expand=True, fill="x", padx=(0, 8))
         self._create_action_button(actions_frame, "⚙ Settings", lambda: open_settings_window(self)).pack(side="left", expand=True, fill="x", padx=(0, 8))
         self._create_action_button(actions_frame, "↻ Refresh", self._refresh_stats).pack(side="left", expand=True, fill="x")
     
@@ -955,8 +1072,8 @@ class DashboardWindow(tk.Toplevel):
             
             # Text preview
             text_preview = t.get("text", "")
-            if len(text_preview) > 45:
-                text_preview = text_preview[:45] + "..."
+            if len(text_preview) > 40:
+                text_preview = text_preview[:40] + "..."
             
             text_label = tk.Label(
                 item,
@@ -978,7 +1095,81 @@ class DashboardWindow(tk.Toplevel):
                 anchor="e",
                 width=5
             )
-            words_label.pack(side="right")
+            words_label.pack(side="left", padx=(0, 4))
+            
+            # Copy button
+            full_text = t.get("full_text", t.get("text", ""))
+            copy_btn = tk.Label(
+                item,
+                text="⎘",
+                font=(Theme.FONT_FAMILY, 11),
+                fg=Theme.TEXT_MUTED,
+                bg=Theme.BG_CARD,
+                cursor="hand2",
+                padx=4
+            )
+            copy_btn.pack(side="right")
+            
+            # Store reference to the button for feedback updates
+            def make_copy_handler(btn, txt):
+                def handler(e):
+                    self._copy_to_clipboard(txt, btn)
+                return handler
+            
+            copy_btn.bind("<Button-1>", make_copy_handler(copy_btn, full_text))
+            copy_btn.bind("<Enter>", lambda e, btn=copy_btn: btn.config(fg=Theme.PINK_PRIMARY))
+            copy_btn.bind("<Leave>", lambda e, btn=copy_btn: btn.config(fg=Theme.TEXT_MUTED))
+    
+    def _copy_to_clipboard(self, text, btn=None):
+        """Copy text to clipboard with visual feedback."""
+        try:
+            pyperclip.copy(text)
+            if btn:
+                original_text = btn.cget("text")
+                original_fg = btn.cget("fg")
+                btn.config(text="✓", fg=Theme.SUCCESS)
+                def reset_btn():
+                    try:
+                        if btn.winfo_exists():
+                            btn.config(text=original_text, fg=original_fg)
+                    except Exception:
+                        pass
+                self.after(1000, reset_btn)
+        except Exception as e:
+            print(f"Copy error: {e}")
+    
+    def _copy_last_message(self):
+        """Copy the most recent transcription to clipboard."""
+        global last_transcription
+        text_to_copy = None
+        
+        # Try global last_transcription first
+        if last_transcription:
+            text_to_copy = last_transcription
+        else:
+            # Fallback to most recent from stats
+            transcripts = stats_tracker.data.get("recent_transcripts", [])
+            if transcripts:
+                text_to_copy = transcripts[0].get("full_text", transcripts[0].get("text", ""))
+        
+        if text_to_copy:
+            try:
+                pyperclip.copy(text_to_copy)
+                # Show success feedback
+                self.status_label.config(text="✓ Copied to clipboard!", fg=Theme.SUCCESS)
+                self.copy_last_btn.config(bg=Theme.SUCCESS, fg=Theme.BG_DARK)
+                def reset_feedback():
+                    try:
+                        if self.winfo_exists():
+                            self.status_label.config(text="")
+                            self.copy_last_btn.config(bg=Theme.BG_ELEVATED, fg=Theme.TEXT_PRIMARY)
+                    except Exception:
+                        pass
+                self.after(1500, reset_feedback)
+            except Exception as e:
+                self.status_label.config(text=f"Copy failed: {str(e)[:30]}", fg=Theme.ERROR)
+        else:
+            self.status_label.config(text="No message to copy", fg=Theme.WARNING)
     
     def _update_milestones(self, milestones):
         """Update milestone badges."""
@@ -1533,6 +1724,61 @@ def startup_diagnostics():
         log_line("Available input devices:\n" + devices_summary_text())
 
 
+# Global flag to track if CUDA warmup is done
+_cuda_warmed_up = False
+
+def cuda_warmup():
+    """Pre-load model into GPU memory by running a tiny transcription."""
+    global _cuda_warmed_up
+    if _cuda_warmed_up:
+        return
+    
+    if resolved_whisper_bin is None or not os.path.exists(MODEL_PATH):
+        log_line("[warmup] Skipping - missing binary or model")
+        return
+    
+    try:
+        log_line("[warmup] Starting CUDA warmup...")
+        
+        # Create a tiny 0.5s silent audio file for warmup
+        warmup_wav = os.path.join(tempfile.gettempdir(), "whisper_warmup.wav")
+        warmup_samples = int(SAMPLE_RATE * 0.5)
+        warmup_audio = np.zeros((warmup_samples, CHANNELS), dtype=np.float32)
+        # Add tiny noise so it's not completely silent
+        warmup_audio += np.random.randn(*warmup_audio.shape).astype(np.float32) * 0.001
+        sf.write(warmup_wav, warmup_audio, SAMPLE_RATE)
+        
+        # Run whisper with minimal processing to just load the model
+        exe = os.path.abspath(_resolve_whisper_exe(resolved_whisper_bin))
+        workdir = os.path.dirname(exe) or "."
+        
+        cmd = [
+            exe, "-m", MODEL_PATH,
+            "-l", "en", "-nt",
+            "-bs", "1",  # Minimal batch size for warmup
+            warmup_wav
+        ]
+        
+        env = os.environ.copy()
+        env["GGML_CUDA_FORCE_CUBLAS"] = "1"
+        env["CUDA_LAUNCH_BLOCKING"] = "0"
+        
+        # Run silently
+        subprocess.run(cmd, cwd=workdir, env=env, capture_output=True, timeout=30)
+        
+        # Cleanup
+        try:
+            os.remove(warmup_wav)
+        except Exception:
+            pass
+        
+        _cuda_warmed_up = True
+        log_line("[warmup] CUDA warmup complete - GPU model loaded")
+        
+    except Exception as e:
+        log_line(f"[warmup] Warmup failed (non-critical): {e}")
+
+
 def _resolve_whisper_exe(bin_path: str) -> str:
     """Resolve path to whisper binary."""
     for key in ("FLOW_WHISPER_BIN", "WHISPER_BIN"):
@@ -1574,18 +1820,18 @@ def build_whisper_cmd(exe, model_path, wav_path, base_args=None):
 
     return [exe, "-m", model_path, "-f", wav_path, *base_args, *extra_args]
 
-MIN_SEC = 0.3
+MIN_SEC = 0.2  # Reduced for faster speech detection
 RMS_THRESH = 0.002
 PREROLL_SEC = 2.0
-POSTROLL_SEC = 0.4
+POSTROLL_SEC = 0.15  # Reduced from 0.4 for snappier response
 
 def record_loop():
     """Record while recording_flag is set; write to WAV on stop with RMS gate."""
     log_line("[rec] start")
-    notify("🎙️ Listening...")
+    # Skip slow toast notification - UI pill already shows listening state
     data = []
     voiced_samples = 0
-    block_dur = 0.1
+    block_dur = 0.05  # Reduced from 0.1 for faster RMS detection
 
     if selected_input_device_idx is None:
         set_status_safe("❌ Mic not ready", Theme.ERROR, Theme.TEXT_PRIMARY, Theme.ERROR)
@@ -1621,6 +1867,10 @@ def record_loop():
 
     try:
         audio = np.concatenate(data, axis=0)
+        # Pre-normalize for consistent levels (improves transcription speed & accuracy)
+        peak = np.max(np.abs(audio))
+        if peak > 0.01:  # Only normalize if there's actual audio
+            audio = audio * (0.9 / peak)
         sf.write(WAV_TMP, audio, SAMPLE_RATE)
         safe_print(f"[rec] stop, saved: {WAV_TMP}")
     except Exception as e:
@@ -1644,16 +1894,16 @@ def start_recording():
     rec_thread.start()
 
 def _select_whisper_params(duration_sec):
-    if duration_sec is None or duration_sec < 10:
-        return 5, None, "fast"
-    elif duration_sec < 25:
-        return 6, 5, "moderate accuracy"
-    elif duration_sec < 45:
-        return 5, 3, "balanced"
-    elif duration_sec < 90:
-        return 3, 2, "conservative GPU"
+    """Aggressive GPU-optimized parameters for maximum speed with large model."""
+    # Use consistent high batch size - GPU can handle it
+    if duration_sec is None or duration_sec < 15:
+        return 8, None, "fast-gpu"  # No best-of for short audio = faster
+    elif duration_sec < 30:
+        return 8, 2, "balanced-gpu"
+    elif duration_sec < 60:
+        return 8, 3, "quality-gpu"  # Max best-of capped at 3
     else:
-        return 2, None, "minimal GPU/long audio"
+        return 6, 2, "long-audio"  # Slightly lower for very long audio
 
 
 def _parse_cuda_error(stderr_text):
@@ -1739,7 +1989,7 @@ def run_whisper(filename, bin_path):
             "-mc", "0",
             "-bs", str(batch_size),
             "-t", num_threads,
-            "-nfa",
+            "-fa",  # Enable Flash Attention for 2x faster GPU inference
             "-otxt", "-of", out_txt[:-4],
         ],
     )
@@ -1753,6 +2003,7 @@ def run_whisper(filename, bin_path):
 
     env = os.environ.copy()
     env["GGML_CUDA_FORCE_CUBLAS"] = "1"
+    env["CUDA_LAUNCH_BLOCKING"] = "0"  # Async GPU operations for better throughput
     log_line(f"DEBUG exe = {exe}")
     log_line(f"DEBUG wav_path = {filename}")
     log_line(f"DEBUG cmd = {cmd}")
@@ -1797,7 +2048,6 @@ def run_whisper(filename, bin_path):
             "-mc", "0",
             "-bs", str(cpu_batch_size),
             "-t", num_threads,
-            "-nfa",
             "-otxt", "-of", out_txt[:-4],
             "--no-gpu"
         ]
@@ -1873,7 +2123,7 @@ def _transcribe_and_paste(wav_path):
     rc, out, err = run_whisper(wav_path, bin_path)
 
     if rc != 0:
-        notify("❌ Transcription failed")
+        # Skip slow toast notification - just update UI status
         set_status_safe("❌ Failed", Theme.ERROR, Theme.TEXT_PRIMARY, Theme.ERROR)
         safe_print(f"[whisper] exit={rc} stderr={err[:400]}")
         return
@@ -1892,27 +2142,62 @@ def _transcribe_and_paste(wav_path):
 
     banned = {"[ Silence ]", "[silence]", ""}
     if text in banned or len(text.replace("\n","" ).strip()) == 0:
-        notify("⚠️ Nothing to paste (empty transcript)")
+        # Skip slow toast notification
         set_status_safe("🔇 Empty transcript", Theme.WARNING, Theme.BG_DARK, Theme.WARNING)
         return
 
     try:
+        global last_transcription
         text = postprocess(text)
         
-        # Record stats BEFORE pasting
-        stats_tracker.record_transcription(text)
+        # Store last transcription for manual copy access
+        last_transcription = text
         
-        pyperclip.copy(text)
-        time.sleep(0.05)
-        pyautogui.hotkey("ctrl", "v")
-        notify("✅ Pasted successfully!")
-        set_status_safe("✅ Pasted!", Theme.SUCCESS, Theme.TEXT_PRIMARY, Theme.SUCCESS)
-        threading.Timer(2.0, lambda: set_status_safe("🎤 Ready", Theme.BG_ELEVATED, Theme.TEXT_PRIMARY, Theme.PINK_PRIMARY)).start()
-        safe_print("Pasted OK")
+        # Check if our dashboard or pill has focus - if so, just copy to clipboard
+        user32 = ctypes.windll.user32
+        foreground_hwnd = user32.GetForegroundWindow()
+        our_window_focused = False
+        
+        try:
+            if dashboard_window and dashboard_window.winfo_exists():
+                dashboard_hwnd = int(dashboard_window.winfo_id())
+                if foreground_hwnd == dashboard_hwnd:
+                    our_window_focused = True
+            if gui and gui.root and gui.root.winfo_exists():
+                pill_hwnd = int(gui.root.winfo_id())
+                if foreground_hwnd == pill_hwnd:
+                    our_window_focused = True
+        except Exception:
+            pass
+        
+        if our_window_focused:
+            # Dashboard has focus - just copy to clipboard, don't auto-paste
+            pyperclip.copy(text)
+            # Record stats async
+            threading.Thread(target=stats_tracker.record_transcription, args=(text,), daemon=True).start()
+            set_status_safe("📋 Copied!", Theme.SUCCESS, Theme.TEXT_PRIMARY, Theme.SUCCESS)
+            threading.Timer(1.5, lambda: set_status_safe("🎤 Ready", Theme.BG_ELEVATED, Theme.TEXT_PRIMARY, Theme.PINK_PRIMARY)).start()
+            safe_print("Copied to clipboard (dashboard focused)")
+        else:
+            # Use instant Win32 paste for zero-latency feel
+            if instant_paste(text):
+                # Record stats async (don't block the paste experience)
+                threading.Thread(target=stats_tracker.record_transcription, args=(text,), daemon=True).start()
+                set_status_safe("✅ Pasted!", Theme.SUCCESS, Theme.TEXT_PRIMARY, Theme.SUCCESS)
+                threading.Timer(1.5, lambda: set_status_safe("🎤 Ready", Theme.BG_ELEVATED, Theme.TEXT_PRIMARY, Theme.PINK_PRIMARY)).start()
+                safe_print("Pasted OK")
+            else:
+                raise Exception("instant_paste failed")
     except Exception as e:
         safe_print(f"Paste error: {e}")
-        notify("❌ Copy/Paste error")
-        set_status_safe("❌ Paste error", Theme.ERROR, Theme.TEXT_PRIMARY, Theme.ERROR)
+        # Fallback: at least copy to clipboard
+        try:
+            pyperclip.copy(text)
+            threading.Thread(target=stats_tracker.record_transcription, args=(text,), daemon=True).start()
+            set_status_safe("📋 Copied!", Theme.WARNING, Theme.BG_DARK, Theme.WARNING)
+            safe_print("Fallback: copied to clipboard")
+        except Exception:
+            set_status_safe("❌ Paste error", Theme.ERROR, Theme.TEXT_PRIMARY, Theme.ERROR)
 
 
 def stop_recording_and_transcribe():
@@ -1938,7 +2223,8 @@ def stop_recording_and_transcribe():
                 os.remove(WAV_TMP)
         except Exception:
             pass
-        notify("No speech detected")
+        # Skip slow toast - UI already shows status
+        set_status_safe("🔇 No speech", Theme.WARNING, Theme.BG_DARK, Theme.WARNING)
         with STATE_LOCK:
             transcribing_flag.clear()
         return
@@ -2107,6 +2393,9 @@ def main():
     
     startup_diagnostics()
     
+    # Start CUDA warmup in background (pre-load GPU model for instant first transcription)
+    threading.Thread(target=cuda_warmup, daemon=True).start()
+    
     try:
         device_lines = devices_summary_text()
         notify("✅ Ready! Hold WIN + CTRL to speak.")
@@ -2114,6 +2403,7 @@ def main():
         safe_print(f"✅ Microphone: {selected_input_device_name}")
         safe_print(f"✅ Model: {os.path.basename(MODEL_PATH)}")
         safe_print(f"✅ Whisper binary: {resolved_whisper_bin}")
+        safe_print("🔥 CUDA warmup running in background...")
         safe_print("=" * 60)
     except Exception:
         pass

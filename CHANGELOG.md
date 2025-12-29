@@ -118,3 +118,4 @@ This project uses [Semantic Versioning](https://semver.org/):
 
 **Note:** This is version 2.0.0, a complete overhaul focused on user experience, documentation, and ease of use.
 
+

@@ -42,3 +42,4 @@ That's it! 🎉
 
 **Tip:** Works in any application - Notepad, Word, browsers, chat apps, etc!
 
+
