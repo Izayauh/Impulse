@@ -17,6 +17,69 @@ import json
 import math
 
 # ============================================================================
+# APPLICATION METADATA
+# ============================================================================
+APP_NAME = "WhisperLocal"
+APP_VERSION = "1.0.0"
+APP_AUTHOR = "WhisperLocal"
+
+# ============================================================================
+# PYINSTALLER PATH RESOLUTION
+# ============================================================================
+def is_frozen():
+    """Check if running as a PyInstaller bundle."""
+    return getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS')
+
+def get_bundle_dir():
+    """Get the directory where bundled resources are located."""
+    if is_frozen():
+        return sys._MEIPASS
+    return os.path.dirname(os.path.abspath(__file__))
+
+def get_app_dir():
+    """Get the application directory (where the exe is located, or script dir in dev)."""
+    if is_frozen():
+        return os.path.dirname(sys.executable)
+    return os.path.dirname(os.path.abspath(__file__))
+
+def get_user_data_dir():
+    """Get the user data directory for config, logs, and temp files."""
+    if is_frozen():
+        # Use AppData/Local for user-specific data
+        appdata = os.environ.get('LOCALAPPDATA', os.path.expanduser('~'))
+        data_dir = os.path.join(appdata, APP_NAME)
+        os.makedirs(data_dir, exist_ok=True)
+        return data_dir
+    return os.path.dirname(os.path.abspath(__file__))
+
+def get_config_file():
+    """Get the path to the config file."""
+    return os.path.join(get_user_data_dir(), "config.json")
+
+def is_first_run():
+    """Check if this is the first run of the application."""
+    return not os.path.exists(get_config_file())
+
+def mark_first_run_complete():
+    """Mark that the first run setup has been completed."""
+    config_file = get_config_file()
+    config = {}
+    if os.path.exists(config_file):
+        try:
+            with open(config_file, 'r') as f:
+                config = json.load(f)
+        except Exception:
+            pass
+    config['first_run_complete'] = True
+    config['version'] = APP_VERSION
+    config['install_date'] = datetime.datetime.now().isoformat()
+    try:
+        with open(config_file, 'w') as f:
+            json.dump(config, f, indent=2)
+    except Exception as e:
+        print(f"Warning: Could not save config: {e}")
+
+# ============================================================================
 # FAST WIN32 CLIPBOARD & INPUT - Zero-latency paste
 # ============================================================================
 # Win32 constants
@@ -162,7 +225,7 @@ class Theme:
 # ============================================================================
 # STATS TRACKING SYSTEM
 # ============================================================================
-STATS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "whisper_stats.json")
+STATS_FILE = os.path.join(get_user_data_dir(), "whisper_stats.json")
 
 class StatsTracker:
     def __init__(self):
@@ -324,11 +387,22 @@ stats_tracker = StatsTracker()
 # Enable CUDA by default unless explicitly disabled via environment
 os.environ.setdefault("GGML_CUDA_ENABLE", "1")
 
-# Auto-detect whisper binary in current directory (no hardcoded paths)
-_script_dir = os.path.dirname(os.path.abspath(__file__))
-_default_bin = os.path.join(_script_dir, "whisper-cli.exe")
+# ============================================================================
+# PATH RESOLUTION FOR BUNDLED AND DEV ENVIRONMENTS
+# ============================================================================
+# Get directories based on whether we're running bundled or in dev
+_bundle_dir = get_bundle_dir()  # Where bundled resources are (models, DLLs)
+_app_dir = get_app_dir()        # Where the exe/script is located
+_user_dir = get_user_data_dir() # User-writable directory for logs, temp files
+
+# Auto-detect whisper binary - check bundle dir first, then app dir
+_default_bin = os.path.join(_bundle_dir, "whisper-cli.exe")
 if not os.path.isfile(_default_bin):
-    _default_bin = os.path.join(_script_dir, "main.exe")
+    _default_bin = os.path.join(_bundle_dir, "main.exe")
+if not os.path.isfile(_default_bin):
+    _default_bin = os.path.join(_app_dir, "whisper-cli.exe")
+if not os.path.isfile(_default_bin):
+    _default_bin = os.path.join(_app_dir, "main.exe")
 
 os.environ.setdefault("FLOW_WHISPER_BIN", _default_bin)
 os.environ.setdefault("WHISPER_BIN", os.environ["FLOW_WHISPER_BIN"])
@@ -351,7 +425,7 @@ import tempfile, uuid, msvcrt
 _SINGLETON_LOCK = None
 def _acquire_single_instance():
     global _SINGLETON_LOCK
-    lock_path = os.path.join(tempfile.gettempdir(), "flow_local_dictation.lock")
+    lock_path = os.path.join(tempfile.gettempdir(), f"{APP_NAME.lower()}_dictation.lock")
     _SINGLETON_LOCK = open(lock_path, "w")
     try:
         msvcrt.locking(_SINGLETON_LOCK.fileno(), msvcrt.LK_NBLCK, 1)
@@ -362,7 +436,7 @@ def _acquire_single_instance():
 _acquire_single_instance()
 
 # --- Config ---
-# Model paths for dynamic selection based on word count
+# Model paths for dynamic selection based on word count (relative paths)
 MODEL_BASE = os.path.join("models", "ggml-base.en.bin")
 MODEL_MEDIUM = os.path.join("models", "ggml-medium.en.bin")
 MODEL_LARGE = os.path.join("models", "ggml-large-v3.bin")
@@ -377,8 +451,11 @@ MODEL_PATH_REL = MODEL_LARGE  # fallback if dynamic selection fails
 WHISPER_BIN = os.environ.get("WHISPER_BIN") or os.path.join(".", "main.exe")
 SAMPLE_RATE = 16000
 CHANNELS = 1
-WAV_TMP = "flow_input.wav"
-TEXT_TMP_BASE = "flow_out"  # base name for whisper-cli text output
+
+# Use user data directory for temp files (writable location)
+WAV_TMP = os.path.join(_user_dir, "flow_input.wav")
+TEXT_TMP_BASE = os.path.join(_user_dir, "flow_out")  # base name for whisper-cli text output
+
 HOTKEY_HOLD = "windows+ctrl"    # hold to talk; release to transcribe
 NOTIFY = True
 
@@ -400,14 +477,15 @@ WHISPER_TIMEOUT_SEC = 120
 SILENCE_RMS_THRESHOLD = 0.008
 MIN_SPOKEN_BLOCKS = 3
 
-# Log file for diagnostics
-LOG_FILE = "flow.log"
+# Log file for diagnostics (user-writable location)
+LOG_FILE = os.path.join(_user_dir, "flow.log")
 
-# Whisper binary detection candidates (prefer whisper-cli.exe in script directory)
-_script_dir = os.path.dirname(os.path.abspath(__file__)) or "."
+# Whisper binary detection candidates (check bundle dir, app dir, and legacy locations)
 WHISPER_CANDIDATES = [
-    os.path.join(_script_dir, "whisper-cli.exe"),
-    os.path.join(_script_dir, "main.exe"),
+    os.path.join(_bundle_dir, "whisper-cli.exe"),
+    os.path.join(_bundle_dir, "main.exe"),
+    os.path.join(_app_dir, "whisper-cli.exe"),
+    os.path.join(_app_dir, "main.exe"),
     os.path.join(".", "whisper-cli.exe"),
     os.path.join(".", "main.exe"),
     os.path.join("whisper.cpp", "build", "bin", "Release", "whisper-cli.exe"),
@@ -1493,7 +1571,8 @@ def open_settings_window(parent):
 
 # --- Helpers & Diagnostics ---
 def res_path(rel):
-    base = getattr(sys, "_MEIPASS", os.path.abspath("."))
+    """Resolve path to bundled resource file."""
+    base = get_bundle_dir()
     return os.path.join(base, rel)
 
 # Resolve model paths after res_path is defined
@@ -1538,13 +1617,142 @@ def notify(msg):
     if NOTIFY:
         try:
             if Notification is not None:
-                n = Notification(app_id="Whisper Local", title="Whisper Local", msg=msg)
+                n = Notification(app_id=APP_NAME, title=APP_NAME, msg=msg)
                 if audio is not None:
                     n.set_audio(audio.SMS, loop=False)
                 n.show()
         except Exception:
             pass
     log_line(msg)
+
+
+# ============================================================================
+# USER-FRIENDLY ERROR HANDLING
+# ============================================================================
+def show_friendly_error(title: str, message: str, details: str = None, show_settings: bool = False):
+    """Show a user-friendly error dialog with troubleshooting info.
+    
+    Args:
+        title: Dialog title
+        message: Main error message (user-friendly)
+        details: Technical details (optional, shown in expandable section)
+        show_settings: Whether to offer opening settings
+    """
+    try:
+        from tkinter import messagebox
+        
+        full_message = message
+        if details:
+            full_message += f"\n\nTechnical details:\n{details}"
+        
+        if show_settings:
+            full_message += "\n\nWould you like to open Settings to fix this?"
+            result = messagebox.askyesno(title, full_message, icon="warning")
+            if result:
+                # Try to open settings
+                try:
+                    if gui and gui.root:
+                        open_settings_window(gui.root)
+                except Exception:
+                    pass
+        else:
+            messagebox.showwarning(title, full_message)
+    except Exception:
+        # Fallback to console/notification
+        notify(f"{title}: {message}")
+
+
+def get_friendly_error_message(error_type: str, technical_error: str = None) -> tuple:
+    """Get user-friendly error message for common issues.
+    
+    Returns:
+        Tuple of (friendly_message, suggestion, show_settings)
+    """
+    error_map = {
+        "no_microphone": (
+            "No microphone detected",
+            "Please connect a microphone and restart the app.\n\n"
+            "If you have a microphone connected, try:\n"
+            "• Check Windows Sound Settings\n"
+            "• Make sure the microphone isn't muted\n"
+            "• Try a different USB port",
+            True
+        ),
+        "microphone_error": (
+            "Microphone not working",
+            "There's a problem with your microphone.\n\n"
+            "Try:\n"
+            "• Selecting a different microphone in Settings\n"
+            "• Checking if other apps can use the microphone\n"
+            "• Restarting the app",
+            True
+        ),
+        "no_models": (
+            "AI models not found",
+            "The speech recognition models are missing.\n\n"
+            "This might mean the installation is incomplete.\n"
+            "Please reinstall the application.",
+            False
+        ),
+        "no_whisper_binary": (
+            "Speech engine not found",
+            "The whisper-cli.exe file is missing.\n\n"
+            "This might mean the installation is incomplete.\n"
+            "Please reinstall the application.",
+            False
+        ),
+        "gpu_not_available": (
+            "Using CPU mode",
+            "GPU acceleration is not available.\n"
+            "Transcription will be slower but still works!\n\n"
+            "For faster performance, install NVIDIA CUDA drivers.",
+            False
+        ),
+        "transcription_failed": (
+            "Transcription failed",
+            "Something went wrong during transcription.\n\n"
+            "Try:\n"
+            "• Speaking more clearly\n"
+            "• Recording a longer phrase\n"
+            "• Checking your microphone",
+            True
+        ),
+        "paste_failed": (
+            "Could not paste text",
+            "The text was transcribed but couldn't be pasted.\n"
+            "The text has been copied to your clipboard.\n\n"
+            "Press Ctrl+V to paste manually.",
+            False
+        ),
+    }
+    
+    if error_type in error_map:
+        message, suggestion, show_settings = error_map[error_type]
+        return message, suggestion, show_settings
+    
+    # Generic fallback
+    return (
+        "Something went wrong",
+        f"An unexpected error occurred.\n\n{technical_error or 'Please try again.'}",
+        False
+    )
+
+
+def handle_startup_issue(issue_type: str, technical_error: str = None):
+    """Handle a startup issue with user-friendly messaging."""
+    message, suggestion, show_settings = get_friendly_error_message(issue_type, technical_error)
+    
+    # Log technical details
+    if technical_error:
+        log_line(f"STARTUP_ISSUE: {issue_type} - {technical_error}")
+    
+    # For non-critical issues, just notify
+    if issue_type == "gpu_not_available":
+        notify(f"ℹ️ {message}")
+        return
+    
+    # For critical issues, show dialog
+    show_friendly_error(message, suggestion, technical_error, show_settings)
 
 
 def sanitize_transcript(text: str) -> str:
@@ -1718,8 +1926,13 @@ def resolve_input_device():
 
 
 def startup_diagnostics():
-    """Run preflight checks and print a concise summary."""
+    """Run preflight checks and print a concise summary.
+    
+    Uses user-friendly error messages for general users while logging
+    technical details for troubleshooting.
+    """
     issues = []
+    critical_issues = []
     
     # Check all model files
     models_found = []
@@ -1735,48 +1948,70 @@ def startup_diagnostics():
             models_missing.append(model_name)
     
     if not models_found:
-        issues.append("No model files found")
+        critical_issues.append(("no_models", "No model files found in expected locations"))
     else:
-        log_line(f"Models available: {', '.join(models_found)}")
+        log_line(f"✓ Models available: {', '.join(models_found)}")
         if models_missing:
-            log_line(f"Models missing: {', '.join(models_missing)} (will fall back if needed)")
+            log_line(f"  (Optional models not found: {', '.join(models_missing)})")
+    
+    # Check whisper binary
     global resolved_whisper_bin
     resolved_whisper_bin = None
     for candidate in WHISPER_CANDIDATES:
         if os.path.exists(candidate):
             resolved_whisper_bin = candidate
             break
+    
     if resolved_whisper_bin is None:
-        issues.append("Missing whisper binary (checked multiple locations)")
+        critical_issues.append(("no_whisper_binary", f"Checked: {', '.join(WHISPER_CANDIDATES[:3])}..."))
     else:
-        log_line(f"Whisper bin: {resolved_whisper_bin}")
+        log_line(f"✓ Whisper engine: {os.path.basename(resolved_whisper_bin)}")
 
+    # Check audio system
     try:
         pa_ver = sd.get_portaudio_version()
-        log_line(f"PortAudio: {pa_ver}")
+        log_line(f"✓ Audio system: PortAudio {pa_ver[1] if isinstance(pa_ver, tuple) else pa_ver}")
     except Exception as e:
-        issues.append(f"PortAudio error: {e}")
+        issues.append(f"Audio system warning: {e}")
+        log_line(f"⚠ Audio system issue: {e}")
 
+    # Check microphone
     resolve_input_device()
     if selected_input_device_idx is None:
-        issues.append("No working input device")
+        critical_issues.append(("no_microphone", "No input devices detected by system"))
     else:
         try:
             sd.check_input_settings(device=selected_input_device_idx, samplerate=SAMPLE_RATE, channels=CHANNELS)
+            log_line(f"✓ Microphone: {selected_input_device_name}")
         except Exception as e:
-            issues.append(f"Device unsupported @ {SAMPLE_RATE} Hz / {CHANNELS}ch: {e}")
+            issues.append(("microphone_error", str(e)))
+            log_line(f"⚠ Microphone issue: {e}")
 
-    if issues:
-        set_status_safe("⚠️ Issues detected", Theme.WARNING, Theme.BG_DARK, Theme.WARNING)
-        for it in issues:
-            log_line(f"DIAG: {it}")
-            notify(it)
+    # Handle critical issues (show dialogs for general users)
+    if critical_issues:
+        set_status_safe("⚠️ Setup needed", Theme.WARNING, Theme.BG_DARK, Theme.WARNING)
+        
+        for issue_type, technical_detail in critical_issues:
+            log_line(f"CRITICAL: {issue_type} - {technical_detail}")
+            handle_startup_issue(issue_type, technical_detail)
+        
         log_line("Available input devices:\n" + devices_summary_text())
+        return False
+    
+    # Handle non-critical issues (just log them)
+    if issues:
+        set_status_safe("🎤 Ready (with warnings)", Theme.BG_ELEVATED, Theme.TEXT_PRIMARY, Theme.WARNING)
+        for issue in issues:
+            if isinstance(issue, tuple):
+                log_line(f"WARNING: {issue[0]} - {issue[1]}")
+            else:
+                log_line(f"WARNING: {issue}")
     else:
         set_status_safe("🎤 Ready", Theme.BG_ELEVATED, Theme.TEXT_PRIMARY, Theme.PINK_PRIMARY)
-        log_line("Diagnostics OK")
-        log_line(f"Selected mic: {selected_input_device_name}")
-        log_line("Available input devices:\n" + devices_summary_text())
+        log_line("✓ All diagnostics passed!")
+    
+    log_line(f"✓ Ready for dictation (Hold WIN+CTRL to speak)")
+    return True
 
 
 # Global flag to track if CUDA warmup is done
@@ -1835,25 +2070,58 @@ def cuda_warmup():
 
 
 def _resolve_whisper_exe(bin_path: str) -> str:
-    """Resolve path to whisper binary."""
+    """Resolve path to whisper binary.
+    
+    Search order:
+    1. Environment variables (FLOW_WHISPER_BIN, WHISPER_BIN)
+    2. Provided bin_path
+    3. Bundle directory (for PyInstaller builds)
+    4. App directory (where exe/script is located)
+    5. System PATH
+    6. Current working directory
+    """
+    # Check environment variables first
     for key in ("FLOW_WHISPER_BIN", "WHISPER_BIN"):
         p = os.getenv(key)
         if p and os.path.isfile(p):
             return p
+    
+    # Check provided path
     if bin_path and os.path.isfile(bin_path):
         return bin_path
+    
+    # Check bundle directory (PyInstaller)
+    bundle_dir = get_bundle_dir()
+    for exe_name in ("whisper-cli.exe", "main.exe"):
+        candidate = os.path.join(bundle_dir, exe_name)
+        if os.path.isfile(candidate):
+            return candidate
+    
+    # Check app directory
+    app_dir = get_app_dir()
+    if app_dir != bundle_dir:
+        for exe_name in ("whisper-cli.exe", "main.exe"):
+            candidate = os.path.join(app_dir, exe_name)
+            if os.path.isfile(candidate):
+                return candidate
+    
+    # Check system PATH
     w = shutil.which("whisper-cli.exe") or shutil.which("main.exe")
     if w:
         return w
-    _script_dir = os.path.dirname(os.path.abspath(__file__)) or "."
-    for exe_name in ("whisper-cli.exe", "main.exe"):
-        candidate = os.path.join(_script_dir, exe_name)
-        if os.path.isfile(candidate):
-            return candidate
+    
+    # Check current working directory
     for exe_name in ("whisper-cli.exe", "main.exe"):
         if os.path.isfile(exe_name):
             return os.path.abspath(exe_name)
-    raise FileNotFoundError("Whisper binary not found (env, PATH, or known locations).")
+    
+    raise FileNotFoundError(
+        f"Whisper binary not found. Searched:\n"
+        f"  - Bundle dir: {bundle_dir}\n"
+        f"  - App dir: {app_dir}\n"
+        f"  - System PATH\n"
+        f"Please ensure whisper-cli.exe is installed correctly."
+    )
 
 def build_whisper_cmd(exe, model_path, wav_path, base_args=None):
     base_args = base_args or []
@@ -2290,12 +2558,29 @@ def _transcribe_and_paste(wav_path):
     safe_print("[whisper] running...")
     set_status_safe("⚙️ Transcribing...", Theme.BG_ELEVATED, Theme.INFO, Theme.INFO)
     bin_path = (resolved_whisper_bin or WHISPER_BIN)
-    rc, out, err, model_used = run_whisper_smart(wav_path, bin_path)
+    
+    try:
+        rc, out, err, model_used = run_whisper_smart(wav_path, bin_path)
+    except FileNotFoundError as e:
+        # User-friendly error for missing binary
+        set_status_safe("❌ Engine not found", Theme.ERROR, Theme.TEXT_PRIMARY, Theme.ERROR)
+        log_line(f"TRANSCRIBE_ERROR: {e}")
+        notify("Speech engine not found. Please reinstall the application.")
+        return
+    except Exception as e:
+        # Generic transcription error
+        set_status_safe("❌ Error", Theme.ERROR, Theme.TEXT_PRIMARY, Theme.ERROR)
+        log_line(f"TRANSCRIBE_ERROR: {e}")
+        return
 
     if rc != 0:
-        # Skip slow toast notification - just update UI status
-        set_status_safe("❌ Failed", Theme.ERROR, Theme.TEXT_PRIMARY, Theme.ERROR)
-        safe_print(f"[whisper] exit={rc} stderr={err[:400]}")
+        # User-friendly status for failed transcription
+        set_status_safe("❌ Try again", Theme.ERROR, Theme.TEXT_PRIMARY, Theme.ERROR)
+        log_line(f"[whisper] exit={rc} stderr={err[:400]}")
+        # Reset status after delay
+        def reset_status():
+            set_status_safe("🎤 Ready", Theme.BG_ELEVATED, Theme.TEXT_PRIMARY, Theme.PINK_PRIMARY)
+        threading.Timer(2.0, reset_status).start()
         return
     
     safe_print(f"[whisper] Model used: {model_used}")
@@ -2554,7 +2839,7 @@ def start_tray():
 
 def main():
     safe_print("=" * 60)
-    safe_print("◉ Whisper Local Dictation System")
+    safe_print(f"◉ {APP_NAME} v{APP_VERSION}")
     safe_print("=" * 60)
     safe_print("📌 Controls:")
     safe_print("  • Hold WIN + CTRL to record")
@@ -2563,6 +2848,29 @@ def main():
     safe_print("  • WIN + CTRL + S for settings")
     safe_print("  • ESC to exit")
     safe_print("=" * 60)
+    
+    # Check for first run and show setup wizard
+    if is_first_run():
+        safe_print("First run detected - showing setup wizard...")
+        try:
+            from first_run_wizard import show_first_run_wizard
+            
+            # Show wizard before starting main app
+            wizard_complete = threading.Event()
+            
+            def on_wizard_complete():
+                wizard_complete.set()
+            
+            # Run wizard in main thread (tkinter requirement)
+            show_first_run_wizard(on_complete=on_wizard_complete)
+            
+            safe_print("Setup wizard completed!")
+        except ImportError as e:
+            safe_print(f"Could not load wizard (running in dev mode?): {e}")
+            mark_first_run_complete()
+        except Exception as e:
+            safe_print(f"Wizard error: {e}")
+            mark_first_run_complete()
     
     global gui
     gui = FloatingPill()

@@ -1,121 +1,83 @@
 # Changelog
 
-All notable changes to the Whisper Local Dictation System.
+All notable changes to WhisperLocal will be documented in this file.
 
-## [2.0.0] - 2024-12-20
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-### 🎉 Major Release - Complete System Overhaul
+## [1.0.0] - 2025-01-XX
 
 ### Added
-- 🚀 **Easy Launchers**
-  - `start_dictation.bat` - Windows Command Prompt launcher
-  - `start_dictation.ps1` - PowerShell launcher with colored output
-  - Automatic dependency checking and installation
-  - Model and binary verification
-  
-- 📚 **Comprehensive Documentation**
-  - `USER_GUIDE.md` - 400+ line complete user manual
-  - `QUICK_START.md` - 30-second quick start guide
-  - `IMPROVEMENTS.md` - Detailed improvement summary
-  - Updated `README.md` with modern formatting
-  
-- 🧪 **Testing Tools**
-  - `test_system.ps1` - 8-point system diagnostic script
-  - Automatic test result logging
-  - Component verification (Python, packages, models, GPU, audio)
-  
-- ✨ **UI Enhancements**
-  - Emoji icons for all status states (🎤 🎙️ ⚙️ ✅ 🔇 ❌)
-  - Colored status bar borders (gray → red → blue → green)
-  - Smooth fade animations on state changes
-  - Larger status bar (280x22px vs 220x18px)
-  - Auto-return to Ready state after successful paste
-  
-- 🔔 **Better Notifications**
-  - Emoji-enhanced notification messages
-  - More descriptive status updates
-  - Startup summary with device/model info
 
-### Fixed
-- 🐛 **Path Configuration**
-  - Removed hardcoded user-specific paths
-  - Auto-detection of whisper binaries in script directory
-  - Fallback search in multiple locations
-  - Works out-of-the-box without configuration
-  
-- 🎨 **User Experience**
-  - Better error messages with specific solutions
-  - Clear visual feedback for all states
-  - Improved startup messages with ASCII art borders
-  - Enhanced logging with component detection
+- **Standalone Installer**: One-click installation for Windows 10/11 users
+  - No Python installation required
+  - All dependencies bundled (AI models, CUDA libraries)
+  - Automatic desktop shortcut and Start Menu integration
+  - Optional auto-start on Windows boot
 
-### Changed
-- ⚡ **Improved Startup**
-  - Shows comprehensive startup banner with controls
-  - Displays selected microphone, model, and binary
-  - Better diagnostic output
-  
-- 🎯 **Status Bar**
-  - Increased size for better visibility
-  - Added border styling
-  - Improved text clarity with larger font (9→10pt)
-  - Better color contrast
-  
-- 📝 **Logging**
-  - More detailed startup diagnostics
-  - Better error context
-  - Component verification logs
+- **First-Run Setup Wizard**: Guided setup for new users
+  - Welcome screen with feature overview
+  - Microphone selection and testing
+  - Quick tutorial with visual instructions
+  - One-click configuration
 
-### Technical
-- Refactored binary detection logic
-- Improved error handling throughout
-- Better thread safety
-- Enhanced GPU/CPU fallback mechanism
-- Optimized status bar update queue
+- **Smart Model Selection**: Automatic quality vs speed optimization
+  - Uses fast model (base.en) for short phrases (<25 words)
+  - Uses balanced model (medium.en) for medium dictations (25-75 words)
+  - Uses high-quality model (large-v3) for long content (75+ words)
 
-## [1.0.0] - Previous Version
+- **Modern Dark Theme UI**: Pink/black aesthetic with smooth animations
+  - Floating pill status indicator near taskbar
+  - Full dashboard with statistics and recent transcripts
+  - Gamification features (streaks, milestones, word counts)
 
-### Features
-- Local speech-to-text using Whisper.cpp
-- GPU acceleration with CUDA
-- Hotkey-based recording (WIN + CTRL)
-- Automatic paste after transcription
-- System tray icon
-- Multiple model support
-- Configurable settings window
+- **GPU Acceleration**: CUDA support for NVIDIA GPUs
+  - Automatic GPU detection and warmup
+  - Graceful fallback to CPU if GPU unavailable
+  - Flash Attention support for 2x faster inference
+
+- **Privacy-First Design**: 100% local processing
+  - No internet connection required after installation
+  - No data collection or telemetry
+  - All speech processed on-device
+
+- **System-Wide Dictation**: Works in any Windows application
+  - Simple WIN+CTRL hotkey to record
+  - Automatic paste into active window
+  - Clipboard fallback if paste fails
+
+- **User-Friendly Error Handling**: Clear messages for non-technical users
+  - Helpful troubleshooting suggestions
+  - Settings wizard for common issues
+  - Detailed logging for advanced debugging
+
+### Technical Details
+
+- Based on [Whisper.cpp](https://github.com/ggerganov/whisper.cpp) for efficient inference
+- Uses PyInstaller for standalone executable bundling
+- Inno Setup for Windows installer creation
+- Tkinter-based UI with custom theming
+
+### System Requirements
+
+- Windows 10 or Windows 11 (64-bit)
+- 4 GB RAM minimum (8 GB recommended)
+- 4 GB disk space for installation
+- Microphone (USB, 3.5mm, or Bluetooth)
+- NVIDIA GPU with CUDA support (optional, for faster transcription)
 
 ---
 
-## Version Numbering
+## [Unreleased]
 
-This project uses [Semantic Versioning](https://semver.org/):
-- **MAJOR** version for incompatible API changes
-- **MINOR** version for new functionality in a backwards compatible manner
-- **PATCH** version for backwards compatible bug fixes
+### Planned Features
 
-## Future Roadmap
-
-### Planned for v2.1.0
-- [ ] Automatic model download
-- [ ] Multiple language support UI
-- [ ] Recording waveform visualization
-- [ ] Configurable post-processing rules
-- [ ] Export/import settings
-
-### Planned for v2.2.0
-- [ ] Continuous dictation mode
-- [ ] Custom vocabulary/names
-- [ ] Punctuation commands
-- [ ] Text replacement macros
-
-### Under Consideration
-- [ ] macOS/Linux support
-- [ ] Web interface for remote control
-- [ ] Integration with text editors
-- [ ] Voice commands for system control
+- macOS and Linux support
+- Custom hotkey configuration
+- Voice commands for punctuation
+- Multiple language support
+- Auto-updater
 
 ---
 
-**Note:** This is version 2.0.0, a complete overhaul focused on user experience, documentation, and ease of use.
-
-
+*For bug reports and feature requests, please open an issue on GitHub.*

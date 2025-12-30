@@ -1,4 +1,4 @@
-# 🎤 Whisper Local Dictation System - User Guide
+# 🎤 WhisperLocal - User Guide
 
 A powerful, privacy-focused speech-to-text dictation system using OpenAI's Whisper running locally on your computer.
 
@@ -8,36 +8,37 @@ A powerful, privacy-focused speech-to-text dictation system using OpenAI's Whisp
 - **GPU Accelerated** - Uses CUDA for fast transcription on NVIDIA GPUs
 - **System-wide Dictation** - Works in any application
 - **Real-time Feedback** - Visual status bar shows recording and transcription status
-- **Smart Post-Processing** - Automatic text cleanup and formatting
-- **Lightweight UI** - Minimalist status bar that stays out of your way
+- **Smart Model Selection** - Automatically picks the best model for your dictation length
+- **Modern Dashboard** - Track your usage with statistics and achievements
 
 ## 🚀 Quick Start
 
-### Prerequisites
+### Installation (Recommended)
 
-1. **Python 3.8 or later** - [Download Python](https://www.python.org/downloads/)
-2. **NVIDIA GPU** (optional but recommended for speed) - RTX series or GTX 1000+ series
-3. **Whisper Model** - Already included in `models/` folder
-4. **Whisper Binary** - Already included (`whisper-cli.exe`)
+1. **Download the installer** from the releases page
+2. **Run `WhisperLocal-Setup.exe`**
+3. **Follow the setup wizard**:
+   - Select your microphone
+   - Learn the simple controls
+   - Optionally create desktop shortcut
+4. **Start dictating!**
 
-### Installation
+No Python installation required. Everything is bundled in the installer.
 
-1. **Run the launcher script:**
-   - **Double-click** `start_dictation.bat` (Command Prompt)
-   - OR **Right-click** `start_dictation.ps1` → "Run with PowerShell"
+### Installation (For Developers)
 
-2. The launcher will automatically:
-   - Check Python installation
-   - Install required Python packages
-   - Verify model and binary files
-   - Start the dictation system
+If you prefer to run from source:
+
+1. Install Python 3.8 or later
+2. Run `start_dictation.bat` (auto-installs dependencies)
+3. Follow the on-screen instructions
 
 ### First Time Setup
 
-On first run, you may need to:
-1. Allow Python through Windows Firewall (if prompted)
-2. Grant microphone permissions
-3. Wait for initial package installation (~1-2 minutes)
+On first run, the setup wizard will guide you through:
+1. **Microphone Selection** - Choose and test your preferred microphone
+2. **Quick Tutorial** - Learn the simple hotkey controls
+3. **Preferences** - Desktop shortcut and auto-start options
 
 ## 🎯 Usage
 

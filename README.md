@@ -1,8 +1,36 @@
-# 🎤 Whisper Local Dictation System
+# 🎤 WhisperLocal
 
 **Privacy-focused, GPU-accelerated speech-to-text dictation for Windows**
 
 Transform your voice into text instantly - completely offline, using OpenAI's Whisper AI running locally on your computer.
+
+---
+
+## 📥 Download & Install
+
+### Option 1: Installer (Recommended for most users)
+
+**[Download WhisperLocal-Setup.exe](https://github.com/whisperlocal/whisperlocal/releases/latest)**
+
+1. Download the installer (~3.5 GB)
+2. Run `WhisperLocal-Setup.exe`
+3. Follow the setup wizard
+4. Start dictating!
+
+No Python, no configuration, no technical knowledge required.
+
+### Option 2: From Source (For developers)
+
+```powershell
+# Clone the repository
+git clone https://github.com/whisperlocal/whisperlocal.git
+cd whisperlocal
+
+# Run the launcher (installs dependencies automatically)
+.\start_dictation.bat
+```
+
+---
 
 ## ✨ Features
 
@@ -10,101 +38,148 @@ Transform your voice into text instantly - completely offline, using OpenAI's Wh
 - ⚡ **GPU Accelerated** - Fast transcription with NVIDIA CUDA
 - 🌍 **System-wide** - Works in any application
 - 🎯 **Simple Controls** - Just hold WIN + CTRL to dictate
-- 🎨 **Clean UI** - Minimal status bar that stays out of your way
-- 📝 **Smart Text Processing** - Automatic cleanup and formatting
+- 🎨 **Modern UI** - Dark theme with statistics dashboard
+- 📝 **Smart Model Selection** - Auto-picks best speed/quality balance
+
+---
 
 ## 🚀 Quick Start
 
-**Just run:** `start_dictation.bat`
-
-That's it! The launcher handles everything:
-- Checks Python installation
-- Installs required packages
-- Verifies model files
-- Starts the dictation system
-
-## 📖 Usage
-
-1. Position your cursor where you want text
-2. **Hold WIN + CTRL** and speak
+1. **Position your cursor** where you want text
+2. **Hold WIN + CTRL** and speak clearly
 3. **Release** to transcribe and paste
 
-See [`QUICK_START.md`](QUICK_START.md) for basic usage  
-See [`USER_GUIDE.md`](USER_GUIDE.md) for detailed documentation
+That's it! Your spoken words appear as text.
 
-## 📋 Requirements
-
-- Windows 10/11
-- Python 3.8+
-- (Optional) NVIDIA GPU with CUDA for faster transcription
+---
 
 ## 🎯 Controls
 
 | Action | Hotkey |
 |--------|--------|
 | Record & Dictate | Hold `WIN + CTRL` |
+| Open Dashboard | Click the floating status pill |
 | Settings | `WIN + CTRL + S` |
 | Exit | `ESC` |
-| Self-Test | `F8` |
+
+---
+
+## 📊 Smart Model Selection
+
+WhisperLocal automatically selects the best model based on your dictation length:
+
+| Dictation Length | Model Used | Speed | Quality |
+|------------------|------------|-------|---------|
+| < 25 words | base.en | ⚡⚡⚡ Fastest | Good |
+| 25-75 words | medium.en | ⚡⚡ Fast | Better |
+| > 75 words | large-v3 | ⚡ Thorough | Best |
+
+This gives you the best of both worlds: quick response for short commands, high accuracy for longer dictation.
+
+---
+
+## 🔐 Privacy
+
+WhisperLocal is designed for privacy:
+
+- ✅ **100% Local** - No internet connection required
+- ✅ **No Cloud** - Speech never leaves your computer
+- ✅ **No Telemetry** - Zero data collection
+- ✅ **Open Source** - Fully auditable code
+
+See our full [Privacy Policy](PRIVACY.md).
+
+---
+
+## 📋 System Requirements
+
+| Requirement | Minimum | Recommended |
+|-------------|---------|-------------|
+| OS | Windows 10 (64-bit) | Windows 11 |
+| RAM | 4 GB | 8 GB |
+| Disk | 4 GB | 5 GB |
+| GPU | None (CPU works) | NVIDIA with CUDA |
+
+---
+
+## 🔧 Troubleshooting
+
+### "No speech detected"
+- Press `WIN + CTRL + S` to open microphone settings
+- Click "Test Mic" and speak - you should see the level bar move
+- Try selecting a different microphone device
+
+### Slow transcription
+- First run is slower (loading AI models into memory)
+- Subsequent runs are much faster
+- NVIDIA GPU users get 2-5x speed improvement
+
+### Application won't start
+- Ensure you're running Windows 10 or later (64-bit)
+- Try reinstalling the application
+- Check the log file in `%LOCALAPPDATA%\WhisperLocal\flow.log`
+
+See [`USER_GUIDE.md`](USER_GUIDE.md) for detailed troubleshooting.
+
+---
 
 ## 📁 Project Structure
 
 ```
-Whisper/
-├── start_dictation.bat        # Easy launcher (recommended)
-├── start_dictation.ps1        # PowerShell launcher
-├── flow_local_dictation.py   # Main application
-├── whisper-cli.exe            # Whisper binary
+WhisperLocal/
+├── WhisperLocal.exe           # Main application (installed version)
+├── whisper-cli.exe            # Whisper inference engine
 ├── models/                    # AI models
-│   ├── ggml-base.en.bin
-│   ├── ggml-medium.en.bin
-│   └── ggml-large-v3.bin
-├── QUICK_START.md             # Quick start guide
-└── USER_GUIDE.md              # Full documentation
+│   ├── ggml-base.en.bin       # Fast model (142 MB)
+│   ├── ggml-medium.en.bin     # Balanced model (1.5 GB)
+│   └── ggml-large-v3.bin      # Quality model (3.1 GB)
+├── *.dll                      # Runtime libraries
+└── User Guide.txt             # Documentation
 ```
 
-## 🔧 Troubleshooting
+---
 
-**Problem:** "No speech detected"  
-**Solution:** Press `WIN + CTRL + S` for microphone settings, click Test
+## 🛠️ Building from Source
 
-**Problem:** Slow transcription  
-**Solution:** GPU acceleration is automatic - first run loads model (slower)
+### Prerequisites
 
-**Problem:** Python not found  
-**Solution:** Install from [python.org](https://www.python.org/downloads/)
+- Python 3.8+
+- PyInstaller: `pip install pyinstaller`
+- Inno Setup (for installer): [Download](https://jrsoftware.org/isdl.php)
 
-See [`USER_GUIDE.md`](USER_GUIDE.md) for detailed troubleshooting.
+### Build Commands
 
-## 📊 Models
+```powershell
+# Install dependencies
+pip install sounddevice soundfile keyboard pyperclip pyautogui pillow pystray numpy pyinstaller
 
-| Model | Speed | Accuracy | Size |
-|-------|-------|----------|------|
-| base.en | ⚡⚡⚡ | ⭐⭐ | 142 MB |
-| medium.en | ⚡⚡ | ⭐⭐⭐ | 1.5 GB |
-| large-v3 | ⚡ | ⭐⭐⭐⭐ | 3.1 GB |
+# Build standalone executable
+.\build_installer.ps1
 
-Default: `large-v3` (best accuracy)
+# Or build without installer
+python -m PyInstaller build_config.spec
+```
 
-## 🔐 Privacy
-
-- ✅ 100% local processing
-- ✅ No internet required
-- ✅ No data collection
-- ✅ No cloud services
-- ✅ Open source
+---
 
 ## 📝 License
 
 MIT License - Based on [Whisper.cpp](https://github.com/ggerganov/whisper.cpp)
 
+---
+
 ## 🆘 Support
 
-1. Check `flow.log` for errors
-2. Run self-test with `F8`
-3. See [`USER_GUIDE.md`](USER_GUIDE.md) for help
+1. Check the log file: `%LOCALAPPDATA%\WhisperLocal\flow.log`
+2. See [`USER_GUIDE.md`](USER_GUIDE.md) for detailed help
+3. Open an issue on GitHub
+
+---
+
+## 📈 Changelog
+
+See [CHANGELOG.md](CHANGELOG.md) for version history.
 
 ---
 
 **Made with ❤️ for privacy-conscious users**
-
