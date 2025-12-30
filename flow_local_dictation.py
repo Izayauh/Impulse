@@ -103,13 +103,11 @@ def fast_send_paste() -> bool:
         return False
 
 def instant_paste(text: str) -> bool:
-    """Ultra-fast paste using Win32 APIs with fallback."""
-    # Try fast path first
-    if fast_clipboard_copy(text) and fast_send_paste():
-        return True
-    # Fallback to pyperclip + pyautogui
+    """Reliable paste using pyperclip + pyautogui (Win32 blocked by Windows security)."""
+    # Win32 SendInput gets blocked by Windows UIPI after first use - use pyautogui instead
     try:
         pyperclip.copy(text)
+        time.sleep(0.05)  # Small delay to ensure clipboard is ready
         pyautogui.hotkey("ctrl", "v")
         return True
     except Exception:
@@ -181,6 +179,11 @@ class StatsTracker:
             "last_use_date": None,
             "milestones": [],   # ["1K", "10K", ...]
             "recent_transcripts": [],  # Last 5 transcripts
+            "model_usage": {    # Track which models are used
+                "base.en": 0,
+                "medium.en": 0,
+                "large-v3": 0,
+            },
         }
         try:
             if os.path.exists(STATS_FILE):
@@ -203,12 +206,26 @@ class StatsTracker:
         except Exception as e:
             print(f"Stats save error: {e}")
     
-    def record_transcription(self, text: str):
-        """Record a successful transcription."""
+    def record_transcription(self, text: str, model_used: str = None):
+        """Record a successful transcription.
+        
+        Args:
+            text: The transcribed text
+            model_used: Which model was used (e.g., "base.en", "medium.en", "large-v3")
+        """
         if not text:
             return
         
         word_count = len(text.split())
+        
+        # Track model usage
+        if model_used:
+            # Normalize model name to key format
+            model_key = model_used.split(" ")[0]  # Handle "base.en (fallback)" -> "base.en"
+            if "model_usage" not in self.data:
+                self.data["model_usage"] = {"base.en": 0, "medium.en": 0, "large-v3": 0}
+            if model_key in self.data["model_usage"]:
+                self.data["model_usage"][model_key] += 1
         today = datetime.date.today().isoformat()
         
         # Update totals
@@ -345,7 +362,18 @@ def _acquire_single_instance():
 _acquire_single_instance()
 
 # --- Config ---
-MODEL_PATH_REL = os.path.join("models", "ggml-large-v3.bin")  # upgraded model for better accuracy
+# Model paths for dynamic selection based on word count
+MODEL_BASE = os.path.join("models", "ggml-base.en.bin")
+MODEL_MEDIUM = os.path.join("models", "ggml-medium.en.bin")
+MODEL_LARGE = os.path.join("models", "ggml-large-v3.bin")
+
+# Word count thresholds for model selection
+WORD_THRESHOLD_BASE = 25    # Use base.en for <25 words (fastest)
+WORD_THRESHOLD_MEDIUM = 75  # Use medium.en for 25-75 words (balanced)
+                            # Use large-v3 for 75+ words (highest quality)
+
+# Legacy default (will be dynamically selected)
+MODEL_PATH_REL = MODEL_LARGE  # fallback if dynamic selection fails
 WHISPER_BIN = os.environ.get("WHISPER_BIN") or os.path.join(".", "main.exe")
 SAMPLE_RATE = 16000
 CHANNELS = 1
@@ -408,6 +436,12 @@ dashboard_window = None
 
 # Last transcription for easy copy access
 last_transcription = None
+
+# Focus state captured at recording start (for reliable paste targeting)
+target_window_on_record_start = None
+
+# Timer reference for canceling pending status resets
+pending_status_timer = None
 
 # ============================================================================
 # FLOATING PILL STATUS BAR
@@ -1462,8 +1496,11 @@ def res_path(rel):
     base = getattr(sys, "_MEIPASS", os.path.abspath("."))
     return os.path.join(base, rel)
 
-# Resolve model path after res_path is defined
-MODEL_PATH = res_path(os.path.join("models", "ggml-large-v3.bin"))
+# Resolve model paths after res_path is defined
+MODEL_PATH_BASE = res_path(MODEL_BASE)
+MODEL_PATH_MEDIUM = res_path(MODEL_MEDIUM)
+MODEL_PATH_LARGE = res_path(MODEL_LARGE)
+MODEL_PATH = MODEL_PATH_LARGE  # Legacy fallback
 model_info_logged = False
 
 def safe_print(*args, **kwargs):
@@ -1683,8 +1720,26 @@ def resolve_input_device():
 def startup_diagnostics():
     """Run preflight checks and print a concise summary."""
     issues = []
-    if not os.path.exists(MODEL_PATH):
-        issues.append(f"Missing model at {MODEL_PATH}")
+    
+    # Check all model files
+    models_found = []
+    models_missing = []
+    for model_path, model_name in [
+        (MODEL_PATH_BASE, "base.en"),
+        (MODEL_PATH_MEDIUM, "medium.en"),
+        (MODEL_PATH_LARGE, "large-v3")
+    ]:
+        if os.path.exists(model_path):
+            models_found.append(model_name)
+        else:
+            models_missing.append(model_name)
+    
+    if not models_found:
+        issues.append("No model files found")
+    else:
+        log_line(f"Models available: {', '.join(models_found)}")
+        if models_missing:
+            log_line(f"Models missing: {', '.join(models_missing)} (will fall back if needed)")
     global resolved_whisper_bin
     resolved_whisper_bin = None
     for candidate in WHISPER_CANDIDATES:
@@ -1728,13 +1783,13 @@ def startup_diagnostics():
 _cuda_warmed_up = False
 
 def cuda_warmup():
-    """Pre-load model into GPU memory by running a tiny transcription."""
+    """Pre-load base model into GPU memory by running a tiny transcription."""
     global _cuda_warmed_up
     if _cuda_warmed_up:
         return
     
-    if resolved_whisper_bin is None or not os.path.exists(MODEL_PATH):
-        log_line("[warmup] Skipping - missing binary or model")
+    if resolved_whisper_bin is None or not os.path.exists(MODEL_PATH_BASE):
+        log_line("[warmup] Skipping - missing binary or base model")
         return
     
     try:
@@ -1748,12 +1803,12 @@ def cuda_warmup():
         warmup_audio += np.random.randn(*warmup_audio.shape).astype(np.float32) * 0.001
         sf.write(warmup_wav, warmup_audio, SAMPLE_RATE)
         
-        # Run whisper with minimal processing to just load the model
+        # Run whisper with minimal processing to just load the base model
         exe = os.path.abspath(_resolve_whisper_exe(resolved_whisper_bin))
         workdir = os.path.dirname(exe) or "."
         
         cmd = [
-            exe, "-m", MODEL_PATH,
+            exe, "-m", MODEL_PATH_BASE,
             "-l", "en", "-nt",
             "-bs", "1",  # Minimal batch size for warmup
             warmup_wav
@@ -1879,10 +1934,26 @@ def record_loop():
 
 
 def start_recording():
-    global rec_thread
+    global rec_thread, target_window_on_record_start, pending_status_timer
+    
+    # Cancel any pending status timer from previous transcription
+    if pending_status_timer is not None:
+        try:
+            pending_status_timer.cancel()
+        except Exception:
+            pass
+        pending_status_timer = None
+    
     with STATE_LOCK:
         if recording_flag.is_set() or transcribing_flag.is_set():
             return
+        # Capture focus BEFORE we start (before our UI updates)
+        # This ensures we know where to paste when transcription completes
+        try:
+            user32 = ctypes.windll.user32
+            target_window_on_record_start = user32.GetForegroundWindow()
+        except Exception:
+            target_window_on_record_start = None
         try:
             if os.path.exists(WAV_TMP):
                 os.remove(WAV_TMP)
@@ -1945,7 +2016,20 @@ def _extract_error_snippet(text, keyword):
     return text[:200]
 
 
-def run_whisper(filename, bin_path):
+def run_whisper(filename, bin_path, model_path=None):
+    """Run whisper transcription with specified model.
+    
+    Args:
+        filename: Path to audio file
+        bin_path: Path to whisper binary
+        model_path: Path to model file (defaults to MODEL_PATH_LARGE)
+    
+    Returns:
+        Tuple of (return_code, transcription_text, stderr)
+    """
+    if model_path is None:
+        model_path = MODEL_PATH_LARGE
+    
     exe = os.path.abspath(_resolve_whisper_exe(bin_path))
     workdir = os.path.dirname(exe) or "."
 
@@ -1959,10 +2043,14 @@ def run_whisper(filename, bin_path):
 
     global model_info_logged
     if not model_info_logged:
-        safe_print(f"MODEL_PATH -> {MODEL_PATH}")
+        safe_print(f"MODEL_PATH_BASE -> {MODEL_PATH_BASE}")
+        safe_print(f"MODEL_PATH_MEDIUM -> {MODEL_PATH_MEDIUM}")
+        safe_print(f"MODEL_PATH_LARGE -> {MODEL_PATH_LARGE}")
         try:
-            sz = os.path.getsize(MODEL_PATH)
-            safe_print(f"MODEL_SIZE -> {sz/1_000_000:.1f} MB")
+            for mp, name in [(MODEL_PATH_BASE, "base"), (MODEL_PATH_MEDIUM, "medium"), (MODEL_PATH_LARGE, "large")]:
+                if os.path.exists(mp):
+                    sz = os.path.getsize(mp)
+                    safe_print(f"MODEL_SIZE ({name}) -> {sz/1_000_000:.1f} MB")
         except Exception:
             pass
         model_info_logged = True
@@ -1981,7 +2069,7 @@ def run_whisper(filename, bin_path):
     
     cmd = build_whisper_cmd(
         exe,
-        MODEL_PATH,
+        model_path,
         filename,
         base_args=[
             "-l", "en",
@@ -2055,7 +2143,7 @@ def run_whisper(filename, bin_path):
         if cpu_best_of:
             cpu_args.extend(["-bo", str(cpu_best_of)])
         
-        cmd_cpu = build_whisper_cmd(exe, MODEL_PATH, filename, base_args=cpu_args)
+        cmd_cpu = build_whisper_cmd(exe, model_path, filename, base_args=cpu_args)
         
         safe_print(f"[whisper] CPU fallback: bs={cpu_batch_size}" + (f", bo={cpu_best_of}" if cpu_best_of else "") + f", threads={num_threads}")
         
@@ -2088,7 +2176,7 @@ def run_whisper(filename, bin_path):
         safe_print("[whisper] bad-args fallback")
         cmd_fallback = build_whisper_cmd(
             exe,
-            MODEL_PATH,
+            model_path,
             filename,
             base_args=["-l", "en", "-nt", "-bs", "5", "-otxt", "-of", out_txt[:-4]],
         )
@@ -2116,17 +2204,101 @@ def run_whisper(filename, bin_path):
     return res.returncode, text, (res.stderr or "").strip()
 
 
+def run_whisper_smart(filename, bin_path):
+    """Two-pass smart model selection based on word count.
+    
+    Strategy:
+    1. Always transcribe with base.en first (fast, <1s)
+    2. Count words in result
+    3. If word count < WORD_THRESHOLD_BASE: use base.en result (done!)
+    4. If word count < WORD_THRESHOLD_MEDIUM: re-transcribe with medium.en
+    5. If word count >= WORD_THRESHOLD_MEDIUM: re-transcribe with large-v3
+    
+    Args:
+        filename: Path to audio file
+        bin_path: Path to whisper binary
+    
+    Returns:
+        Tuple of (return_code, transcription_text, stderr, model_used)
+    """
+    start_time = time.time()
+    
+    # Phase 1: Fast pass with base.en to count words
+    safe_print("[whisper-smart] Phase 1: Quick transcription with base.en...")
+    rc_base, text_base, err_base = run_whisper(filename, bin_path, model_path=MODEL_PATH_BASE)
+    
+    phase1_time = time.time() - start_time
+    
+    if rc_base != 0:
+        # Base model failed - fall back to large model directly
+        safe_print(f"[whisper-smart] Base model failed (rc={rc_base}), using large-v3 fallback")
+        rc, text, err = run_whisper(filename, bin_path, model_path=MODEL_PATH_LARGE)
+        total_time = time.time() - start_time
+        safe_print(f"[whisper-smart] Fallback complete: {total_time:.2f}s")
+        return rc, text, err, "large-v3 (fallback)"
+    
+    # Sanitize and count words
+    clean_text = sanitize_transcript(text_base)
+    if not clean_text:
+        # Empty transcript - return base result
+        safe_print("[whisper-smart] Empty transcript from base.en")
+        return rc_base, text_base, err_base, "base.en"
+    
+    word_count = len(clean_text.split())
+    safe_print(f"[whisper-smart] Phase 1 complete: {word_count} words in {phase1_time:.2f}s")
+    
+    # Phase 2: Decide if we need a better model
+    if word_count < WORD_THRESHOLD_BASE:
+        # Short utterance - base.en is perfect!
+        safe_print(f"[whisper-smart] Using base.en result ({word_count} < {WORD_THRESHOLD_BASE} words)")
+        total_time = time.time() - start_time
+        safe_print(f"[whisper-smart] ✓ Total time: {total_time:.2f}s (base.en only)")
+        return rc_base, text_base, err_base, "base.en"
+    
+    elif word_count < WORD_THRESHOLD_MEDIUM:
+        # Medium length - re-transcribe with medium.en
+        safe_print(f"[whisper-smart] Phase 2: Re-transcribing with medium.en ({word_count} words)")
+        rc_med, text_med, err_med = run_whisper(filename, bin_path, model_path=MODEL_PATH_MEDIUM)
+        total_time = time.time() - start_time
+        
+        if rc_med == 0:
+            safe_print(f"[whisper-smart] ✓ Total time: {total_time:.2f}s (base.en + medium.en)")
+            return rc_med, text_med, err_med, "medium.en"
+        else:
+            # Medium failed - fall back to base result
+            safe_print(f"[whisper-smart] Medium.en failed, using base.en result")
+            return rc_base, text_base, err_base, "base.en (medium failed)"
+    
+    else:
+        # Long utterance - re-transcribe with large-v3 for best quality
+        safe_print(f"[whisper-smart] Phase 2: Re-transcribing with large-v3 ({word_count} words)")
+        rc_large, text_large, err_large = run_whisper(filename, bin_path, model_path=MODEL_PATH_LARGE)
+        total_time = time.time() - start_time
+        
+        if rc_large == 0:
+            safe_print(f"[whisper-smart] ✓ Total time: {total_time:.2f}s (base.en + large-v3)")
+            return rc_large, text_large, err_large, "large-v3"
+        else:
+            # Large failed - fall back to base result
+            safe_print(f"[whisper-smart] Large-v3 failed, using base.en result")
+            return rc_base, text_base, err_base, "base.en (large failed)"
+
+
 def _transcribe_and_paste(wav_path):
+    global last_transcription, target_window_on_record_start, pending_status_timer
+    
     safe_print("[whisper] running...")
     set_status_safe("⚙️ Transcribing...", Theme.BG_ELEVATED, Theme.INFO, Theme.INFO)
     bin_path = (resolved_whisper_bin or WHISPER_BIN)
-    rc, out, err = run_whisper(wav_path, bin_path)
+    rc, out, err, model_used = run_whisper_smart(wav_path, bin_path)
 
     if rc != 0:
         # Skip slow toast notification - just update UI status
         set_status_safe("❌ Failed", Theme.ERROR, Theme.TEXT_PRIMARY, Theme.ERROR)
         safe_print(f"[whisper] exit={rc} stderr={err[:400]}")
         return
+    
+    safe_print(f"[whisper] Model used: {model_used}")
 
     raw = (out or "").strip()
     text = sanitize_transcript(raw)
@@ -2147,26 +2319,26 @@ def _transcribe_and_paste(wav_path):
         return
 
     try:
-        global last_transcription
         text = postprocess(text)
         
         # Store last transcription for manual copy access
         last_transcription = text
         
-        # Check if our dashboard or pill has focus - if so, just copy to clipboard
-        user32 = ctypes.windll.user32
-        foreground_hwnd = user32.GetForegroundWindow()
+        # Check if our dashboard or pill had focus when recording STARTED
+        # Using captured focus state to avoid issues with UI updates changing focus
         our_window_focused = False
         
         try:
-            if dashboard_window and dashboard_window.winfo_exists():
-                dashboard_hwnd = int(dashboard_window.winfo_id())
-                if foreground_hwnd == dashboard_hwnd:
-                    our_window_focused = True
-            if gui and gui.root and gui.root.winfo_exists():
-                pill_hwnd = int(gui.root.winfo_id())
-                if foreground_hwnd == pill_hwnd:
-                    our_window_focused = True
+            if target_window_on_record_start:
+                if dashboard_window and dashboard_window.winfo_exists():
+                    dashboard_hwnd = int(dashboard_window.winfo_id())
+                    if target_window_on_record_start == dashboard_hwnd:
+                        our_window_focused = True
+                        
+                if gui and gui.root and gui.root.winfo_exists():
+                    pill_hwnd = int(gui.root.winfo_id())
+                    if target_window_on_record_start == pill_hwnd:
+                        our_window_focused = True
         except Exception:
             pass
         
@@ -2174,17 +2346,19 @@ def _transcribe_and_paste(wav_path):
             # Dashboard has focus - just copy to clipboard, don't auto-paste
             pyperclip.copy(text)
             # Record stats async
-            threading.Thread(target=stats_tracker.record_transcription, args=(text,), daemon=True).start()
+            threading.Thread(target=stats_tracker.record_transcription, args=(text, model_used), daemon=True).start()
             set_status_safe("📋 Copied!", Theme.SUCCESS, Theme.TEXT_PRIMARY, Theme.SUCCESS)
-            threading.Timer(1.5, lambda: set_status_safe("🎤 Ready", Theme.BG_ELEVATED, Theme.TEXT_PRIMARY, Theme.PINK_PRIMARY)).start()
+            pending_status_timer = threading.Timer(1.5, lambda: set_status_safe("🎤 Ready", Theme.BG_ELEVATED, Theme.TEXT_PRIMARY, Theme.PINK_PRIMARY))
+            pending_status_timer.start()
             safe_print("Copied to clipboard (dashboard focused)")
         else:
-            # Use instant Win32 paste for zero-latency feel
+            # Use pyautogui for reliable paste (Win32 SendInput blocked by Windows security)
             if instant_paste(text):
                 # Record stats async (don't block the paste experience)
-                threading.Thread(target=stats_tracker.record_transcription, args=(text,), daemon=True).start()
+                threading.Thread(target=stats_tracker.record_transcription, args=(text, model_used), daemon=True).start()
                 set_status_safe("✅ Pasted!", Theme.SUCCESS, Theme.TEXT_PRIMARY, Theme.SUCCESS)
-                threading.Timer(1.5, lambda: set_status_safe("🎤 Ready", Theme.BG_ELEVATED, Theme.TEXT_PRIMARY, Theme.PINK_PRIMARY)).start()
+                pending_status_timer = threading.Timer(1.5, lambda: set_status_safe("🎤 Ready", Theme.BG_ELEVATED, Theme.TEXT_PRIMARY, Theme.PINK_PRIMARY))
+                pending_status_timer.start()
                 safe_print("Pasted OK")
             else:
                 raise Exception("instant_paste failed")
@@ -2193,11 +2367,14 @@ def _transcribe_and_paste(wav_path):
         # Fallback: at least copy to clipboard
         try:
             pyperclip.copy(text)
-            threading.Thread(target=stats_tracker.record_transcription, args=(text,), daemon=True).start()
+            threading.Thread(target=stats_tracker.record_transcription, args=(text, model_used), daemon=True).start()
             set_status_safe("📋 Copied!", Theme.WARNING, Theme.BG_DARK, Theme.WARNING)
             safe_print("Fallback: copied to clipboard")
         except Exception:
             set_status_safe("❌ Paste error", Theme.ERROR, Theme.TEXT_PRIMARY, Theme.ERROR)
+    finally:
+        # Clear the captured focus state to avoid stale data
+        target_window_on_record_start = None
 
 
 def stop_recording_and_transcribe():
@@ -2401,7 +2578,10 @@ def main():
         notify("✅ Ready! Hold WIN + CTRL to speak.")
         log_line("Startup devices:\n" + device_lines)
         safe_print(f"✅ Microphone: {selected_input_device_name}")
-        safe_print(f"✅ Model: {os.path.basename(MODEL_PATH)}")
+        safe_print(f"✅ Smart model selection enabled:")
+        safe_print(f"   • <{WORD_THRESHOLD_BASE} words → base.en (fastest)")
+        safe_print(f"   • {WORD_THRESHOLD_BASE}-{WORD_THRESHOLD_MEDIUM} words → medium.en")
+        safe_print(f"   • {WORD_THRESHOLD_MEDIUM}+ words → large-v3 (best quality)")
         safe_print(f"✅ Whisper binary: {resolved_whisper_bin}")
         safe_print("🔥 CUDA warmup running in background...")
         safe_print("=" * 60)
