@@ -1,0 +1,301 @@
+# ============================================================================
+# WhisperLocal Automated Release Workflow
+# Builds and publishes installer when a version tag is pushed
+# ============================================================================
+#
+# Usage:
+#   git tag v1.0.0 -m "Release v1.0.0"
+#   git push origin v1.0.0
+#
+# This workflow will:
+#   1. Build the installer using PyInstaller and Inno Setup
+#   2. Calculate SHA256 checksum
+#   3. Create GitHub Release with installer attached
+#
+# ============================================================================
+
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'  # Trigger on version tags like v1.0.0, v1.2.3, etc.
+
+  # Allow manual trigger from GitHub Actions tab
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version tag to create (e.g., v1.0.0)'
+        required: true
+        type: string
+
+permissions:
+  contents: write  # Required to create releases
+
+jobs:
+  build:
+    name: Build Installer
+    runs-on: windows-latest
+    
+    steps:
+      # ========================================
+      # Checkout and Setup
+      # ========================================
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          lfs: true
+
+      - name: Get version from tag
+        id: version
+        shell: pwsh
+        run: |
+          if ("${{ github.event_name }}" -eq "workflow_dispatch") {
+            $version = "${{ inputs.version }}"
+          } else {
+            $version = "${{ github.ref_name }}"
+          }
+          $versionNumber = $version -replace '^v', ''
+          echo "VERSION=$version" >> $env:GITHUB_OUTPUT
+          echo "VERSION_NUMBER=$versionNumber" >> $env:GITHUB_OUTPUT
+          echo "Building version: $version ($versionNumber)"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      # ========================================
+      # Install Dependencies
+      # ========================================
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyinstaller
+          pip install sounddevice soundfile keyboard pyperclip pyautogui pillow pystray numpy
+          pip install winotify || echo "winotify optional - continuing"
+
+      - name: Install Inno Setup
+        shell: pwsh
+        run: |
+          # Download Inno Setup
+          $url = "https://jrsoftware.org/download.php/is.exe"
+          $output = "$env:TEMP\innosetup.exe"
+          
+          Write-Host "Downloading Inno Setup..."
+          Invoke-WebRequest -Uri $url -OutFile $output -UseBasicParsing
+          
+          Write-Host "Installing Inno Setup silently..."
+          Start-Process -FilePath $output -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART" -Wait
+          
+          # Add to PATH
+          $innoPath = "C:\Program Files (x86)\Inno Setup 6"
+          echo "$innoPath" >> $env:GITHUB_PATH
+          
+          Write-Host "Inno Setup installed at: $innoPath"
+
+      # ========================================
+      # Download Required Files
+      # ========================================
+      - name: Download whisper.cpp binaries
+        shell: pwsh
+        run: |
+          # Check if whisper-cli.exe exists, if not download from whisper.cpp releases
+          if (-not (Test-Path "whisper-cli.exe")) {
+            Write-Host "whisper-cli.exe not found, downloading from whisper.cpp..."
+            
+            # Download latest whisper.cpp Windows release
+            $releaseUrl = "https://api.github.com/repos/ggerganov/whisper.cpp/releases/latest"
+            $release = Invoke-RestMethod -Uri $releaseUrl
+            
+            # Find Windows CUDA asset
+            $asset = $release.assets | Where-Object { $_.name -like "*win*cuda*" -or $_.name -like "*windows*" } | Select-Object -First 1
+            
+            if ($asset) {
+              Write-Host "Downloading: $($asset.name)"
+              Invoke-WebRequest -Uri $asset.browser_download_url -OutFile "whisper-release.zip"
+              Expand-Archive -Path "whisper-release.zip" -DestinationPath "whisper-temp" -Force
+              
+              # Copy required files
+              Get-ChildItem -Path "whisper-temp" -Recurse -Include "*.exe", "*.dll" | 
+                ForEach-Object { Copy-Item $_.FullName -Destination "." -Force }
+              
+              Remove-Item "whisper-release.zip", "whisper-temp" -Recurse -Force
+            } else {
+              Write-Warning "Could not find Windows release asset"
+            }
+          }
+          
+          # List available files
+          Write-Host "`nFiles in workspace:"
+          Get-ChildItem -Filter "*.exe" | ForEach-Object { Write-Host "  EXE: $($_.Name)" }
+          Get-ChildItem -Filter "*.dll" | ForEach-Object { Write-Host "  DLL: $($_.Name)" }
+
+      - name: Download AI models
+        shell: pwsh
+        run: |
+          # Create models directory
+          New-Item -ItemType Directory -Path "models" -Force | Out-Null
+          
+          $models = @{
+            "ggml-base.en.bin" = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin"
+            "ggml-medium.en.bin" = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-medium.en.bin"
+            "ggml-large-v3.bin" = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3.bin"
+          }
+          
+          foreach ($model in $models.GetEnumerator()) {
+            $path = "models\$($model.Key)"
+            if (-not (Test-Path $path)) {
+              Write-Host "Downloading $($model.Key)..."
+              # Use aria2c for faster downloads if available, otherwise Invoke-WebRequest
+              try {
+                Invoke-WebRequest -Uri $model.Value -OutFile $path -UseBasicParsing
+                $size = (Get-Item $path).Length / 1MB
+                Write-Host "  Downloaded: $($model.Key) ({0:N0} MB)" -f $size
+              } catch {
+                Write-Warning "Failed to download $($model.Key): $_"
+              }
+            } else {
+              Write-Host "Model already exists: $($model.Key)"
+            }
+          }
+
+      # ========================================
+      # Update Version Numbers
+      # ========================================
+      - name: Update version in files
+        shell: pwsh
+        run: |
+          $version = "${{ steps.version.outputs.VERSION_NUMBER }}"
+          
+          # Update installer.iss version
+          $issContent = Get-Content "installer.iss" -Raw
+          $issContent = $issContent -replace '#define MyAppVersion ".*"', "#define MyAppVersion `"$version`""
+          Set-Content "installer.iss" $issContent
+          
+          # Update build_config.spec version
+          $specContent = Get-Content "build_config.spec" -Raw
+          $specContent = $specContent -replace "APP_VERSION = '.*'", "APP_VERSION = '$version'"
+          Set-Content "build_config.spec" $specContent
+          
+          Write-Host "Updated version to: $version"
+
+      # ========================================
+      # Build
+      # ========================================
+      - name: Build with PyInstaller
+        shell: pwsh
+        run: |
+          Write-Host "Building WhisperLocal with PyInstaller..."
+          python -m PyInstaller --clean --noconfirm build_config.spec
+          
+          # Verify output
+          if (Test-Path "dist\WhisperLocal\WhisperLocal.exe") {
+            $size = (Get-Item "dist\WhisperLocal\WhisperLocal.exe").Length / 1MB
+            Write-Host "Build successful! Size: {0:N1} MB" -f $size
+          } else {
+            Write-Error "Build failed - WhisperLocal.exe not found"
+            exit 1
+          }
+
+      - name: Build installer with Inno Setup
+        shell: pwsh
+        run: |
+          Write-Host "Building installer with Inno Setup..."
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" /Q installer.iss
+          
+          # Find and verify installer
+          $installer = Get-ChildItem -Path "dist" -Filter "WhisperLocal-Setup-*.exe" | 
+            Sort-Object LastWriteTime -Descending | Select-Object -First 1
+          
+          if ($installer) {
+            $size = $installer.Length / 1GB
+            Write-Host "Installer created: $($installer.Name) ({0:N2} GB)" -f $size
+            echo "INSTALLER_NAME=$($installer.Name)" >> $env:GITHUB_OUTPUT
+            echo "INSTALLER_PATH=$($installer.FullName)" >> $env:GITHUB_OUTPUT
+          } else {
+            Write-Error "Installer build failed - no installer found in dist/"
+            exit 1
+          }
+        id: installer
+
+      - name: Calculate checksums
+        shell: pwsh
+        run: |
+          $installer = Get-ChildItem -Path "dist" -Filter "WhisperLocal-Setup-*.exe" | 
+            Sort-Object LastWriteTime -Descending | Select-Object -First 1
+          
+          $hash = (Get-FileHash -Path $installer.FullName -Algorithm SHA256).Hash.ToLower()
+          $hashFile = "dist\$($installer.BaseName).sha256"
+          
+          "$hash *$($installer.Name)" | Out-File -FilePath $hashFile -Encoding ascii
+          
+          Write-Host "SHA256: $hash"
+          echo "CHECKSUM=$hash" >> $env:GITHUB_OUTPUT
+          echo "CHECKSUM_FILE=$hashFile" >> $env:GITHUB_OUTPUT
+        id: checksum
+
+      # ========================================
+      # Create Release
+      # ========================================
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.VERSION }}
+          name: WhisperLocal ${{ steps.version.outputs.VERSION }}
+          body: |
+            ## WhisperLocal ${{ steps.version.outputs.VERSION }}
+            
+            Privacy-focused, GPU-accelerated speech-to-text dictation for Windows.
+            
+            ### Installation
+            
+            1. Download `WhisperLocal-Setup-${{ steps.version.outputs.VERSION_NUMBER }}.exe` below
+            2. Run the installer
+            3. Follow the setup wizard
+            4. Start dictating with `WIN + CTRL`!
+            
+            ### System Requirements
+            
+            - Windows 10 or 11 (64-bit)
+            - 4 GB RAM minimum (8 GB recommended)
+            - 4 GB disk space
+            - NVIDIA GPU with CUDA recommended (CPU also works)
+            
+            ### Checksum
+            
+            ```
+            SHA256: ${{ steps.checksum.outputs.CHECKSUM }}
+            ```
+            
+            ### What's New
+            
+            See [CHANGELOG.md](https://github.com/Izayauh/whisper/blob/main/CHANGELOG.md) for details.
+            
+          files: |
+            dist/WhisperLocal-Setup-*.exe
+            dist/*.sha256
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Summary
+        shell: pwsh
+        run: |
+          Write-Host ""
+          Write-Host "=============================================="
+          Write-Host " Release Created Successfully!"
+          Write-Host "=============================================="
+          Write-Host ""
+          Write-Host "Version: ${{ steps.version.outputs.VERSION }}"
+          Write-Host "Installer: ${{ steps.installer.outputs.INSTALLER_NAME }}"
+          Write-Host "SHA256: ${{ steps.checksum.outputs.CHECKSUM }}"
+          Write-Host ""
+          Write-Host "Download URL:"
+          Write-Host "  https://github.com/Izayauh/whisper/releases/tag/${{ steps.version.outputs.VERSION }}"
+          Write-Host ""
+

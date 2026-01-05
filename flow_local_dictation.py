@@ -433,7 +433,8 @@ def _acquire_single_instance():
         print("Already running. Exiting.")
         sys.exit(0)
 
-_acquire_single_instance()
+# Singleton lock is now acquired in __main__ block instead of at module level
+# to prevent conflicts when this module is imported by first_run_wizard
 
 # --- Config ---
 # Model paths for dynamic selection based on word count (relative paths)
@@ -2940,5 +2941,6 @@ def main():
     safe_print("Bye.")
 
 if __name__ == "__main__":
+    _acquire_single_instance()  # Acquire singleton lock only when running directly
     start_tray()
     main()

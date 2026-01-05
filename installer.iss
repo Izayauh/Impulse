@@ -7,7 +7,7 @@
 #define MyAppName "WhisperLocal"
 #define MyAppVersion "1.0.0"
 #define MyAppPublisher "WhisperLocal"
-#define MyAppURL "https://github.com/whisperlocal/whisperlocal"
+#define MyAppURL "https://github.com/Izayauh/whisper"
 #define MyAppExeName "WhisperLocal.exe"
 #define MyAppDescription "Privacy-focused, GPU-accelerated speech-to-text dictation"
 

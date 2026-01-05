@@ -10,7 +10,7 @@ Transform your voice into text instantly - completely offline, using OpenAI's Wh
 
 ### Option 1: Installer (Recommended for most users)
 
-**[Download WhisperLocal-Setup.exe](https://github.com/whisperlocal/whisperlocal/releases/latest)**
+**[Download WhisperLocal-Setup.exe](https://github.com/Izayauh/whisper/releases/latest)**
 
 1. Download the installer (~3.5 GB)
 2. Run `WhisperLocal-Setup.exe`
@@ -23,8 +23,8 @@ No Python, no configuration, no technical knowledge required.
 
 ```powershell
 # Clone the repository
-git clone https://github.com/whisperlocal/whisperlocal.git
-cd whisperlocal
+git clone https://github.com/Izayauh/whisper.git
+cd whisper
 
 # Run the launcher (installs dependencies automatically)
 .\start_dictation.bat
