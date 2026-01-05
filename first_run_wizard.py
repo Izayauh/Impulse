@@ -9,6 +9,7 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 import threading
 import time
+import ctypes
 
 # Import from main module (will be available when bundled together)
 try:
@@ -17,7 +18,8 @@ try:
         list_input_devices, device_index_and_names,
         resolve_input_device, mark_first_run_complete,
         selected_input_device_idx, selected_input_device_name,
-        SAMPLE_RATE, CHANNELS, get_user_data_dir
+        SAMPLE_RATE, CHANNELS, get_user_data_dir,
+        DPI_SCALE, scaled, scaled_font
     )
     import sounddevice as sd
     import numpy as np
@@ -27,6 +29,29 @@ except ImportError:
     Theme = None
     APP_NAME = "WhisperLocal"
     APP_VERSION = "1.0.0"
+    
+    # Fallback DPI scaling
+    def _get_fallback_dpi_scale():
+        try:
+            try:
+                ctypes.windll.shcore.SetProcessDpiAwareness(2)
+            except (AttributeError, OSError):
+                try:
+                    ctypes.windll.user32.SetProcessDPIAware()
+                except (AttributeError, OSError):
+                    pass
+            dpi = ctypes.windll.user32.GetDpiForSystem()
+            return max(1.0, min(3.5, dpi / 96.0))
+        except Exception:
+            return 1.0
+    
+    DPI_SCALE = _get_fallback_dpi_scale()
+    
+    def scaled(value):
+        return int(value * DPI_SCALE)
+    
+    def scaled_font(size):
+        return int(size * DPI_SCALE)
 
 
 class WizardTheme:
@@ -44,8 +69,32 @@ class WizardTheme:
     SUCCESS = "#00E676"
     WARNING = "#FFB300"
     ERROR = "#FF5252"
+    INFO = "#40C4FF"
     BORDER_SUBTLE = "#2A2A2A"
     FONT_FAMILY = "Segoe UI"
+    
+    # DPI-scaled sizes (computed at class load time)
+    WIZARD_WIDTH = scaled(600)
+    WIZARD_HEIGHT = scaled(500)
+    TITLE_BAR_HEIGHT = scaled(40)
+    
+    # Scaled font sizes
+    FONT_SIZE_XS = scaled_font(9)
+    FONT_SIZE_SM = scaled_font(10)
+    FONT_SIZE_MD = scaled_font(11)
+    FONT_SIZE_LG = scaled_font(12)
+    FONT_SIZE_XL = scaled_font(14)
+    FONT_SIZE_XXL = scaled_font(16)
+    FONT_SIZE_HEADER = scaled_font(20)
+    FONT_SIZE_TITLE = scaled_font(24)
+    
+    # Scaled padding/spacing
+    PAD_XS = scaled(4)
+    PAD_SM = scaled(8)
+    PAD_MD = scaled(12)
+    PAD_LG = scaled(16)
+    PAD_XL = scaled(20)
+    PAD_XXL = scaled(30)
 
 
 # Use imported Theme if available, otherwise use fallback
@@ -67,7 +116,7 @@ class FirstRunWizard:
         # Create main window
         self.root = tk.Tk()
         self.root.title(f"{APP_NAME} Setup")
-        self.root.geometry("600x500")
+        self.root.geometry(f"{Theme.WIZARD_WIDTH}x{Theme.WIZARD_HEIGHT}")
         self.root.configure(bg=Theme.BG_DARK)
         self.root.resizable(False, False)
         
@@ -82,11 +131,11 @@ class FirstRunWizard:
         
         # Main content frame
         self.content_frame = tk.Frame(self.root, bg=Theme.BG_DARK)
-        self.content_frame.pack(fill="both", expand=True, padx=30, pady=20)
+        self.content_frame.pack(fill="both", expand=True, padx=Theme.PAD_XXL, pady=Theme.PAD_XL)
         
         # Navigation buttons frame
         self.nav_frame = tk.Frame(self.root, bg=Theme.BG_DARK)
-        self.nav_frame.pack(fill="x", padx=30, pady=(0, 20))
+        self.nav_frame.pack(fill="x", padx=Theme.PAD_XXL, pady=(0, Theme.PAD_XL))
         
         # Step indicators
         self.steps = ["Welcome", "Microphone", "Tutorial", "Finish"]
@@ -103,15 +152,15 @@ class FirstRunWizard:
     def _center_window(self):
         """Center the window on screen."""
         self.root.update_idletasks()
-        width = 600
-        height = 500
+        width = Theme.WIZARD_WIDTH
+        height = Theme.WIZARD_HEIGHT
         x = (self.root.winfo_screenwidth() - width) // 2
         y = (self.root.winfo_screenheight() - height) // 2
         self.root.geometry(f"{width}x{height}+{x}+{y}")
     
     def _create_title_bar(self):
         """Create custom title bar."""
-        self.title_bar = tk.Frame(self.root, bg=Theme.BG_ELEVATED, height=40)
+        self.title_bar = tk.Frame(self.root, bg=Theme.BG_ELEVATED, height=Theme.TITLE_BAR_HEIGHT)
         self.title_bar.pack(fill="x")
         self.title_bar.pack_propagate(False)
         
@@ -119,17 +168,17 @@ class FirstRunWizard:
         logo = tk.Label(
             self.title_bar,
             text="◉",
-            font=(Theme.FONT_FAMILY, 16),
+            font=(Theme.FONT_FAMILY, Theme.FONT_SIZE_XXL),
             fg=Theme.PINK_PRIMARY,
             bg=Theme.BG_ELEVATED
         )
-        logo.pack(side="left", padx=(15, 8))
+        logo.pack(side="left", padx=(Theme.PAD_LG - 1, Theme.PAD_SM))
         
         # Title
         title = tk.Label(
             self.title_bar,
             text=f"{APP_NAME} Setup",
-            font=(Theme.FONT_FAMILY, 11, "bold"),
+            font=(Theme.FONT_FAMILY, Theme.FONT_SIZE_MD, "bold"),
             fg=Theme.TEXT_PRIMARY,
             bg=Theme.BG_ELEVATED
         )
@@ -139,12 +188,12 @@ class FirstRunWizard:
         close_btn = tk.Label(
             self.title_bar,
             text="✕",
-            font=(Theme.FONT_FAMILY, 12),
+            font=(Theme.FONT_FAMILY, Theme.FONT_SIZE_LG),
             fg=Theme.TEXT_SECONDARY,
             bg=Theme.BG_ELEVATED,
             cursor="hand2"
         )
-        close_btn.pack(side="right", padx=15)
+        close_btn.pack(side="right", padx=Theme.PAD_LG - 1)
         close_btn.bind("<Button-1>", lambda e: self._on_close())
         close_btn.bind("<Enter>", lambda e: close_btn.config(fg=Theme.ERROR))
         close_btn.bind("<Leave>", lambda e: close_btn.config(fg=Theme.TEXT_SECONDARY))
@@ -152,25 +201,25 @@ class FirstRunWizard:
     def _create_step_indicators(self):
         """Create step indicator dots."""
         self.step_frame = tk.Frame(self.content_frame, bg=Theme.BG_DARK)
-        self.step_frame.pack(fill="x", pady=(0, 20))
+        self.step_frame.pack(fill="x", pady=(0, Theme.PAD_XL))
         
         self.step_dots = []
         for i, step_name in enumerate(self.steps):
             dot = tk.Label(
                 self.step_frame,
                 text="●",
-                font=(Theme.FONT_FAMILY, 10),
+                font=(Theme.FONT_FAMILY, Theme.FONT_SIZE_SM),
                 fg=Theme.PINK_PRIMARY if i == 0 else Theme.TEXT_MUTED,
                 bg=Theme.BG_DARK
             )
-            dot.pack(side="left", padx=5)
+            dot.pack(side="left", padx=scaled(5))
             self.step_dots.append(dot)
             
             if i < len(self.steps) - 1:
                 line = tk.Label(
                     self.step_frame,
                     text="───",
-                    font=(Theme.FONT_FAMILY, 8),
+                    font=(Theme.FONT_FAMILY, scaled_font(8)),
                     fg=Theme.TEXT_MUTED,
                     bg=Theme.BG_DARK
                 )
@@ -215,25 +264,25 @@ class FirstRunWizard:
         header = tk.Label(
             self.content_frame,
             text=f"Welcome to {APP_NAME}!",
-            font=(Theme.FONT_FAMILY, 24, "bold"),
+            font=(Theme.FONT_FAMILY, Theme.FONT_SIZE_TITLE, "bold"),
             fg=Theme.TEXT_PRIMARY,
             bg=Theme.BG_DARK
         )
-        header.pack(pady=(20, 10))
+        header.pack(pady=(Theme.PAD_XL, Theme.PAD_SM + 2))
         
         # Version
         version = tk.Label(
             self.content_frame,
             text=f"Version {APP_VERSION}",
-            font=(Theme.FONT_FAMILY, 10),
+            font=(Theme.FONT_FAMILY, Theme.FONT_SIZE_SM),
             fg=Theme.TEXT_MUTED,
             bg=Theme.BG_DARK
         )
-        version.pack(pady=(0, 20))
+        version.pack(pady=(0, Theme.PAD_XL))
         
         # Description
         desc_frame = tk.Frame(self.content_frame, bg=Theme.BG_CARD, highlightthickness=1, highlightbackground=Theme.BORDER_SUBTLE)
-        desc_frame.pack(fill="x", pady=10)
+        desc_frame.pack(fill="x", pady=Theme.PAD_SM + 2)
         
         desc_text = """Transform your voice into text instantly - completely offline!
 
@@ -249,18 +298,18 @@ Your voice never leaves your machine."""
         desc = tk.Label(
             desc_frame,
             text=desc_text,
-            font=(Theme.FONT_FAMILY, 11),
+            font=(Theme.FONT_FAMILY, Theme.FONT_SIZE_MD),
             fg=Theme.TEXT_SECONDARY,
             bg=Theme.BG_CARD,
             justify="left",
-            padx=20,
-            pady=20
+            padx=Theme.PAD_XL,
+            pady=Theme.PAD_XL
         )
         desc.pack()
         
         # Features
         features_frame = tk.Frame(self.content_frame, bg=Theme.BG_DARK)
-        features_frame.pack(fill="x", pady=20)
+        features_frame.pack(fill="x", pady=Theme.PAD_XL)
         
         features = [
             ("🔒", "100% Private - No cloud, no internet required"),
@@ -270,14 +319,14 @@ Your voice never leaves your machine."""
         
         for emoji, text in features:
             row = tk.Frame(features_frame, bg=Theme.BG_DARK)
-            row.pack(fill="x", pady=5)
+            row.pack(fill="x", pady=scaled(5))
             
-            icon = tk.Label(row, text=emoji, font=(Theme.FONT_FAMILY, 14), bg=Theme.BG_DARK)
-            icon.pack(side="left", padx=(0, 10))
+            icon = tk.Label(row, text=emoji, font=(Theme.FONT_FAMILY, Theme.FONT_SIZE_XL), bg=Theme.BG_DARK)
+            icon.pack(side="left", padx=(0, Theme.PAD_SM + 2))
             
             label = tk.Label(
                 row, text=text,
-                font=(Theme.FONT_FAMILY, 10),
+                font=(Theme.FONT_FAMILY, Theme.FONT_SIZE_SM),
                 fg=Theme.TEXT_SECONDARY,
                 bg=Theme.BG_DARK,
                 anchor="w"
@@ -292,20 +341,20 @@ Your voice never leaves your machine."""
         header = tk.Label(
             self.content_frame,
             text="Select Your Microphone",
-            font=(Theme.FONT_FAMILY, 20, "bold"),
+            font=(Theme.FONT_FAMILY, Theme.FONT_SIZE_HEADER, "bold"),
             fg=Theme.TEXT_PRIMARY,
             bg=Theme.BG_DARK
         )
-        header.pack(pady=(10, 5))
+        header.pack(pady=(Theme.PAD_SM + 2, scaled(5)))
         
         subtitle = tk.Label(
             self.content_frame,
             text="Choose the microphone you want to use for dictation",
-            font=(Theme.FONT_FAMILY, 10),
+            font=(Theme.FONT_FAMILY, Theme.FONT_SIZE_SM),
             fg=Theme.TEXT_SECONDARY,
             bg=Theme.BG_DARK
         )
-        subtitle.pack(pady=(0, 15))
+        subtitle.pack(pady=(0, Theme.PAD_LG - 1))
         
         # Device list
         list_frame = tk.Frame(
@@ -314,7 +363,7 @@ Your voice never leaves your machine."""
             highlightthickness=1, 
             highlightbackground=Theme.BORDER_SUBTLE
         )
-        list_frame.pack(fill="both", expand=True, pady=10)
+        list_frame.pack(fill="both", expand=True, pady=Theme.PAD_SM + 2)
         
         # Get devices
         try:
@@ -333,13 +382,13 @@ Your voice never leaves your machine."""
             fg=Theme.TEXT_PRIMARY,
             selectbackground=Theme.PINK_PRIMARY,
             selectforeground=Theme.TEXT_PRIMARY,
-            font=(Theme.FONT_FAMILY, 10),
+            font=(Theme.FONT_FAMILY, Theme.FONT_SIZE_SM),
             borderwidth=0,
             highlightthickness=0,
             yscrollcommand=scrollbar.set,
             height=8
         )
-        self.device_listbox.pack(fill="both", expand=True, padx=10, pady=10)
+        self.device_listbox.pack(fill="both", expand=True, padx=Theme.PAD_SM + 2, pady=Theme.PAD_SM + 2)
         scrollbar.config(command=self.device_listbox.yview)
         
         for label in self.device_labels:
@@ -351,26 +400,28 @@ Your voice never leaves your machine."""
         
         # Audio level indicator
         level_frame = tk.Frame(self.content_frame, bg=Theme.BG_DARK)
-        level_frame.pack(fill="x", pady=10)
+        level_frame.pack(fill="x", pady=Theme.PAD_SM + 2)
         
         level_label = tk.Label(
             level_frame,
             text="Audio Level:",
-            font=(Theme.FONT_FAMILY, 10),
+            font=(Theme.FONT_FAMILY, Theme.FONT_SIZE_SM),
             fg=Theme.TEXT_SECONDARY,
             bg=Theme.BG_DARK
         )
         level_label.pack(side="left")
         
+        self.level_bar_width = scaled(300)
+        self.level_bar_height = scaled(16)
         self.level_bar = tk.Canvas(
             level_frame, 
-            width=300, 
-            height=16, 
+            width=self.level_bar_width, 
+            height=self.level_bar_height, 
             bg=Theme.BG_ELEVATED, 
             highlightthickness=0
         )
-        self.level_bar.pack(side="left", padx=10)
-        self.level_fill = self.level_bar.create_rectangle(0, 0, 0, 16, fill=Theme.PINK_PRIMARY, outline="")
+        self.level_bar.pack(side="left", padx=Theme.PAD_SM + 2)
+        self.level_fill = self.level_bar.create_rectangle(0, 0, 0, self.level_bar_height, fill=Theme.PINK_PRIMARY, outline="")
         
         # Test button
         self.test_btn = self._create_button(
@@ -382,11 +433,11 @@ Your voice never leaves your machine."""
         self.test_status = tk.Label(
             self.content_frame,
             text="",
-            font=(Theme.FONT_FAMILY, 9),
+            font=(Theme.FONT_FAMILY, Theme.FONT_SIZE_XS),
             fg=Theme.TEXT_SECONDARY,
             bg=Theme.BG_DARK
         )
-        self.test_status.pack(pady=5)
+        self.test_status.pack(pady=scaled(5))
         
         # Navigation
         self._create_nav_button("← Back", self._prev_step)
@@ -409,8 +460,8 @@ Your voice never leaves your machine."""
                     with sd.InputStream(samplerate=SAMPLE_RATE, channels=CHANNELS, dtype="float32", device=device_idx) as stream:
                         block, _ = stream.read(int(SAMPLE_RATE * 0.1))
                         rms = float(np.sqrt(np.mean(block * block) + 1e-12))
-                        level_pct = min(rms * 500, 300)
-                        self.level_bar.coords(self.level_fill, 0, 0, level_pct, 16)
+                        level_pct = min(rms * 500, self.level_bar_width)
+                        self.level_bar.coords(self.level_fill, 0, 0, level_pct, self.level_bar_height)
                         self.level_bar.update()
                         time.sleep(0.1)
                 
@@ -419,7 +470,7 @@ Your voice never leaves your machine."""
                 self.test_status.config(text=f"Error: {str(e)[:40]}", fg=Theme.ERROR)
             finally:
                 self.test_btn.config(state="normal")
-                self.level_bar.coords(self.level_fill, 0, 0, 0, 16)
+                self.level_bar.coords(self.level_fill, 0, 0, 0, self.level_bar_height)
         
         threading.Thread(target=do_test, daemon=True).start()
     
@@ -446,11 +497,11 @@ Your voice never leaves your machine."""
         header = tk.Label(
             self.content_frame,
             text="How to Use",
-            font=(Theme.FONT_FAMILY, 20, "bold"),
+            font=(Theme.FONT_FAMILY, Theme.FONT_SIZE_HEADER, "bold"),
             fg=Theme.TEXT_PRIMARY,
             bg=Theme.BG_DARK
         )
-        header.pack(pady=(10, 20))
+        header.pack(pady=(Theme.PAD_SM + 2, Theme.PAD_XL))
         
         # Tutorial steps
         steps = [
@@ -483,18 +534,18 @@ Your voice never leaves your machine."""
                 highlightthickness=1, 
                 highlightbackground=Theme.BORDER_SUBTLE
             )
-            step_frame.pack(fill="x", pady=5)
+            step_frame.pack(fill="x", pady=scaled(5))
             
             inner = tk.Frame(step_frame, bg=Theme.BG_CARD)
-            inner.pack(fill="x", padx=15, pady=10)
+            inner.pack(fill="x", padx=Theme.PAD_LG - 1, pady=Theme.PAD_SM + 2)
             
             icon = tk.Label(
                 inner,
                 text=step["icon"],
-                font=(Theme.FONT_FAMILY, 20),
+                font=(Theme.FONT_FAMILY, Theme.FONT_SIZE_HEADER),
                 bg=Theme.BG_CARD
             )
-            icon.pack(side="left", padx=(0, 15))
+            icon.pack(side="left", padx=(0, Theme.PAD_LG - 1))
             
             text_frame = tk.Frame(inner, bg=Theme.BG_CARD)
             text_frame.pack(side="left", fill="x", expand=True)
@@ -502,7 +553,7 @@ Your voice never leaves your machine."""
             title = tk.Label(
                 text_frame,
                 text=step["title"],
-                font=(Theme.FONT_FAMILY, 11, "bold"),
+                font=(Theme.FONT_FAMILY, Theme.FONT_SIZE_MD, "bold"),
                 fg=Theme.PINK_PRIMARY,
                 bg=Theme.BG_CARD,
                 anchor="w"
@@ -512,7 +563,7 @@ Your voice never leaves your machine."""
             desc = tk.Label(
                 text_frame,
                 text=step["desc"],
-                font=(Theme.FONT_FAMILY, 9),
+                font=(Theme.FONT_FAMILY, Theme.FONT_SIZE_XS),
                 fg=Theme.TEXT_SECONDARY,
                 bg=Theme.BG_CARD,
                 anchor="w",
@@ -529,62 +580,62 @@ Your voice never leaves your machine."""
         header = tk.Label(
             self.content_frame,
             text="You're All Set!",
-            font=(Theme.FONT_FAMILY, 24, "bold"),
+            font=(Theme.FONT_FAMILY, Theme.FONT_SIZE_TITLE, "bold"),
             fg=Theme.SUCCESS,
             bg=Theme.BG_DARK
         )
-        header.pack(pady=(30, 10))
+        header.pack(pady=(Theme.PAD_XXL, Theme.PAD_SM + 2))
         
         check_icon = tk.Label(
             self.content_frame,
             text="✓",
-            font=(Theme.FONT_FAMILY, 60),
+            font=(Theme.FONT_FAMILY, scaled_font(60)),
             fg=Theme.SUCCESS,
             bg=Theme.BG_DARK
         )
-        check_icon.pack(pady=20)
+        check_icon.pack(pady=Theme.PAD_XL)
         
         summary = tk.Label(
             self.content_frame,
             text=f"Microphone: {self.selected_device_name or 'Default'}\n\nHold WIN + CTRL to start dictating!",
-            font=(Theme.FONT_FAMILY, 12),
+            font=(Theme.FONT_FAMILY, Theme.FONT_SIZE_LG),
             fg=Theme.TEXT_SECONDARY,
             bg=Theme.BG_DARK,
             justify="center"
         )
-        summary.pack(pady=10)
+        summary.pack(pady=Theme.PAD_SM + 2)
         
         # Options frame
         options_frame = tk.Frame(self.content_frame, bg=Theme.BG_DARK)
-        options_frame.pack(pady=20)
+        options_frame.pack(pady=Theme.PAD_XL)
         
         # Desktop shortcut option
         shortcut_check = tk.Checkbutton(
             options_frame,
             text="Create Desktop Shortcut",
             variable=self.create_shortcut,
-            font=(Theme.FONT_FAMILY, 10),
+            font=(Theme.FONT_FAMILY, Theme.FONT_SIZE_SM),
             fg=Theme.TEXT_SECONDARY,
             bg=Theme.BG_DARK,
             selectcolor=Theme.BG_ELEVATED,
             activebackground=Theme.BG_DARK,
             activeforeground=Theme.TEXT_PRIMARY
         )
-        shortcut_check.pack(anchor="w", pady=2)
+        shortcut_check.pack(anchor="w", pady=scaled(2))
         
         # Auto-start option
         autostart_check = tk.Checkbutton(
             options_frame,
             text="Start with Windows",
             variable=self.auto_start,
-            font=(Theme.FONT_FAMILY, 10),
+            font=(Theme.FONT_FAMILY, Theme.FONT_SIZE_SM),
             fg=Theme.TEXT_SECONDARY,
             bg=Theme.BG_DARK,
             selectcolor=Theme.BG_ELEVATED,
             activebackground=Theme.BG_DARK,
             activeforeground=Theme.TEXT_PRIMARY
         )
-        autostart_check.pack(anchor="w", pady=2)
+        autostart_check.pack(anchor="w", pady=scaled(2))
         
         # Finish button
         self._create_nav_button("Start Using WhisperLocal", self._finish, accent=True, center=True)
@@ -594,14 +645,14 @@ Your voice never leaves your machine."""
         btn = tk.Label(
             parent,
             text=text,
-            font=(Theme.FONT_FAMILY, 10),
+            font=(Theme.FONT_FAMILY, Theme.FONT_SIZE_SM),
             fg=Theme.TEXT_PRIMARY,
             bg=Theme.BG_ELEVATED,
             cursor="hand2",
-            padx=15,
-            pady=8
+            padx=Theme.PAD_LG - 1,
+            pady=Theme.PAD_SM
         )
-        btn.pack(side=side, padx=5)
+        btn.pack(side=side, padx=scaled(5))
         btn.bind("<Button-1>", lambda e: command())
         btn.bind("<Enter>", lambda e: btn.config(bg=Theme.BG_HOVER))
         btn.bind("<Leave>", lambda e: btn.config(bg=Theme.BG_ELEVATED))
@@ -612,20 +663,20 @@ Your voice never leaves your machine."""
         btn = tk.Label(
             self.nav_frame,
             text=text,
-            font=(Theme.FONT_FAMILY, 11),
+            font=(Theme.FONT_FAMILY, Theme.FONT_SIZE_MD),
             fg=Theme.BG_DARK if accent else Theme.TEXT_PRIMARY,
             bg=Theme.PINK_PRIMARY if accent else Theme.BG_ELEVATED,
             cursor="hand2",
-            padx=20,
-            pady=10
+            padx=Theme.PAD_XL,
+            pady=Theme.PAD_SM + 2
         )
         
         if center:
-            btn.pack(pady=10)
+            btn.pack(pady=Theme.PAD_SM + 2)
         elif accent:
-            btn.pack(side="right", padx=5)
+            btn.pack(side="right", padx=scaled(5))
         else:
-            btn.pack(side="left", padx=5)
+            btn.pack(side="left", padx=scaled(5))
         
         if accent:
             btn.bind("<Enter>", lambda e: btn.config(bg=Theme.PINK_LIGHT))

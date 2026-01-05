@@ -4,6 +4,29 @@ import logging
 import traceback
 import logging.handlers
 
+# Import GPU monitoring module
+try:
+    from whisper_local.gpu_monitor import gpu_monitor
+except ImportError:
+    # Fallback if running as script
+    try:
+        import sys
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        from whisper_local.gpu_monitor import gpu_monitor
+    except ImportError:
+        # Create a dummy GPU monitor if import fails
+        class DummyGPUMonitor:
+            def is_nvidia_gpu(self): return False
+            def is_gpu_busy(self): return False
+            def is_gpu_critical_load(self): return False
+            def get_recommended_model_tier(self): return "medium"
+            def get_load_status_text(self): return "GPU: Unavailable"
+            def should_use_light_model(self, word_count=0): return False
+            def start_monitoring(self): pass
+            def stop_monitoring(self): pass
+            def get_gpu_vendor(self): return "unknown"
+        gpu_monitor = DummyGPUMonitor()
+
 # Windows subprocess flag to hide console windows (prevents command prompt popup)
 if sys.platform == 'win32':
     CREATE_NO_WINDOW = 0x08000000
@@ -31,6 +54,50 @@ import math
 APP_NAME = "WhisperLocal"
 APP_VERSION = "1.0.0"
 APP_AUTHOR = "WhisperLocal"
+
+# ============================================================================
+# DPI SCALING DETECTION
+# ============================================================================
+def get_dpi_scale_factor():
+    """
+    Detect Windows DPI scaling factor.
+    Returns a scale factor (1.0 = 100%, 1.5 = 150%, 2.0 = 200%, 2.5 = 250%, etc.)
+    """
+    try:
+        # Windows 10/11: Set process DPI awareness before getting DPI
+        # PROCESS_PER_MONITOR_DPI_AWARE = 2
+        try:
+            ctypes.windll.shcore.SetProcessDpiAwareness(2)
+        except (AttributeError, OSError):
+            # Fallback for older Windows versions
+            try:
+                ctypes.windll.user32.SetProcessDPIAware()
+            except (AttributeError, OSError):
+                pass
+        
+        # Get the DPI for the system (primary monitor)
+        # 96 DPI = 100% scaling (Windows baseline)
+        dpi = ctypes.windll.user32.GetDpiForSystem()
+        scale = dpi / 96.0
+        
+        # Clamp scale factor to reasonable range (100% to 350%)
+        scale = max(1.0, min(3.5, scale))
+        
+        return scale
+    except Exception:
+        # Fallback to 1.0 if anything fails
+        return 1.0
+
+# Initialize DPI scale factor globally (called once at startup)
+DPI_SCALE = get_dpi_scale_factor()
+
+def scaled(value):
+    """Scale a dimension value by the DPI factor."""
+    return int(value * DPI_SCALE)
+
+def scaled_font(size):
+    """Scale a font size by the DPI factor."""
+    return int(size * DPI_SCALE)
 
 # ============================================================================
 # AUDIO RECORDING CONSTANTS
@@ -331,10 +398,10 @@ def instant_paste(text: str) -> bool:
         return False
 
 # ============================================================================
-# THEME CONSTANTS - Pink/Black Dark Mode
+# THEME CONSTANTS - Pink/Black Dark Mode (DPI-Aware)
 # ============================================================================
 class Theme:
-    # Background colors
+    # Background colors (no scaling needed for colors)
     BG_DARKEST = "#0A0A0A"      # Deepest black
     BG_DARK = "#0D0D0D"         # Main background
     BG_CARD = "#141414"         # Card backgrounds
@@ -368,13 +435,39 @@ class Theme:
     FONT_FAMILY = "Segoe UI"
     FONT_FAMILY_MONO = "Consolas"
     
-    # Sizes
-    PILL_WIDTH = 180
-    PILL_HEIGHT = 36
-    PILL_RADIUS = 18
+    # DPI-scaled sizes (computed at class load time)
+    # Base sizes at 100% DPI, scaled by DPI_SCALE
+    PILL_WIDTH = scaled(180)
+    PILL_HEIGHT = scaled(36)
+    PILL_RADIUS = scaled(18)
     
-    DASHBOARD_WIDTH = 420
-    DASHBOARD_HEIGHT = 580
+    DASHBOARD_WIDTH = scaled(420)
+    DASHBOARD_HEIGHT = scaled(580)
+    
+    SETTINGS_WIDTH = scaled(480)
+    SETTINGS_HEIGHT = scaled(460)
+    
+    WIZARD_WIDTH = scaled(600)
+    WIZARD_HEIGHT = scaled(500)
+    
+    TITLE_BAR_HEIGHT = scaled(40)
+    
+    # Scaled font sizes
+    FONT_SIZE_XS = scaled_font(9)
+    FONT_SIZE_SM = scaled_font(10)
+    FONT_SIZE_MD = scaled_font(11)
+    FONT_SIZE_LG = scaled_font(12)
+    FONT_SIZE_XL = scaled_font(14)
+    FONT_SIZE_XXL = scaled_font(16)
+    FONT_SIZE_STAT = scaled_font(22)
+    
+    # Scaled padding/spacing
+    PAD_XS = scaled(4)
+    PAD_SM = scaled(8)
+    PAD_MD = scaled(12)
+    PAD_LG = scaled(16)
+    PAD_XL = scaled(20)
+    PAD_XXL = scaled(30)
 
 # ============================================================================
 # STATS TRACKING SYSTEM
@@ -675,7 +768,7 @@ CHANNELS = AUDIO_CHANNELS
 WAV_TMP = os.path.join(_user_dir, "flow_input.wav")
 TEXT_TMP_BASE = os.path.join(_user_dir, "flow_out")  # base name for whisper-cli text output
 
-HOTKEY_HOLD = "windows+ctrl"    # hold to talk; release to transcribe
+HOTKEY_HOLD = "ctrl+shift"    # hold to talk; release to transcribe (changed from windows+ctrl to avoid Windows menu conflict)
 NOTIFY = True
 
 # --- Text Post-Processing Modes ---
@@ -813,28 +906,33 @@ class FloatingPill:
         
         bg_color, accent_color, text = colors.get(state, colors["ready"])
         
+        # Scaled dimensions for drawing
+        border_offset = scaled(2)
+        glow_base = scaled(3)
+        dot_base_radius = scaled(4)
+        
         # Glow effect for listening state
         if state == "listening":
-            glow_size = 3 + int(pulse * 2)
+            glow_size = glow_base + int(pulse * scaled(2))
             glow_alpha = 0.3 + pulse * 0.2
             # Draw glow layers
             for i in range(glow_size, 0, -1):
                 alpha = int((glow_alpha / glow_size) * i * 255)
                 glow_color = self._blend_color(Theme.PINK_PRIMARY, Theme.BG_DARKEST, i / glow_size)
                 self._draw_rounded_rect(
-                    2 - i, 2 - i, w - 2 + i, h - 2 + i, r + i,
+                    border_offset - i, border_offset - i, w - border_offset + i, h - border_offset + i, r + i,
                     fill=glow_color, outline=""
                 )
         
         # Main pill background
-        self._draw_rounded_rect(2, 2, w - 2, h - 2, r, fill=bg_color, outline=accent_color)
+        self._draw_rounded_rect(border_offset, border_offset, w - border_offset, h - border_offset, r, fill=bg_color, outline=accent_color)
         
         # Accent dot/icon
-        dot_x = 18
+        dot_x = scaled(18)
         dot_y = h // 2
         if state == "listening":
             # Pulsing dot
-            dot_r = 4 + int(pulse * 2)
+            dot_r = dot_base_radius + int(pulse * scaled(2))
             self.canvas.create_oval(
                 dot_x - dot_r, dot_y - dot_r,
                 dot_x + dot_r, dot_y + dot_r,
@@ -843,17 +941,17 @@ class FloatingPill:
         else:
             # Static indicator
             self.canvas.create_oval(
-                dot_x - 4, dot_y - 4,
-                dot_x + 4, dot_y + 4,
+                dot_x - dot_base_radius, dot_y - dot_base_radius,
+                dot_x + dot_base_radius, dot_y + dot_base_radius,
                 fill=accent_color, outline=""
             )
         
         # Status text
         self.canvas.create_text(
-            w // 2 + 8, h // 2,
+            w // 2 + scaled(8), h // 2,
             text=text.split("  ")[1] if "  " in text else text,
             fill=Theme.TEXT_PRIMARY,
-            font=(Theme.FONT_FAMILY, 10, "bold"),
+            font=(Theme.FONT_FAMILY, Theme.FONT_SIZE_SM, "bold"),
             anchor="center"
         )
     
@@ -908,23 +1006,26 @@ class FloatingPill:
         sw = user32.GetSystemMetrics(0)
         sh = user32.GetSystemMetrics(1)
 
+        # Scaled offset from taskbar edge
+        taskbar_offset = scaled(12)
+        
         x = (sw - self.width) // 2
-        y = sh - self.height - 12
+        y = sh - self.height - taskbar_offset
         if res:
             edge = abd.uEdge
             rc = abd.rc
             if edge == ABE_BOTTOM:
-                y = rc.top - self.height - 12
+                y = rc.top - self.height - taskbar_offset
                 x = (sw - self.width) // 2
             elif edge == ABE_TOP:
-                y = rc.bottom + 12
+                y = rc.bottom + taskbar_offset
                 x = (sw - self.width) // 2
             elif edge == ABE_LEFT:
-                x = rc.right + 12
-                y = sh - self.height - 12
+                x = rc.right + taskbar_offset
+                y = sh - self.height - taskbar_offset
             elif edge == ABE_RIGHT:
-                x = rc.left - self.width - 12
-                y = sh - self.height - 12
+                x = rc.left - self.width - taskbar_offset
+                y = sh - self.height - taskbar_offset
 
         self.root.geometry(f"{self.width}x{self.height}+{x}+{y}")
     
@@ -1060,7 +1161,7 @@ class DashboardWindow(tk.Toplevel):
     
     def _create_title_bar(self):
         """Create custom title bar."""
-        self.title_bar = tk.Frame(self, bg=Theme.BG_ELEVATED, height=40)
+        self.title_bar = tk.Frame(self, bg=Theme.BG_ELEVATED, height=Theme.TITLE_BAR_HEIGHT)
         self.title_bar.pack(fill="x")
         self.title_bar.pack_propagate(False)
         
@@ -1068,17 +1169,17 @@ class DashboardWindow(tk.Toplevel):
         logo_label = tk.Label(
             self.title_bar, 
             text="◉", 
-            font=(Theme.FONT_FAMILY, 16),
+            font=(Theme.FONT_FAMILY, Theme.FONT_SIZE_XXL),
             fg=Theme.PINK_PRIMARY,
             bg=Theme.BG_ELEVATED
         )
-        logo_label.pack(side="left", padx=(12, 6))
+        logo_label.pack(side="left", padx=(Theme.PAD_MD, Theme.PAD_XS + 2))
         
         # Title
         title_label = tk.Label(
             self.title_bar,
             text="Whisper Local",
-            font=(Theme.FONT_FAMILY, 11, "bold"),
+            font=(Theme.FONT_FAMILY, Theme.FONT_SIZE_MD, "bold"),
             fg=Theme.TEXT_PRIMARY,
             bg=Theme.BG_ELEVATED
         )
@@ -1088,12 +1189,12 @@ class DashboardWindow(tk.Toplevel):
         close_btn = tk.Label(
             self.title_bar,
             text="✕",
-            font=(Theme.FONT_FAMILY, 12),
+            font=(Theme.FONT_FAMILY, Theme.FONT_SIZE_LG),
             fg=Theme.TEXT_SECONDARY,
             bg=Theme.BG_ELEVATED,
             cursor="hand2"
         )
-        close_btn.pack(side="right", padx=12)
+        close_btn.pack(side="right", padx=Theme.PAD_MD)
         close_btn.bind("<Button-1>", lambda e: self.destroy())
         close_btn.bind("<Enter>", lambda e: close_btn.config(fg=Theme.ERROR))
         close_btn.bind("<Leave>", lambda e: close_btn.config(fg=Theme.TEXT_SECONDARY))
@@ -1102,12 +1203,12 @@ class DashboardWindow(tk.Toplevel):
         min_btn = tk.Label(
             self.title_bar,
             text="─",
-            font=(Theme.FONT_FAMILY, 12),
+            font=(Theme.FONT_FAMILY, Theme.FONT_SIZE_LG),
             fg=Theme.TEXT_SECONDARY,
             bg=Theme.BG_ELEVATED,
             cursor="hand2"
         )
-        min_btn.pack(side="right", padx=4)
+        min_btn.pack(side="right", padx=Theme.PAD_XS)
         min_btn.bind("<Button-1>", lambda e: self.iconify())
         min_btn.bind("<Enter>", lambda e: min_btn.config(fg=Theme.TEXT_PRIMARY))
         min_btn.bind("<Leave>", lambda e: min_btn.config(fg=Theme.TEXT_SECONDARY))
@@ -1115,27 +1216,27 @@ class DashboardWindow(tk.Toplevel):
     def _create_content(self):
         """Create main content area."""
         content = tk.Frame(self, bg=Theme.BG_DARK)
-        content.pack(fill="both", expand=True, padx=16, pady=16)
+        content.pack(fill="both", expand=True, padx=Theme.PAD_LG, pady=Theme.PAD_LG)
         
         # Stats cards row
         cards_frame = tk.Frame(content, bg=Theme.BG_DARK)
-        cards_frame.pack(fill="x", pady=(0, 16))
+        cards_frame.pack(fill="x", pady=(0, Theme.PAD_LG))
         
         self.today_card = self._create_stat_card(cards_frame, "Today", "0", "words")
-        self.today_card.pack(side="left", expand=True, fill="x", padx=(0, 8))
+        self.today_card.pack(side="left", expand=True, fill="x", padx=(0, Theme.PAD_SM))
         
         self.week_card = self._create_stat_card(cards_frame, "This Week", "0", "words")
-        self.week_card.pack(side="left", expand=True, fill="x", padx=(0, 8))
+        self.week_card.pack(side="left", expand=True, fill="x", padx=(0, Theme.PAD_SM))
         
         self.total_card = self._create_stat_card(cards_frame, "Total", "0", "words")
         self.total_card.pack(side="left", expand=True, fill="x")
         
         # Streak and milestone row
         gamify_frame = tk.Frame(content, bg=Theme.BG_DARK)
-        gamify_frame.pack(fill="x", pady=(0, 16))
+        gamify_frame.pack(fill="x", pady=(0, Theme.PAD_LG))
         
         self.streak_card = self._create_streak_card(gamify_frame)
-        self.streak_card.pack(side="left", expand=True, fill="x", padx=(0, 8))
+        self.streak_card.pack(side="left", expand=True, fill="x", padx=(0, Theme.PAD_SM))
         
         self.milestone_card = self._create_milestone_card(gamify_frame)
         self.milestone_card.pack(side="left", expand=True, fill="x")
@@ -1144,21 +1245,21 @@ class DashboardWindow(tk.Toplevel):
         graph_label = tk.Label(
             content,
             text="Last 7 Days",
-            font=(Theme.FONT_FAMILY, 10),
+            font=(Theme.FONT_FAMILY, Theme.FONT_SIZE_SM),
             fg=Theme.TEXT_SECONDARY,
             bg=Theme.BG_DARK,
             anchor="w"
         )
-        graph_label.pack(fill="x", pady=(0, 8))
+        graph_label.pack(fill="x", pady=(0, Theme.PAD_SM))
         
         self.graph_canvas = Canvas(
             content,
-            height=110,
+            height=scaled(110),
             bg=Theme.BG_CARD,
             highlightthickness=1,
             highlightbackground=Theme.BORDER_SUBTLE
         )
-        self.graph_canvas.pack(fill="x", pady=(0, 16))
+        self.graph_canvas.pack(fill="x", pady=(0, Theme.PAD_LG))
         
         # Bind configure event to redraw graph when canvas is ready
         self.graph_canvas.bind("<Configure>", lambda e: self._draw_graph(stats_tracker.get_week_data()))
@@ -1167,69 +1268,69 @@ class DashboardWindow(tk.Toplevel):
         recent_label = tk.Label(
             content,
             text="Recent",
-            font=(Theme.FONT_FAMILY, 10),
+            font=(Theme.FONT_FAMILY, Theme.FONT_SIZE_SM),
             fg=Theme.TEXT_SECONDARY,
             bg=Theme.BG_DARK,
             anchor="w"
         )
-        recent_label.pack(fill="x", pady=(0, 8))
+        recent_label.pack(fill="x", pady=(0, Theme.PAD_SM))
         
         self.recent_frame = tk.Frame(content, bg=Theme.BG_CARD, highlightthickness=1, highlightbackground=Theme.BORDER_SUBTLE)
-        self.recent_frame.pack(fill="both", expand=True, pady=(0, 12))
+        self.recent_frame.pack(fill="both", expand=True, pady=(0, Theme.PAD_MD))
         
         # Status label for feedback
         self.status_label = tk.Label(
             content,
             text="",
-            font=(Theme.FONT_FAMILY, 9),
+            font=(Theme.FONT_FAMILY, Theme.FONT_SIZE_XS),
             fg=Theme.SUCCESS,
             bg=Theme.BG_DARK,
             anchor="center"
         )
-        self.status_label.pack(fill="x", pady=(0, 8))
+        self.status_label.pack(fill="x", pady=(0, Theme.PAD_SM))
         
         # Quick actions
         actions_frame = tk.Frame(content, bg=Theme.BG_DARK)
         actions_frame.pack(fill="x")
         
         self.copy_last_btn = self._create_action_button(actions_frame, "📋 Copy Last", self._copy_last_message)
-        self.copy_last_btn.pack(side="left", expand=True, fill="x", padx=(0, 8))
-        self._create_action_button(actions_frame, "⚙ Settings", lambda: open_settings_window(self)).pack(side="left", expand=True, fill="x", padx=(0, 8))
+        self.copy_last_btn.pack(side="left", expand=True, fill="x", padx=(0, Theme.PAD_SM))
+        self._create_action_button(actions_frame, "⚙ Settings", lambda: open_settings_window(self)).pack(side="left", expand=True, fill="x", padx=(0, Theme.PAD_SM))
         self._create_action_button(actions_frame, "↻ Refresh", self._refresh_stats).pack(side="left", expand=True, fill="x")
     
     def _create_stat_card(self, parent, label, value, unit):
         """Create a stat card widget."""
         card = tk.Frame(parent, bg=Theme.BG_CARD, highlightthickness=1, highlightbackground=Theme.BORDER_SUBTLE)
         card.pack_propagate(False)
-        card.configure(height=90)
+        card.configure(height=scaled(90))
         
         inner = tk.Frame(card, bg=Theme.BG_CARD)
-        inner.pack(expand=True, fill="both", padx=12, pady=12)
+        inner.pack(expand=True, fill="both", padx=Theme.PAD_MD, pady=Theme.PAD_MD)
         
         label_widget = tk.Label(
             inner,
             text=label,
-            font=(Theme.FONT_FAMILY, 9),
+            font=(Theme.FONT_FAMILY, Theme.FONT_SIZE_XS),
             fg=Theme.TEXT_MUTED,
             bg=Theme.BG_CARD,
             anchor="w"
         )
-        label_widget.pack(anchor="w", pady=(0, 2))
+        label_widget.pack(anchor="w", pady=(0, scaled(2)))
         
         value_widget = tk.Label(
             inner,
             text=value,
-            font=(Theme.FONT_FAMILY, 22, "bold"),
+            font=(Theme.FONT_FAMILY, Theme.FONT_SIZE_STAT, "bold"),
             fg=Theme.PINK_PRIMARY,
             bg=Theme.BG_CARD,
             anchor="w"
         )
-        value_widget.pack(anchor="w", pady=(0, 1))
+        value_widget.pack(anchor="w", pady=(0, scaled(1)))
         
         unit_widget = tk.Label(
             inner,
             text=unit,
-            font=(Theme.FONT_FAMILY, 9),
+            font=(Theme.FONT_FAMILY, Theme.FONT_SIZE_XS),
             fg=Theme.TEXT_SECONDARY,
             bg=Theme.BG_CARD,
             anchor="w"
@@ -1244,20 +1345,20 @@ class DashboardWindow(tk.Toplevel):
     def _create_streak_card(self, parent):
         """Create streak display card."""
         card = tk.Frame(parent, bg=Theme.BG_CARD, highlightthickness=1, highlightbackground=Theme.BORDER_SUBTLE)
-        card.configure(height=80)
+        card.configure(height=scaled(80))
         card.pack_propagate(False)
         
         inner = tk.Frame(card, bg=Theme.BG_CARD)
-        inner.pack(expand=True, fill="both", padx=12, pady=12)
+        inner.pack(expand=True, fill="both", padx=Theme.PAD_MD, pady=Theme.PAD_MD)
         
         # Flame emoji + streak count
         streak_row = tk.Frame(inner, bg=Theme.BG_CARD)
-        streak_row.pack(anchor="w", pady=(0, 2))
+        streak_row.pack(anchor="w", pady=(0, scaled(2)))
         
         flame = tk.Label(
             streak_row,
             text="🔥",
-            font=(Theme.FONT_FAMILY, 18),
+            font=(Theme.FONT_FAMILY, scaled_font(18)),
             bg=Theme.BG_CARD
         )
         flame.pack(side="left")
@@ -1265,17 +1366,17 @@ class DashboardWindow(tk.Toplevel):
         self.streak_value = tk.Label(
             streak_row,
             text="0",
-            font=(Theme.FONT_FAMILY, 20, "bold"),
+            font=(Theme.FONT_FAMILY, scaled_font(20), "bold"),
             fg=Theme.WARNING,
             bg=Theme.BG_CARD,
             anchor="w"
         )
-        self.streak_value.pack(side="left", padx=(4, 0))
+        self.streak_value.pack(side="left", padx=(Theme.PAD_XS, 0))
         
         streak_label = tk.Label(
             inner,
             text="day streak",
-            font=(Theme.FONT_FAMILY, 9),
+            font=(Theme.FONT_FAMILY, Theme.FONT_SIZE_XS),
             fg=Theme.TEXT_SECONDARY,
             bg=Theme.BG_CARD,
             anchor="w"
@@ -1287,21 +1388,21 @@ class DashboardWindow(tk.Toplevel):
     def _create_milestone_card(self, parent):
         """Create milestone badges card."""
         card = tk.Frame(parent, bg=Theme.BG_CARD, highlightthickness=1, highlightbackground=Theme.BORDER_SUBTLE)
-        card.configure(height=80)
+        card.configure(height=scaled(80))
         card.pack_propagate(False)
         
         inner = tk.Frame(card, bg=Theme.BG_CARD)
-        inner.pack(expand=True, fill="both", padx=12, pady=12)
+        inner.pack(expand=True, fill="both", padx=Theme.PAD_MD, pady=Theme.PAD_MD)
         
         milestone_label = tk.Label(
             inner,
             text="Milestones",
-            font=(Theme.FONT_FAMILY, 9),
+            font=(Theme.FONT_FAMILY, Theme.FONT_SIZE_XS),
             fg=Theme.TEXT_MUTED,
             bg=Theme.BG_CARD,
             anchor="w"
         )
-        milestone_label.pack(anchor="w", pady=(0, 4))
+        milestone_label.pack(anchor="w", pady=(0, Theme.PAD_XS))
         
         self.badges_frame = tk.Frame(inner, bg=Theme.BG_CARD)
         self.badges_frame.pack(anchor="w", fill="both", expand=True)
@@ -1313,11 +1414,11 @@ class DashboardWindow(tk.Toplevel):
         btn = tk.Label(
             parent,
             text=text,
-            font=(Theme.FONT_FAMILY, 10),
+            font=(Theme.FONT_FAMILY, Theme.FONT_SIZE_SM),
             fg=Theme.TEXT_PRIMARY,
             bg=Theme.BG_ELEVATED,
             cursor="hand2",
-            pady=10
+            pady=Theme.PAD_SM + 2
         )
         btn.bind("<Button-1>", lambda e: command())
         btn.bind("<Enter>", lambda e: btn.config(bg=Theme.BG_HOVER))
@@ -1334,7 +1435,11 @@ class DashboardWindow(tk.Toplevel):
         if w < 10 or h < 10:  # Not yet rendered
             return
         
-        padding = 25
+        padding = scaled(25)
+        bottom_margin = scaled(25)
+        top_margin = scaled(20)
+        label_offset = scaled(10)
+        value_offset = scaled(7)
         usable_width = w - 2 * padding
         bar_spacing = usable_width / len(data)
         bar_width = bar_spacing * 0.6  # 60% of space for bar, 40% for gap
@@ -1342,12 +1447,12 @@ class DashboardWindow(tk.Toplevel):
         
         for i, (day, value) in enumerate(data):
             x = padding + i * bar_spacing + (bar_spacing - bar_width) / 2
-            bar_height = (value / max_val) * (h - 45) if max_val > 0 else 0
+            bar_height = (value / max_val) * (h - bottom_margin - top_margin) if max_val > 0 else 0
             
             # Bar
             self.graph_canvas.create_rectangle(
-                x, h - 25 - bar_height,
-                x + bar_width, h - 25,
+                x, h - bottom_margin - bar_height,
+                x + bar_width, h - bottom_margin,
                 fill=Theme.PINK_PRIMARY if value > 0 else Theme.BG_ELEVATED,
                 outline="",
                 width=0
@@ -1355,18 +1460,18 @@ class DashboardWindow(tk.Toplevel):
             
             # Day label
             self.graph_canvas.create_text(
-                x + bar_width / 2, h - 10,
+                x + bar_width / 2, h - label_offset,
                 text=day,
-                font=(Theme.FONT_FAMILY, 9),
+                font=(Theme.FONT_FAMILY, Theme.FONT_SIZE_XS),
                 fill=Theme.TEXT_MUTED
             )
             
             # Value label (if non-zero)
             if value > 0:
                 self.graph_canvas.create_text(
-                    x + bar_width / 2, h - 32 - bar_height,
+                    x + bar_width / 2, h - bottom_margin - bar_height - value_offset,
                     text=str(value),
-                    font=(Theme.FONT_FAMILY, 9),
+                    font=(Theme.FONT_FAMILY, Theme.FONT_SIZE_XS),
                     fill=Theme.TEXT_SECONDARY
                 )
     
@@ -1380,29 +1485,29 @@ class DashboardWindow(tk.Toplevel):
             empty_label = tk.Label(
                 self.recent_frame,
                 text="No transcripts yet",
-                font=(Theme.FONT_FAMILY, 10),
+                font=(Theme.FONT_FAMILY, Theme.FONT_SIZE_SM),
                 fg=Theme.TEXT_MUTED,
                 bg=Theme.BG_CARD,
-                pady=25
+                pady=Theme.PAD_XL + 5
             )
             empty_label.pack()
             return
         
         for i, t in enumerate(transcripts[:5]):
             item = tk.Frame(self.recent_frame, bg=Theme.BG_CARD)
-            item.pack(fill="x", padx=12, pady=7)
+            item.pack(fill="x", padx=Theme.PAD_MD, pady=scaled(7))
             
             # Time
             time_label = tk.Label(
                 item,
                 text=t.get("time", ""),
-                font=(Theme.FONT_FAMILY, 9),
+                font=(Theme.FONT_FAMILY, Theme.FONT_SIZE_XS),
                 fg=Theme.TEXT_MUTED,
                 bg=Theme.BG_CARD,
                 width=7,
                 anchor="w"
             )
-            time_label.pack(side="left", padx=(0, 8))
+            time_label.pack(side="left", padx=(0, Theme.PAD_SM))
             
             # Text preview
             text_preview = t.get("text", "")
@@ -1412,35 +1517,35 @@ class DashboardWindow(tk.Toplevel):
             text_label = tk.Label(
                 item,
                 text=text_preview,
-                font=(Theme.FONT_FAMILY, 9),
+                font=(Theme.FONT_FAMILY, Theme.FONT_SIZE_XS),
                 fg=Theme.TEXT_SECONDARY,
                 bg=Theme.BG_CARD,
                 anchor="w"
             )
-            text_label.pack(side="left", fill="x", expand=True, padx=(0, 8))
+            text_label.pack(side="left", fill="x", expand=True, padx=(0, Theme.PAD_SM))
             
             # Word count
             words_label = tk.Label(
                 item,
                 text=f"{t.get('words', 0)}w",
-                font=(Theme.FONT_FAMILY, 9),
+                font=(Theme.FONT_FAMILY, Theme.FONT_SIZE_XS),
                 fg=Theme.PINK_SOFT,
                 bg=Theme.BG_CARD,
                 anchor="e",
                 width=5
             )
-            words_label.pack(side="left", padx=(0, 4))
+            words_label.pack(side="left", padx=(0, Theme.PAD_XS))
             
             # Copy button
             full_text = t.get("full_text", t.get("text", ""))
             copy_btn = tk.Label(
                 item,
                 text="⎘",
-                font=(Theme.FONT_FAMILY, 11),
+                font=(Theme.FONT_FAMILY, Theme.FONT_SIZE_MD),
                 fg=Theme.TEXT_MUTED,
                 bg=Theme.BG_CARD,
                 cursor="hand2",
-                padx=4
+                padx=Theme.PAD_XS
             )
             copy_btn.pack(side="right")
             
@@ -1514,7 +1619,7 @@ class DashboardWindow(tk.Toplevel):
             no_badge = tk.Label(
                 self.badges_frame,
                 text="Keep going!",
-                font=(Theme.FONT_FAMILY, 10),
+                font=(Theme.FONT_FAMILY, Theme.FONT_SIZE_SM),
                 fg=Theme.TEXT_MUTED,
                 bg=Theme.BG_CARD,
                 anchor="w"
@@ -1530,13 +1635,13 @@ class DashboardWindow(tk.Toplevel):
             badge = tk.Label(
                 badge_container,
                 text=f" {m} ",
-                font=(Theme.FONT_FAMILY, 10, "bold"),
+                font=(Theme.FONT_FAMILY, Theme.FONT_SIZE_SM, "bold"),
                 fg=Theme.BG_DARK,
                 bg=Theme.PINK_PRIMARY,
-                padx=6,
-                pady=2
+                padx=scaled(6),
+                pady=scaled(2)
             )
-            badge.pack(side="left", padx=(0, 6) if i < len(milestones[-4:]) - 1 else (0, 0))
+            badge.pack(side="left", padx=(0, scaled(6)) if i < len(milestones[-4:]) - 1 else (0, 0))
     
     def _refresh_stats(self):
         """Refresh all statistics."""
@@ -1576,7 +1681,7 @@ def open_settings_window(parent):
     """Open the modernized settings window."""
     win = tk.Toplevel(parent if isinstance(parent, tk.Tk) else parent.master if hasattr(parent, 'master') else parent)
     win.title("Settings")
-    win.geometry("480x420")
+    win.geometry(f"{Theme.SETTINGS_WIDTH}x{Theme.SETTINGS_HEIGHT}")
     win.configure(bg=Theme.BG_DARK)
     win.resizable(False, False)
     win.attributes("-topmost", True)
@@ -1588,33 +1693,33 @@ def open_settings_window(parent):
     win.update_idletasks()
     sw = win.winfo_screenwidth()
     sh = win.winfo_screenheight()
-    x = (sw - 480) // 2
-    y = (sh - 420) // 2
-    win.geometry(f"480x420+{x}+{y}")
+    x = (sw - Theme.SETTINGS_WIDTH) // 2
+    y = (sh - Theme.SETTINGS_HEIGHT) // 2
+    win.geometry(f"{Theme.SETTINGS_WIDTH}x{Theme.SETTINGS_HEIGHT}+{x}+{y}")
     
     # Custom title bar
-    title_bar = tk.Frame(win, bg=Theme.BG_ELEVATED, height=40)
+    title_bar = tk.Frame(win, bg=Theme.BG_ELEVATED, height=Theme.TITLE_BAR_HEIGHT)
     title_bar.pack(fill="x")
     title_bar.pack_propagate(False)
     
     title_label = tk.Label(
         title_bar,
         text="⚙  Settings",
-        font=(Theme.FONT_FAMILY, 11, "bold"),
+        font=(Theme.FONT_FAMILY, Theme.FONT_SIZE_MD, "bold"),
         fg=Theme.TEXT_PRIMARY,
         bg=Theme.BG_ELEVATED
     )
-    title_label.pack(side="left", padx=12)
+    title_label.pack(side="left", padx=Theme.PAD_MD)
     
     close_btn = tk.Label(
         title_bar,
         text="✕",
-        font=(Theme.FONT_FAMILY, 12),
+        font=(Theme.FONT_FAMILY, Theme.FONT_SIZE_LG),
         fg=Theme.TEXT_SECONDARY,
         bg=Theme.BG_ELEVATED,
         cursor="hand2"
     )
-    close_btn.pack(side="right", padx=12)
+    close_btn.pack(side="right", padx=Theme.PAD_MD)
     close_btn.bind("<Button-1>", lambda e: win.destroy())
     close_btn.bind("<Enter>", lambda e: close_btn.config(fg=Theme.ERROR))
     close_btn.bind("<Leave>", lambda e: close_btn.config(fg=Theme.TEXT_SECONDARY))
@@ -1633,21 +1738,33 @@ def open_settings_window(parent):
     
     # Content
     content = tk.Frame(win, bg=Theme.BG_DARK)
-    content.pack(fill="both", expand=True, padx=16, pady=16)
+    content.pack(fill="both", expand=True, padx=Theme.PAD_LG, pady=Theme.PAD_LG)
+    
+    # Hotkey info section
+    hotkey_info = tk.Label(
+        content,
+        text=f"🎙️  Hold {HOTKEY_HOLD.upper().replace('+', ' + ')} to record",
+        font=(Theme.FONT_FAMILY, Theme.FONT_SIZE_SM),
+        fg=Theme.TEXT_SECONDARY,
+        bg=Theme.BG_CARD,
+        pady=Theme.PAD_SM + 2,
+        padx=Theme.PAD_MD
+    )
+    hotkey_info.pack(fill="x", pady=(0, Theme.PAD_LG))
     
     # Microphone section header
     mic_header = tk.Label(
         content,
         text="MICROPHONE",
-        font=(Theme.FONT_FAMILY, 9, "bold"),
+        font=(Theme.FONT_FAMILY, Theme.FONT_SIZE_XS, "bold"),
         fg=Theme.PINK_PRIMARY,
         bg=Theme.BG_DARK
     )
-    mic_header.pack(anchor="w", pady=(0, 8))
+    mic_header.pack(anchor="w", pady=(0, Theme.PAD_SM))
     
     # Device listbox with scrollbar
     list_frame = tk.Frame(content, bg=Theme.BG_CARD, highlightthickness=1, highlightbackground=Theme.BORDER_SUBTLE)
-    list_frame.pack(fill="both", expand=True, pady=(0, 12))
+    list_frame.pack(fill="both", expand=True, pady=(0, Theme.PAD_MD))
     
     idxs, labels = device_index_and_names()
     
@@ -1660,12 +1777,12 @@ def open_settings_window(parent):
         fg=Theme.TEXT_PRIMARY,
         selectbackground=Theme.PINK_PRIMARY,
         selectforeground=Theme.TEXT_PRIMARY,
-        font=(Theme.FONT_FAMILY, 10),
+        font=(Theme.FONT_FAMILY, Theme.FONT_SIZE_SM),
         borderwidth=0,
         highlightthickness=0,
         yscrollcommand=scrollbar.set
     )
-    listbox.pack(fill="both", expand=True, padx=8, pady=8)
+    listbox.pack(fill="both", expand=True, padx=Theme.PAD_SM, pady=Theme.PAD_SM)
     scrollbar.config(command=listbox.yview)
     
     for label in labels:
@@ -1688,28 +1805,30 @@ def open_settings_window(parent):
     status_label = tk.Label(
         content,
         textvariable=status_var,
-        font=(Theme.FONT_FAMILY, 9),
+        font=(Theme.FONT_FAMILY, Theme.FONT_SIZE_XS),
         fg=Theme.TEXT_SECONDARY,
         bg=Theme.BG_DARK
     )
-    status_label.pack(anchor="w", pady=(0, 12))
+    status_label.pack(anchor="w", pady=(0, Theme.PAD_MD))
     
     # Audio level indicator
     level_frame = tk.Frame(content, bg=Theme.BG_DARK)
-    level_frame.pack(fill="x", pady=(0, 12))
+    level_frame.pack(fill="x", pady=(0, Theme.PAD_MD))
     
     level_label = tk.Label(
         level_frame,
         text="Audio Level:",
-        font=(Theme.FONT_FAMILY, 9),
+        font=(Theme.FONT_FAMILY, Theme.FONT_SIZE_XS),
         fg=Theme.TEXT_SECONDARY,
         bg=Theme.BG_DARK
     )
     level_label.pack(side="left")
     
-    level_bar = tk.Canvas(level_frame, width=200, height=12, bg=Theme.BG_ELEVATED, highlightthickness=0)
-    level_bar.pack(side="left", padx=(8, 0))
-    level_fill = level_bar.create_rectangle(0, 0, 0, 12, fill=Theme.PINK_PRIMARY, outline="")
+    level_bar_width = scaled(200)
+    level_bar_height = scaled(12)
+    level_bar = tk.Canvas(level_frame, width=level_bar_width, height=level_bar_height, bg=Theme.BG_ELEVATED, highlightthickness=0)
+    level_bar.pack(side="left", padx=(Theme.PAD_SM, 0))
+    level_fill = level_bar.create_rectangle(0, 0, 0, level_bar_height, fill=Theme.PINK_PRIMARY, outline="")
     
     # Button row
     btn_frame = tk.Frame(content, bg=Theme.BG_DARK)
@@ -1719,12 +1838,12 @@ def open_settings_window(parent):
         btn = tk.Label(
             parent,
             text=text,
-            font=(Theme.FONT_FAMILY, 10),
+            font=(Theme.FONT_FAMILY, Theme.FONT_SIZE_SM),
             fg=Theme.TEXT_PRIMARY if not accent else Theme.BG_DARK,
             bg=Theme.BG_ELEVATED if not accent else Theme.PINK_PRIMARY,
             cursor="hand2",
-            padx=16,
-            pady=8
+            padx=Theme.PAD_LG,
+            pady=Theme.PAD_SM
         )
         btn.bind("<Button-1>", lambda e: command())
         if accent:
@@ -1773,8 +1892,8 @@ def open_settings_window(parent):
                     with sd.InputStream(samplerate=SAMPLE_RATE, channels=CHANNELS, dtype="float32", device=selected_input_device_idx) as stream:
                         block, _ = stream.read(int(SAMPLE_RATE * 0.1))
                         rms = float(np.sqrt(np.mean(block * block) + 1e-12))
-                        level_pct = min(rms * 500, 200)  # Scale for visibility
-                        level_bar.coords(level_fill, 0, 0, level_pct, 12)
+                        level_pct = min(rms * 500, level_bar_width)  # Scale for visibility
+                        level_bar.coords(level_fill, 0, 0, level_pct, level_bar_height)
                         level_bar.update()
                         time.sleep(0.1)
                 status_var.set(f"Test complete")
@@ -1782,12 +1901,12 @@ def open_settings_window(parent):
                 status_var.set(f"Error: {str(e)[:30]}")
             finally:
                 test_running[0] = False
-                level_bar.coords(level_fill, 0, 0, 0, 12)
+                level_bar.coords(level_fill, 0, 0, 0, level_bar_height)
         
         threading.Thread(target=test_audio, daemon=True).start()
     
-    create_button(btn_frame, "Refresh", do_refresh).pack(side="left", padx=(0, 8))
-    create_button(btn_frame, "Test Mic", do_test).pack(side="left", padx=(0, 8))
+    create_button(btn_frame, "Refresh", do_refresh).pack(side="left", padx=(0, Theme.PAD_SM))
+    create_button(btn_frame, "Test Mic", do_test).pack(side="left", padx=(0, Theme.PAD_SM))
     create_button(btn_frame, "Apply", do_apply, accent=True).pack(side="right")
 
 
@@ -2243,6 +2362,9 @@ def startup_diagnostics():
         issues.append(f"Audio system warning: {e}")
         log_line(f"⚠ Audio system issue: {e}")
 
+    # Log DPI scaling information
+    log_line(f"✓ Display DPI scale: {DPI_SCALE:.2f}x ({int(DPI_SCALE * 100)}%)")
+
     # Check microphone
     resolve_input_device()
     if selected_input_device_idx is None:
@@ -2516,11 +2638,11 @@ def start_recording():
 
 def _select_whisper_params(duration_sec):
     """Aggressive GPU-optimized parameters for maximum speed with large model."""
-    # Use consistent high batch size - GPU can handle it
+    # Use higher batch size for modern GPUs - RTX 3000+ can handle 12-16
     if duration_sec is None or duration_sec < 15:
-        return 8, None, "fast-gpu"  # No best-of for short audio = faster
+        return 12, None, "fast-gpu"  # Higher batch size + no best-of = maximum speed
     elif duration_sec < 30:
-        return 8, 2, "balanced-gpu"
+        return 10, 2, "balanced-gpu"  # Slightly higher batch size
     elif duration_sec < 60:
         return 8, 3, "quality-gpu"  # Max best-of capped at 3
     else:
@@ -2615,7 +2737,9 @@ def run_whisper(filename, bin_path, model_path=None):
 
     batch_size, best_of, mode_desc = _select_whisper_params(duration_sec)
     
-    num_threads = str(os.cpu_count() or 4)
+    # GPU mode: Use fewer threads (GPU does the heavy lifting)
+    # More CPU threads can actually slow down GPU inference due to scheduling overhead
+    num_threads = "2"  # Optimal for GPU mode
     
     cmd = build_whisper_cmd(
         exe,
@@ -2627,6 +2751,7 @@ def run_whisper(filename, bin_path, model_path=None):
             "-mc", "0",
             "-bs", str(batch_size),
             "-t", num_threads,
+            "-ngl", "999",  # Force all layers to GPU for maximum speed
             "-fa",  # Enable Flash Attention for 2x faster GPU inference
             "-otxt", "-of", out_txt[:-4],
         ],
@@ -2685,13 +2810,14 @@ def run_whisper(filename, bin_path, model_path=None):
         
         cpu_batch_size = min(batch_size, 5)
         cpu_best_of = min(best_of, 3) if best_of else None
+        cpu_threads = str(os.cpu_count() or 4)  # Use all cores for CPU mode
         
         cpu_args = [
             "-l", "en",
             "-nt",
             "-mc", "0",
             "-bs", str(cpu_batch_size),
-            "-t", num_threads,
+            "-t", cpu_threads,
             "-otxt", "-of", out_txt[:-4],
             "--no-gpu"
         ]
@@ -2701,7 +2827,7 @@ def run_whisper(filename, bin_path, model_path=None):
         
         cmd_cpu = build_whisper_cmd(exe, model_path, filename, base_args=cpu_args)
         
-        safe_print(f"[whisper] CPU fallback: bs={cpu_batch_size}" + (f", bo={cpu_best_of}" if cpu_best_of else "") + f", threads={num_threads}")
+        safe_print(f"[whisper] CPU fallback: bs={cpu_batch_size}" + (f", bo={cpu_best_of}" if cpu_best_of else "") + f", threads={cpu_threads}")
         
         try:
             res = subprocess.run(
@@ -2773,12 +2899,24 @@ def run_whisper(filename, bin_path, model_path=None):
 
 
 def run_whisper_smart(filename, bin_path):
-    """Two-pass smart model selection with CPU/GPU awareness.
+    """Two-pass smart model selection with CPU/GPU awareness and dynamic load monitoring.
     
-    GPU Mode (NVIDIA detected): Prioritize quality
+    GPU Mode (NVIDIA, low load): Prioritize quality
     - < 30 words: base.en only
     - 30-80 words: base.en → medium.en
     - 80+ words: base.en → large-v3
+    
+    GPU Mode (NVIDIA, high load 70%+): Prioritize speed
+    - < 50 words: base.en only
+    - 50+ words: base.en → medium.en (skip large-v3)
+    
+    GPU Mode (NVIDIA, critical load 85%+): Maximum speed
+    - All utterances: base.en only
+    
+    Non-NVIDIA GPU Mode (AMD/Intel): Prioritize compatibility
+    - < 50 words: base.en only
+    - 50+ words: base.en → medium.en
+    - Never uses large-v3 (poor compatibility)
     
     CPU Mode (no GPU): Prioritize speed
     - < 50 words: base.en only (fast)
@@ -2794,19 +2932,54 @@ def run_whisper_smart(filename, bin_path):
     """
     start_time = time.time()
     
-    # Adjust thresholds based on hardware capability
-    if GPU_AVAILABLE:
-        # GPU mode - original thresholds (prioritize quality)
-        threshold_base = WORD_THRESHOLD_BASE  # 25 words
-        threshold_medium = WORD_THRESHOLD_MEDIUM  # 75 words
-        use_large_model = True
-        mode_label = "GPU"
+    # Check GPU load status
+    gpu_load_status = gpu_monitor.get_load_status_text()
+    safe_print(f"[whisper-smart] GPU Status: {gpu_load_status}")
+    
+    # Determine model selection strategy based on hardware and load
+    is_nvidia = gpu_monitor.is_nvidia_gpu()
+    is_gpu_busy = gpu_monitor.is_gpu_busy()  # 70%+ utilization
+    is_critical_load = gpu_monitor.is_gpu_critical_load()  # 85%+ utilization
+    recommended_tier = gpu_monitor.get_recommended_model_tier()
+    
+    # Adjust thresholds based on hardware capability and GPU load
+    if GPU_AVAILABLE and is_nvidia:
+        if is_critical_load:
+            # Critical GPU load (85%+) - use only base.en for everything
+            threshold_base = 999999  # Never upgrade from base
+            threshold_medium = 999999
+            use_large_model = False
+            mode_label = "GPU-CRITICAL"
+            safe_print("[whisper-smart] ⚠️ GPU under critical load (85%+) - using base.en only")
+        elif is_gpu_busy:
+            # High GPU load (70%+) - skip large-v3, use medium for long content
+            threshold_base = 50  # More conservative
+            threshold_medium = 999999  # Never use large-v3
+            use_large_model = False
+            mode_label = "GPU-BUSY"
+            safe_print("[whisper-smart] ⚠️ GPU busy (70%+) - skipping large-v3")
+        else:
+            # Low GPU load - full quality mode
+            threshold_base = WORD_THRESHOLD_BASE  # 25 words
+            threshold_medium = WORD_THRESHOLD_MEDIUM  # 75 words
+            use_large_model = True
+            mode_label = "GPU"
+            safe_print("[whisper-smart] ✅ GPU available with low load - full quality mode")
+    elif GPU_AVAILABLE and not is_nvidia:
+        # Non-NVIDIA GPU (AMD/Intel) - always use light/medium models
+        threshold_base = 50
+        threshold_medium = 999999  # Never use large-v3
+        use_large_model = False
+        gpu_vendor = gpu_monitor.get_gpu_vendor()
+        mode_label = f"GPU-{gpu_vendor.upper()}"
+        safe_print(f"[whisper-smart] Non-NVIDIA GPU ({gpu_vendor}) - using light/medium models only")
     else:
         # CPU mode - aggressive speed optimization
         threshold_base = 50  # Wider base.en range for speed
         threshold_medium = 999999  # Never trigger large-v3
         use_large_model = False
         mode_label = "CPU"
+        safe_print("[whisper-smart] CPU mode - speed-optimized")
     
     safe_print(f"[whisper-smart] {mode_label} mode: threshold_base={threshold_base}, use_large={use_large_model}")
     
@@ -3183,6 +3356,8 @@ def _tray_quit(_=None):
     try:
         if recording_flag.is_set():
             stop_recording_and_transcribe()
+        # Stop GPU monitoring
+        gpu_monitor.stop_monitoring()
     finally:
         os._exit(0)
 
@@ -3292,6 +3467,10 @@ def main():
     
     startup_diagnostics()
     
+    # Start GPU monitoring in background
+    safe_print("🔍 Starting GPU monitoring...")
+    gpu_monitor.start_monitoring()
+    
     # Start CUDA warmup in background (pre-load GPU model for instant first transcription)
     threading.Thread(target=cuda_warmup, daemon=True).start()
     
@@ -3301,14 +3480,28 @@ def main():
         log_line("Startup devices:\n" + device_lines)
         safe_print(f"✅ Microphone: {selected_input_device_name}")
         
-        # Show GPU/CPU mode and model selection strategy
-        if GPU_AVAILABLE:
-            safe_print("✅ GPU acceleration: ENABLED (NVIDIA CUDA detected)")
-            safe_print(f"✅ Smart model selection (quality-optimized):")
-            safe_print(f"   • <{WORD_THRESHOLD_BASE} words → base.en (fastest)")
-            safe_print(f"   • {WORD_THRESHOLD_BASE}-{WORD_THRESHOLD_MEDIUM} words → medium.en")
-            safe_print(f"   • {WORD_THRESHOLD_MEDIUM}+ words → large-v3 (best quality)")
+        # Show GPU/CPU mode and model selection strategy with load awareness
+        gpu_vendor = gpu_monitor.get_gpu_vendor()
+        is_nvidia = gpu_monitor.is_nvidia_gpu()
+        
+        if GPU_AVAILABLE and is_nvidia:
+            gpu_status = gpu_monitor.get_load_status_text()
+            safe_print(f"✅ GPU acceleration: ENABLED - {gpu_status}")
+            safe_print(f"✅ Dynamic model selection (load-aware):")
+            safe_print(f"   • GPU idle/low load:")
+            safe_print(f"     - <{WORD_THRESHOLD_BASE} words → base.en (fastest)")
+            safe_print(f"     - {WORD_THRESHOLD_BASE}-{WORD_THRESHOLD_MEDIUM} words → medium.en")
+            safe_print(f"     - {WORD_THRESHOLD_MEDIUM}+ words → large-v3 (best quality)")
+            safe_print(f"   • GPU busy (70%+ load): Skip large-v3, use base/medium only")
+            safe_print(f"   • GPU critical (85%+ load): Base.en only for speed")
             safe_print("🔥 CUDA warmup running in background...")
+            safe_print("📊 GPU load monitoring: ACTIVE")
+        elif GPU_AVAILABLE and not is_nvidia:
+            safe_print(f"✅ Non-NVIDIA GPU detected: {gpu_vendor.upper()}")
+            safe_print(f"✅ Smart model selection (compatibility-optimized):")
+            safe_print(f"   • <50 words → base.en (fast)")
+            safe_print(f"   • 50+ words → medium.en (balanced)")
+            safe_print(f"   • Large-v3 disabled (poor non-NVIDIA compatibility)")
         else:
             safe_print("✅ Running in CPU mode (speed-optimized)")
             safe_print(f"✅ Smart model selection (CPU-optimized):")
@@ -3407,7 +3600,7 @@ def main():
         
         # Check for keyboard library issues
         try:
-            down = listening_enabled and keyboard.is_pressed("windows") and keyboard.is_pressed("ctrl")
+            down = listening_enabled and keyboard.is_pressed("ctrl") and keyboard.is_pressed("shift")
             keyboard_error_count[0] = 0  # Reset error count on success
         except Exception as e:
             down = False
@@ -3419,7 +3612,7 @@ def main():
                 last_keyboard_check_error[0] = now
         
         try:
-            if (keyboard.is_pressed("windows") and keyboard.is_pressed("ctrl") and keyboard.is_pressed("s")):
+            if (keyboard.is_pressed("ctrl") and keyboard.is_pressed("shift") and keyboard.is_pressed("s")):
                 open_settings_window(gui.root)
         except Exception:
             pass
