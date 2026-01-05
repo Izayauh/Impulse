@@ -153,7 +153,8 @@ jobs:
               try {
                 Invoke-WebRequest -Uri $model.Value -OutFile $path -UseBasicParsing
                 $size = (Get-Item $path).Length / 1MB
-                Write-Host "  Downloaded: $($model.Key) ({0:N0} MB)" -f $size
+                $sizeText = "{0:N0} MB" -f $size
+                Write-Host "  Downloaded: $($model.Key) ($sizeText)"
               } catch {
                 Write-Warning "Failed to download $($model.Key): $_"
               }
@@ -194,7 +195,8 @@ jobs:
           # Verify output
           if (Test-Path "dist\WhisperLocal\WhisperLocal.exe") {
             $size = (Get-Item "dist\WhisperLocal\WhisperLocal.exe").Length / 1MB
-            Write-Host "Build successful! Size: {0:N1} MB" -f $size
+            $sizeText = "Build successful! Size: {0:N1} MB" -f $size
+            Write-Host $sizeText
           } else {
             Write-Error "Build failed - WhisperLocal.exe not found"
             exit 1
@@ -212,7 +214,8 @@ jobs:
           
           if ($installer) {
             $size = $installer.Length / 1GB
-            Write-Host "Installer created: $($installer.Name) ({0:N2} GB)" -f $size
+            $sizeText = "{0:N2} GB" -f $size
+            Write-Host "Installer created: $($installer.Name) ($sizeText)"
             echo "INSTALLER_NAME=$($installer.Name)" >> $env:GITHUB_OUTPUT
             echo "INSTALLER_PATH=$($installer.FullName)" >> $env:GITHUB_OUTPUT
           } else {
