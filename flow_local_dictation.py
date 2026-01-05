@@ -3,6 +3,12 @@ import sys, shutil, tempfile, uuid
 import logging
 import traceback
 import logging.handlers
+
+# Windows subprocess flag to hide console windows (prevents command prompt popup)
+if sys.platform == 'win32':
+    CREATE_NO_WINDOW = 0x08000000
+else:
+    CREATE_NO_WINDOW = 0
 import sounddevice as sd
 import soundfile as sf
 import keyboard
@@ -563,6 +569,43 @@ os.environ.setdefault("FLOW_WHISPER_ARGS", "-ngl 99")
 _bin = os.environ.get("FLOW_WHISPER_BIN")
 if _bin and not os.path.isfile(_bin):
     print(f"Warning: FLOW_WHISPER_BIN not found: {_bin}, will try to auto-detect...")
+
+# ============================================================================
+# GPU DETECTION FOR PERFORMANCE OPTIMIZATION
+# ============================================================================
+def detect_gpu_available() -> bool:
+    """Detect if NVIDIA GPU with CUDA is available.
+    
+    Checks for CUDA DLL and validates GPU with nvidia-smi.
+    Used to optimize model selection for CPU vs GPU systems.
+    
+    Returns:
+        True if GPU acceleration is available, False for CPU-only
+    """
+    try:
+        # Check if CUDA DLL exists in bundle or app directory
+        cuda_dll_paths = [
+            os.path.join(_bundle_dir, "ggml-cuda.dll"),
+            os.path.join(_app_dir, "ggml-cuda.dll"),
+            "ggml-cuda.dll",
+        ]
+        cuda_dll_found = any(os.path.exists(p) for p in cuda_dll_paths)
+        if not cuda_dll_found:
+            return False
+        
+        # Try to run nvidia-smi to verify GPU is functional
+        result = subprocess.run(
+            ["nvidia-smi", "--query-gpu=name", "--format=csv,noheader"],
+            capture_output=True,
+            timeout=3,
+            creationflags=CREATE_NO_WINDOW,
+        )
+        return result.returncode == 0
+    except Exception:
+        return False
+
+# Detect GPU at startup - determines model selection strategy
+GPU_AVAILABLE = detect_gpu_available()
 
 # Prefer winotify for reliable Windows 10/11 notifications; fall back gracefully if unavailable
 try:
@@ -2278,8 +2321,8 @@ def cuda_warmup():
         env["GGML_CUDA_FORCE_CUBLAS"] = "1"
         env["CUDA_LAUNCH_BLOCKING"] = "0"
         
-        # Run silently
-        subprocess.run(cmd, cwd=workdir, env=env, capture_output=True, timeout=30)
+        # Run silently (CREATE_NO_WINDOW prevents console popup)
+        subprocess.run(cmd, cwd=workdir, env=env, capture_output=True, timeout=30, creationflags=CREATE_NO_WINDOW)
         
         # Cleanup
         try:
@@ -2613,6 +2656,7 @@ def run_whisper(filename, bin_path, model_path=None):
             encoding="utf-8",
             errors="replace",
             timeout=WHISPER_TIMEOUT_SEC,
+            creationflags=CREATE_NO_WINDOW,  # Prevent console window popup
         )
     except subprocess.TimeoutExpired:
         log_line(f"[whisper] Process timed out after {WHISPER_TIMEOUT_SEC}s")
@@ -2668,6 +2712,7 @@ def run_whisper(filename, bin_path, model_path=None):
                 encoding="utf-8",
                 errors="replace",
                 timeout=WHISPER_TIMEOUT_SEC,
+                creationflags=CREATE_NO_WINDOW,  # Prevent console window popup
             )
         except subprocess.TimeoutExpired:
             log_line(f"[whisper] CPU fallback timed out after {WHISPER_TIMEOUT_SEC}s")
@@ -2706,6 +2751,7 @@ def run_whisper(filename, bin_path, model_path=None):
                 encoding="utf-8",
                 errors="replace",
                 timeout=WHISPER_TIMEOUT_SEC,
+                creationflags=CREATE_NO_WINDOW,  # Prevent console window popup
             )
         except subprocess.TimeoutExpired:
             log_line(f"[whisper] bad-args fallback timed out after {WHISPER_TIMEOUT_SEC}s")
@@ -2727,14 +2773,17 @@ def run_whisper(filename, bin_path, model_path=None):
 
 
 def run_whisper_smart(filename, bin_path):
-    """Two-pass smart model selection based on word count.
+    """Two-pass smart model selection with CPU/GPU awareness.
     
-    Strategy:
-    1. Always transcribe with base.en first (fast, <1s)
-    2. Count words in result
-    3. If word count < WORD_THRESHOLD_BASE: use base.en result (done!)
-    4. If word count < WORD_THRESHOLD_MEDIUM: re-transcribe with medium.en
-    5. If word count >= WORD_THRESHOLD_MEDIUM: re-transcribe with large-v3
+    GPU Mode (NVIDIA detected): Prioritize quality
+    - < 30 words: base.en only
+    - 30-80 words: base.en → medium.en
+    - 80+ words: base.en → large-v3
+    
+    CPU Mode (no GPU): Prioritize speed
+    - < 50 words: base.en only (fast)
+    - 50+ words: base.en → medium.en
+    - Never uses large-v3 (too slow on CPU)
     
     Args:
         filename: Path to audio file
@@ -2745,6 +2794,22 @@ def run_whisper_smart(filename, bin_path):
     """
     start_time = time.time()
     
+    # Adjust thresholds based on hardware capability
+    if GPU_AVAILABLE:
+        # GPU mode - original thresholds (prioritize quality)
+        threshold_base = WORD_THRESHOLD_BASE  # 25 words
+        threshold_medium = WORD_THRESHOLD_MEDIUM  # 75 words
+        use_large_model = True
+        mode_label = "GPU"
+    else:
+        # CPU mode - aggressive speed optimization
+        threshold_base = 50  # Wider base.en range for speed
+        threshold_medium = 999999  # Never trigger large-v3
+        use_large_model = False
+        mode_label = "CPU"
+    
+    safe_print(f"[whisper-smart] {mode_label} mode: threshold_base={threshold_base}, use_large={use_large_model}")
+    
     # Phase 1: Fast pass with base.en to count words
     safe_print("[whisper-smart] Phase 1: Quick transcription with base.en...")
     rc_base, text_base, err_base = run_whisper(filename, bin_path, model_path=MODEL_PATH_BASE)
@@ -2752,12 +2817,20 @@ def run_whisper_smart(filename, bin_path):
     phase1_time = time.time() - start_time
     
     if rc_base != 0:
-        # Base model failed - fall back to large model directly
-        safe_print(f"[whisper-smart] Base model failed (rc={rc_base}), using large-v3 fallback")
-        rc, text, err = run_whisper(filename, bin_path, model_path=MODEL_PATH_LARGE)
-        total_time = time.time() - start_time
-        safe_print(f"[whisper-smart] Fallback complete: {total_time:.2f}s")
-        return rc, text, err, "large-v3 (fallback)"
+        # Base model failed - fall back appropriately
+        if use_large_model:
+            safe_print(f"[whisper-smart] Base model failed (rc={rc_base}), using large-v3 fallback")
+            rc, text, err = run_whisper(filename, bin_path, model_path=MODEL_PATH_LARGE)
+            total_time = time.time() - start_time
+            safe_print(f"[whisper-smart] Fallback complete: {total_time:.2f}s")
+            return rc, text, err, "large-v3 (fallback)"
+        else:
+            # CPU mode - fall back to medium.en instead
+            safe_print(f"[whisper-smart] Base model failed (rc={rc_base}), using medium.en fallback (CPU mode)")
+            rc, text, err = run_whisper(filename, bin_path, model_path=MODEL_PATH_MEDIUM)
+            total_time = time.time() - start_time
+            safe_print(f"[whisper-smart] Fallback complete: {total_time:.2f}s")
+            return rc, text, err, "medium.en (fallback)"
     
     # Sanitize and count words
     clean_text = sanitize_transcript(text_base)
@@ -2769,15 +2842,15 @@ def run_whisper_smart(filename, bin_path):
     word_count = len(clean_text.split())
     safe_print(f"[whisper-smart] Phase 1 complete: {word_count} words in {phase1_time:.2f}s")
     
-    # Phase 2: Decide if we need a better model
-    if word_count < WORD_THRESHOLD_BASE:
+    # Phase 2: Decide if we need a better model based on hardware and word count
+    if word_count < threshold_base:
         # Short utterance - base.en is perfect!
-        safe_print(f"[whisper-smart] Using base.en result ({word_count} < {WORD_THRESHOLD_BASE} words)")
+        safe_print(f"[whisper-smart] Using base.en result ({word_count} < {threshold_base} words)")
         total_time = time.time() - start_time
         safe_print(f"[whisper-smart] ✓ Total time: {total_time:.2f}s (base.en only)")
         return rc_base, text_base, err_base, "base.en"
     
-    elif word_count < WORD_THRESHOLD_MEDIUM:
+    elif word_count < threshold_medium:
         # Medium length - re-transcribe with medium.en
         safe_print(f"[whisper-smart] Phase 2: Re-transcribing with medium.en ({word_count} words)")
         rc_med, text_med, err_med = run_whisper(filename, bin_path, model_path=MODEL_PATH_MEDIUM)
@@ -2791,8 +2864,8 @@ def run_whisper_smart(filename, bin_path):
             safe_print(f"[whisper-smart] Medium.en failed, using base.en result")
             return rc_base, text_base, err_base, "base.en (medium failed)"
     
-    else:
-        # Long utterance - re-transcribe with large-v3 for best quality
+    elif use_large_model:
+        # GPU mode only - long utterance gets large-v3 for best quality
         safe_print(f"[whisper-smart] Phase 2: Re-transcribing with large-v3 ({word_count} words)")
         rc_large, text_large, err_large = run_whisper(filename, bin_path, model_path=MODEL_PATH_LARGE)
         total_time = time.time() - start_time
@@ -2804,6 +2877,19 @@ def run_whisper_smart(filename, bin_path):
             # Large failed - fall back to base result
             safe_print(f"[whisper-smart] Large-v3 failed, using base.en result")
             return rc_base, text_base, err_base, "base.en (large failed)"
+    
+    else:
+        # CPU mode - cap at medium.en for acceptable speed
+        safe_print(f"[whisper-smart] CPU mode: Using medium.en ({word_count} words, large-v3 skipped)")
+        rc_med, text_med, err_med = run_whisper(filename, bin_path, model_path=MODEL_PATH_MEDIUM)
+        total_time = time.time() - start_time
+        
+        if rc_med == 0:
+            safe_print(f"[whisper-smart] ✓ Total time: {total_time:.2f}s (base.en + medium.en, CPU-optimized)")
+            return rc_med, text_med, err_med, "medium.en (CPU-optimized)"
+        else:
+            safe_print(f"[whisper-smart] Medium.en failed, using base.en result")
+            return rc_base, text_base, err_base, "base.en (medium failed)"
 
 
 def _transcribe_and_paste(wav_path):
@@ -2985,7 +3071,7 @@ def self_test_jfk():
     cmd = build_whisper_cmd(exe, MODEL_PATH, sample, base_args=["-nt"]) 
     log_line("[self-test] running: " + " ".join(cmd))
     try:
-        res = subprocess.run(cmd, capture_output=True, text=True, timeout=WHISPER_TIMEOUT_SEC)
+        res = subprocess.run(cmd, capture_output=True, text=True, timeout=WHISPER_TIMEOUT_SEC, creationflags=CREATE_NO_WINDOW)
         out = (res.stdout or "").strip() or (res.stderr or "").strip()
         if out:
             notify("Self-test OK (see log)")
@@ -3029,7 +3115,7 @@ def run_debug_probe():
         cmd = build_whisper_cmd(exe, MODEL_PATH, sample, base_args=["-nt"]) 
         log_line(f"[debug] running: {' '.join(cmd)}")
         try:
-            res = subprocess.run(cmd, capture_output=True, text=True, timeout=WHISPER_TIMEOUT_SEC)
+            res = subprocess.run(cmd, capture_output=True, text=True, timeout=WHISPER_TIMEOUT_SEC, creationflags=CREATE_NO_WINDOW)
             raw = (res.stdout or "") + ("\n" + res.stderr if res.stderr else "")
             san = sanitize_transcript(raw)
             with open(os.path.join("debug", f"flow_debug_{name}_raw.txt"), "w", encoding="utf-8") as f:
@@ -3214,12 +3300,23 @@ def main():
         notify("✅ Ready! Hold WIN + CTRL to speak.")
         log_line("Startup devices:\n" + device_lines)
         safe_print(f"✅ Microphone: {selected_input_device_name}")
-        safe_print(f"✅ Smart model selection enabled:")
-        safe_print(f"   • <{WORD_THRESHOLD_BASE} words → base.en (fastest)")
-        safe_print(f"   • {WORD_THRESHOLD_BASE}-{WORD_THRESHOLD_MEDIUM} words → medium.en")
-        safe_print(f"   • {WORD_THRESHOLD_MEDIUM}+ words → large-v3 (best quality)")
+        
+        # Show GPU/CPU mode and model selection strategy
+        if GPU_AVAILABLE:
+            safe_print("✅ GPU acceleration: ENABLED (NVIDIA CUDA detected)")
+            safe_print(f"✅ Smart model selection (quality-optimized):")
+            safe_print(f"   • <{WORD_THRESHOLD_BASE} words → base.en (fastest)")
+            safe_print(f"   • {WORD_THRESHOLD_BASE}-{WORD_THRESHOLD_MEDIUM} words → medium.en")
+            safe_print(f"   • {WORD_THRESHOLD_MEDIUM}+ words → large-v3 (best quality)")
+            safe_print("🔥 CUDA warmup running in background...")
+        else:
+            safe_print("✅ Running in CPU mode (speed-optimized)")
+            safe_print(f"✅ Smart model selection (CPU-optimized):")
+            safe_print(f"   • <50 words → base.en (fast)")
+            safe_print(f"   • 50+ words → medium.en (balanced)")
+            safe_print(f"   • Large-v3 disabled for performance")
+        
         safe_print(f"✅ Whisper binary: {resolved_whisper_bin}")
-        safe_print("🔥 CUDA warmup running in background...")
         safe_print("=" * 60)
     except Exception:
         pass
