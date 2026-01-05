@@ -1,0 +1,23 @@
+# WhisperLocal Dependencies
+# Pin versions for reproducible builds
+
+# Core audio and recording
+sounddevice==0.4.6
+soundfile==0.12.1
+numpy==1.26.2
+
+# Keyboard and clipboard
+keyboard==0.13.5
+pyperclip==1.8.2
+pyautogui==0.9.54
+
+# UI and system tray
+Pillow==10.1.0
+pystray==0.19.5
+
+# Optional: Windows notifications (graceful fallback if unavailable)
+winotify==1.1.0
+
+# Build tools (for development/building)
+pyinstaller==6.3.0
+

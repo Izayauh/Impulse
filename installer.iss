@@ -30,9 +30,12 @@ DisableProgramGroupPage=yes
 
 ; Output settings
 OutputDir=dist
-OutputBaseFilename=WhisperLocal-Setup-{#MyAppVersion}
+OutputBaseFilename=WhisperLocal-Setup-{#MyAppVersion}-final
 SetupIconFile=Whisper.ico
 UninstallDisplayIcon={app}\{#MyAppExeName}
+
+; Enable disk spanning for large installers (>4GB)
+DiskSpanning=yes
 
 ; Compression (LZMA2 for best compression ratio with large files)
 Compression=lzma2/ultra64

@@ -1,0 +1,25 @@
+# Development and Testing Dependencies
+# Install with: pip install -r requirements-dev.txt
+
+# Include production requirements
+-r requirements.txt
+
+# Testing
+pytest==7.4.3
+pytest-cov==4.1.0
+pytest-timeout==2.2.0
+pytest-mock==3.12.0
+
+# Code quality
+flake8==6.1.0
+black==23.12.1
+mypy==1.7.1
+pylint==3.0.3
+
+# Security
+pip-audit==2.6.1
+safety==2.3.5
+
+# Type stubs
+types-Pillow==10.1.0.2
+

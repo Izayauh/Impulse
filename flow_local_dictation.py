@@ -1,5 +1,7 @@
 import os, subprocess, time, threading, queue, datetime, shlex
 import sys, shutil, tempfile, uuid
+import logging
+import logging.handlers
 import sounddevice as sd
 import soundfile as sf
 import keyboard
@@ -22,6 +24,64 @@ import math
 APP_NAME = "WhisperLocal"
 APP_VERSION = "1.0.0"
 APP_AUTHOR = "WhisperLocal"
+
+# ============================================================================
+# AUDIO RECORDING CONSTANTS
+# ============================================================================
+# Audio input format (matches Whisper's expected format)
+SAMPLE_RATE_HZ = 16000  # 16kHz sample rate for Whisper compatibility
+AUDIO_CHANNELS = 1  # Mono recording for speech
+
+# Voice Activity Detection (VAD) thresholds
+# RMS_THRESH: Root Mean Square threshold for detecting voice activity
+# Lower values = more sensitive, higher values = less background noise pickup
+# Typical speaking voice is 0.01-0.05 RMS, whispers are 0.002-0.01
+RMS_THRESHOLD_VOICED = 0.002  # Minimum RMS to consider audio as "voiced"
+SILENCE_RMS_THRESHOLD_CONFIG = 0.008  # Threshold for silence detection (higher = stricter)
+
+# Timing constants for recording
+MIN_SPEECH_DURATION_SEC = 0.2  # Minimum duration of speech to process (filters clicks/pops)
+AUDIO_BLOCK_DURATION_SEC = 0.05  # Audio block size for RMS calculation (50ms)
+PREROLL_DURATION_SEC = 2.0  # Audio buffer before speech detection (not currently used)
+POSTROLL_DURATION_SEC = 0.15  # Continue recording after key release (captures final words)
+
+# ============================================================================
+# TRANSCRIPTION CONSTANTS
+# ============================================================================
+# Subprocess timeout - maximum time for whisper-cli to complete
+# Longer recordings and larger models need more time
+WHISPER_PROCESS_TIMEOUT_SEC = 120  # 2 minutes max per transcription
+
+# Word count thresholds for dynamic model selection
+# Shorter utterances use faster models, longer use more accurate ones
+WORD_THRESHOLD_FAST = 25  # <25 words: use base.en (fastest, ~100ms)
+WORD_THRESHOLD_BALANCED = 75  # 25-75 words: use medium.en (balanced, ~500ms)
+# 75+ words: use large-v3 (best quality, ~2-5s)
+
+# ============================================================================
+# UI INTERACTION CONSTANTS
+# ============================================================================
+# Debouncing for hotkey detection to prevent accidental double-triggers
+HOTKEY_DEBOUNCE_MS = 150  # Minimum ms between hotkey state changes
+
+# Animation timing
+UI_ANIMATION_FPS = 15  # Frame rate for pulse animations (reduced for CPU efficiency)
+UI_QUEUE_POLL_MS = 50  # How often to check UI update queue
+HOTKEY_POLL_MS = 10  # How often to check hotkey state
+
+# Status message display duration
+STATUS_SUCCESS_DISPLAY_SEC = 1.5  # How long to show success messages
+
+# Clipboard operation delay
+CLIPBOARD_SETTLE_DELAY_SEC = 0.05  # Delay after clipboard copy before paste
+
+# ============================================================================
+# INPUT VALIDATION CONSTANTS
+# ============================================================================
+# Limits to prevent DoS from malformed subprocess output
+MAX_TRANSCRIPT_SIZE_BYTES = 1024 * 1024  # 1 MB max transcript size
+MAX_TRANSCRIPT_LINE_COUNT = 10000  # Maximum lines to process
+MAX_LINE_LENGTH_CHARS = 10000  # Maximum characters per line
 
 # ============================================================================
 # PYINSTALLER PATH RESOLUTION
@@ -66,18 +126,72 @@ def mark_first_run_complete():
     config = {}
     if os.path.exists(config_file):
         try:
-            with open(config_file, 'r') as f:
+            with open(config_file, 'r', encoding='utf-8') as f:
                 config = json.load(f)
-        except Exception:
-            pass
+        except json.JSONDecodeError as e:
+            print(f"Warning: Config file corrupted, using defaults: {e}")
+        except (IOError, OSError) as e:
+            print(f"Warning: Could not read config file: {e}")
     config['first_run_complete'] = True
     config['version'] = APP_VERSION
     config['install_date'] = datetime.datetime.now().isoformat()
     try:
-        with open(config_file, 'w') as f:
+        with open(config_file, 'w', encoding='utf-8') as f:
             json.dump(config, f, indent=2)
-    except Exception as e:
+    except (IOError, OSError) as e:
         print(f"Warning: Could not save config: {e}")
+
+# ============================================================================
+# LOGGING CONFIGURATION
+# ============================================================================
+def _setup_logging():
+    """Configure application-wide logging.
+    
+    Creates a logger with:
+    - File handler: Writes to flow.log in user data directory
+    - Console handler: Prints INFO+ to stdout
+    
+    Log format includes timestamp, level, and message.
+    """
+    log_file = os.path.join(get_user_data_dir(), "flow.log")
+    
+    # Create logger
+    logger = logging.getLogger(APP_NAME)
+    logger.setLevel(logging.DEBUG)
+    
+    # Avoid adding handlers multiple times
+    if logger.handlers:
+        return logger
+    
+    # File handler - DEBUG level, rotating
+    try:
+        file_handler = logging.handlers.RotatingFileHandler(
+            log_file,
+            maxBytes=5 * 1024 * 1024,  # 5 MB max
+            backupCount=3,
+            encoding='utf-8'
+        )
+        file_handler.setLevel(logging.DEBUG)
+        file_formatter = logging.Formatter(
+            '%(asctime)s [%(levelname)s] %(message)s',
+            datefmt='%Y-%m-%d %H:%M:%S'
+        )
+        file_handler.setFormatter(file_formatter)
+        logger.addHandler(file_handler)
+    except (IOError, OSError) as e:
+        print(f"Warning: Could not create log file: {e}")
+    
+    # Console handler - INFO level
+    console_handler = logging.StreamHandler(sys.stdout)
+    console_handler.setLevel(logging.INFO)
+    console_formatter = logging.Formatter('%(message)s')
+    console_handler.setFormatter(console_formatter)
+    logger.addHandler(console_handler)
+    
+    return logger
+
+# Initialize logger
+logger = _setup_logging()
 
 # ============================================================================
 # FAST WIN32 CLIPBOARD & INPUT - Zero-latency paste
@@ -107,7 +221,11 @@ class INPUT(ctypes.Structure):
     _fields_ = [("type", wintypes.DWORD), ("_input", _INPUT)]
 
 def fast_clipboard_copy(text: str) -> bool:
-    """Direct Win32 clipboard copy - faster than pyperclip."""
+    """Direct Win32 clipboard copy - faster than pyperclip.
+    
+    Returns:
+        True if successful, False otherwise.
+    """
     try:
         user32 = ctypes.windll.user32
         kernel32 = ctypes.windll.kernel32
@@ -131,11 +249,22 @@ def fast_clipboard_copy(text: str) -> bool:
             return True
         finally:
             user32.CloseClipboard()
-    except Exception:
+    except (OSError, ctypes.ArgumentError, UnicodeEncodeError) as e:
+        # OSError: Win32 API failures
+        # ArgumentError: Invalid ctypes arguments
+        # UnicodeEncodeError: Text encoding issues
+        log_line(f"Clipboard copy failed: {type(e).__name__}: {e}")
         return False
 
 def fast_send_paste() -> bool:
-    """Direct SendInput for Ctrl+V - faster than pyautogui."""
+    """Direct SendInput for Ctrl+V - faster than pyautogui.
+    
+    Note: May be blocked by Windows UIPI (User Interface Privilege Isolation)
+    when pasting to elevated windows.
+    
+    Returns:
+        True if successful, False otherwise.
+    """
     try:
         user32 = ctypes.windll.user32
         
@@ -162,18 +291,36 @@ def fast_send_paste() -> bool:
         
         user32.SendInput(4, ctypes.byref(inputs), ctypes.sizeof(INPUT))
         return True
-    except Exception:
+    except (OSError, ctypes.ArgumentError) as e:
+        # OSError: Win32 API failures  
+        # ArgumentError: Invalid ctypes arguments
+        log_line(f"SendInput paste failed: {type(e).__name__}: {e}")
         return False
 
 def instant_paste(text: str) -> bool:
-    """Reliable paste using pyperclip + pyautogui (Win32 blocked by Windows security)."""
-    # Win32 SendInput gets blocked by Windows UIPI after first use - use pyautogui instead
+    """Reliable paste using pyperclip + pyautogui.
+    
+    Note: Win32 SendInput gets blocked by Windows UIPI after first use,
+    so this uses pyautogui which works more reliably.
+    
+    Args:
+        text: The text to paste.
+        
+    Returns:
+        True if successful, False otherwise.
+    """
     try:
         pyperclip.copy(text)
         time.sleep(0.05)  # Small delay to ensure clipboard is ready
         pyautogui.hotkey("ctrl", "v")
         return True
-    except Exception:
+    except pyperclip.PyperclipException as e:
+        log_line(f"Clipboard error: {e}")
+        return False
+    except (OSError, RuntimeError) as e:
+        # OSError: System clipboard access issues
+        # RuntimeError: pyautogui failures
+        log_line(f"Paste failed: {type(e).__name__}: {e}")
         return False
 
 # ============================================================================
@@ -257,8 +404,10 @@ class StatsTracker:
                         if key not in loaded:
                             loaded[key] = default[key]
                     return loaded
-        except Exception:
-            pass
+        except json.JSONDecodeError as e:
+            print(f"Stats file corrupted, using defaults: {e}")
+        except (IOError, OSError) as e:
+            print(f"Could not read stats file: {e}")
         return default
     
     def _save(self):
@@ -266,8 +415,10 @@ class StatsTracker:
         try:
             with open(STATS_FILE, "w", encoding="utf-8") as f:
                 json.dump(self.data, f, indent=2)
-        except Exception as e:
+        except (IOError, OSError) as e:
             print(f"Stats save error: {e}")
+        except (TypeError, ValueError) as e:
+            print(f"Stats serialization error: {e}")
     
     def record_transcription(self, text: str, model_used: str = None):
         """Record a successful transcription.
@@ -421,15 +572,37 @@ except Exception:
 
 # --- Single-instance guard (Windows) ---
 import tempfile, uuid, msvcrt
+import atexit
 
 _SINGLETON_LOCK = None
-def _acquire_single_instance():
+_SINGLETON_LOCK_PATH = None
+
+def _release_single_instance():
+    """Release the singleton lock file on exit."""
     global _SINGLETON_LOCK
-    lock_path = os.path.join(tempfile.gettempdir(), f"{APP_NAME.lower()}_dictation.lock")
-    _SINGLETON_LOCK = open(lock_path, "w")
+    if _SINGLETON_LOCK is not None:
+        try:
+            msvcrt.locking(_SINGLETON_LOCK.fileno(), msvcrt.LK_UNLCK, 1)
+        except (OSError, ValueError):
+            pass  # Lock may already be released or file closed
+        try:
+            _SINGLETON_LOCK.close()
+        except (OSError, ValueError):
+            pass
+        _SINGLETON_LOCK = None
+
+def _acquire_single_instance():
+    """Acquire singleton lock to prevent multiple instances."""
+    global _SINGLETON_LOCK, _SINGLETON_LOCK_PATH
+    _SINGLETON_LOCK_PATH = os.path.join(tempfile.gettempdir(), f"{APP_NAME.lower()}_dictation.lock")
+    _SINGLETON_LOCK = open(_SINGLETON_LOCK_PATH, "w")
     try:
         msvcrt.locking(_SINGLETON_LOCK.fileno(), msvcrt.LK_NBLCK, 1)
+        # Register cleanup handler to release lock on exit
+        atexit.register(_release_single_instance)
     except OSError:
+        _SINGLETON_LOCK.close()
+        _SINGLETON_LOCK = None
         print("Already running. Exiting.")
         sys.exit(0)
 
@@ -442,16 +615,17 @@ MODEL_BASE = os.path.join("models", "ggml-base.en.bin")
 MODEL_MEDIUM = os.path.join("models", "ggml-medium.en.bin")
 MODEL_LARGE = os.path.join("models", "ggml-large-v3.bin")
 
-# Word count thresholds for model selection
-WORD_THRESHOLD_BASE = 25    # Use base.en for <25 words (fastest)
-WORD_THRESHOLD_MEDIUM = 75  # Use medium.en for 25-75 words (balanced)
-                            # Use large-v3 for 75+ words (highest quality)
+# Word count thresholds - using centralized constants
+WORD_THRESHOLD_BASE = WORD_THRESHOLD_FAST
+WORD_THRESHOLD_MEDIUM = WORD_THRESHOLD_BALANCED
 
 # Legacy default (will be dynamically selected)
 MODEL_PATH_REL = MODEL_LARGE  # fallback if dynamic selection fails
 WHISPER_BIN = os.environ.get("WHISPER_BIN") or os.path.join(".", "main.exe")
-SAMPLE_RATE = 16000
-CHANNELS = 1
+
+# Audio settings - using centralized constants
+SAMPLE_RATE = SAMPLE_RATE_HZ
+CHANNELS = AUDIO_CHANNELS
 
 # Use user data directory for temp files (writable location)
 WAV_TMP = os.path.join(_user_dir, "flow_input.wav")
@@ -471,17 +645,17 @@ MODE_BULLET_NEXT = False  # one-shot list maker (also triggered by keywords)
 # Can also be set via env var FLOW_INPUT_DEVICE (e.g., "2" or "USB").
 INPUT_DEVICE = os.environ.get("FLOW_INPUT_DEVICE", None)
 
-# Timeout for whisper subprocess (seconds)
-WHISPER_TIMEOUT_SEC = 120
+# Use centralized timeout constant
+WHISPER_TIMEOUT_SEC = WHISPER_PROCESS_TIMEOUT_SEC
 
-# Silence detection during recording (on normalized float32 audio)
-SILENCE_RMS_THRESHOLD = 0.008
+# Silence detection - using centralized constants
+SILENCE_RMS_THRESHOLD = SILENCE_RMS_THRESHOLD_CONFIG
 MIN_SPOKEN_BLOCKS = 3
 
 # Log file for diagnostics (user-writable location)
 LOG_FILE = os.path.join(_user_dir, "flow.log")
 
-# Whisper binary detection candidates (check bundle dir, app dir, and legacy locations)
+# Whisper binary detection candidates (check bundle dir, app dir, and current directory)
 WHISPER_CANDIDATES = [
     os.path.join(_bundle_dir, "whisper-cli.exe"),
     os.path.join(_bundle_dir, "main.exe"),
@@ -489,9 +663,12 @@ WHISPER_CANDIDATES = [
     os.path.join(_app_dir, "main.exe"),
     os.path.join(".", "whisper-cli.exe"),
     os.path.join(".", "main.exe"),
-    os.path.join("whisper.cpp", "build", "bin", "Release", "whisper-cli.exe"),
-    os.path.join("whisper.cpp", "build", "bin", "Debug", "whisper-cli.exe"),
+    # Legacy dev environment paths (optional)
+    os.path.join("whisper.cpp", "build", "bin", "Release", "whisper-cli.exe") if os.path.exists("whisper.cpp") else None,
+    os.path.join("whisper.cpp", "build", "bin", "Debug", "whisper-cli.exe") if os.path.exists("whisper.cpp") else None,
 ]
+# Filter out None values from conditional paths
+WHISPER_CANDIDATES = [c for c in WHISPER_CANDIDATES if c is not None]
 
 # Resolved at startup
 resolved_whisper_bin = None
@@ -500,7 +677,7 @@ resolved_whisper_bin = None
 STATE_LOCK = threading.Lock()
 transcribing_flag = threading.Event()
 last_edge_ts = 0.0
-EDGE_COOLDOWN_MS = 150
+EDGE_COOLDOWN_MS = HOTKEY_DEBOUNCE_MS  # Using centralized constant
 
 recording_flag = threading.Event()
 rec_thread = None
@@ -1584,26 +1761,40 @@ MODEL_PATH = MODEL_PATH_LARGE  # Legacy fallback
 model_info_logged = False
 
 def safe_print(*args, **kwargs):
+    """Print to console safely, handling encoding errors.
+    
+    Uses the centralized logger for consistent output.
+    """
+    msg = " ".join(str(a) for a in args)
     try:
-        print(*args, **kwargs)
-    except Exception:
-        msg = " ".join(str(a) for a in args)
+        logger.info(msg)
+    except (UnicodeEncodeError, UnicodeDecodeError):
+        # Fallback for encoding issues
         try:
             enc = sys.stdout.encoding or "utf-8"
-        except Exception:
-            enc = "utf-8"
-        sys.stdout.write((msg + "\n").encode(enc, errors="replace").decode(errors="replace"))
+            sys.stdout.write((msg + "\n").encode(enc, errors="replace").decode(errors="replace"))
+        except (AttributeError, UnicodeError):
+            pass
 
-def log_line(message):
-    """Append a timestamped line to LOG_FILE and print it."""
-    ts = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    line = f"[{ts}] {message}"
-    try:
-        with open(LOG_FILE, "a", encoding="utf-8") as f:
-            f.write(line + "\n")
-    except Exception:
-        pass
-    safe_print(line)
+def log_line(message: str, level: str = "info"):
+    """Log a message using the centralized logger.
+    
+    This is the primary logging function. All log messages go to both
+    file (flow.log) and console.
+    
+    Args:
+        message: The message to log
+        level: Log level ('debug', 'info', 'warning', 'error', 'critical')
+    """
+    level_map = {
+        'debug': logger.debug,
+        'info': logger.info,
+        'warning': logger.warning,
+        'error': logger.error,
+        'critical': logger.critical,
+    }
+    log_func = level_map.get(level.lower(), logger.info)
+    log_func(message)
 
 
 def set_status_safe(text, bg, fg="#ffffff", border=None):
@@ -1756,13 +1947,45 @@ def handle_startup_issue(issue_type: str, technical_error: str = None):
     show_friendly_error(message, suggestion, technical_error, show_settings)
 
 
+# Input validation - using centralized constants
+MAX_TRANSCRIPT_BYTES = MAX_TRANSCRIPT_SIZE_BYTES
+MAX_TRANSCRIPT_LINES = MAX_TRANSCRIPT_LINE_COUNT
+MAX_LINE_LENGTH = MAX_LINE_LENGTH_CHARS
+
 def sanitize_transcript(text: str) -> str:
-    """Remove banners, deprecation notices, and placeholder tokens from transcript."""
+    """Remove banners, deprecation notices, and placeholder tokens from transcript.
+    
+    Includes input validation to prevent DoS from malformed/oversized output.
+    
+    Args:
+        text: Raw transcript text from whisper-cli
+        
+    Returns:
+        Cleaned transcript text with metadata removed
+    """
     if not text:
         return ""
+    
+    # Input size validation to prevent memory exhaustion
+    if len(text) > MAX_TRANSCRIPT_BYTES:
+        log_line(f"WARNING: Transcript too large ({len(text)} bytes), truncating to {MAX_TRANSCRIPT_BYTES}")
+        text = text[:MAX_TRANSCRIPT_BYTES]
+    
     text = text.replace("[BLANK_AUDIO]", "").replace("BLANK_AUDIO", "").strip()
     lines = []
+    line_count = 0
+    
     for ln in text.splitlines():
+        # Limit number of lines processed
+        line_count += 1
+        if line_count > MAX_TRANSCRIPT_LINES:
+            log_line(f"WARNING: Transcript has too many lines ({line_count}+), truncating")
+            break
+        
+        # Truncate overly long lines
+        if len(ln) > MAX_LINE_LENGTH:
+            ln = ln[:MAX_LINE_LENGTH]
+        
         lns = ln.strip()
         if not lns:
             continue
@@ -2144,10 +2367,11 @@ def build_whisper_cmd(exe, model_path, wav_path, base_args=None):
 
     return [exe, "-m", model_path, "-f", wav_path, *base_args, *extra_args]
 
-MIN_SEC = 0.2  # Reduced for faster speech detection
-RMS_THRESH = 0.002
-PREROLL_SEC = 2.0
-POSTROLL_SEC = 0.15  # Reduced from 0.4 for snappier response
+# Recording timing - using centralized constants
+MIN_SEC = MIN_SPEECH_DURATION_SEC
+RMS_THRESH = RMS_THRESHOLD_VOICED
+PREROLL_SEC = PREROLL_DURATION_SEC
+POSTROLL_SEC = POSTROLL_DURATION_SEC
 
 def record_loop():
     """Record while recording_flag is set; write to WAV on stop with RMS gate."""
@@ -2155,7 +2379,7 @@ def record_loop():
     # Skip slow toast notification - UI pill already shows listening state
     data = []
     voiced_samples = 0
-    block_dur = 0.05  # Reduced from 0.1 for faster RMS detection
+    block_dur = AUDIO_BLOCK_DURATION_SEC
 
     if selected_input_device_idx is None:
         set_status_safe("❌ Mic not ready", Theme.ERROR, Theme.TEXT_PRIMARY, Theme.ERROR)
@@ -2203,32 +2427,45 @@ def record_loop():
 
 
 def start_recording():
+    """Start audio recording in a background thread.
+    
+    Thread-safe: Uses STATE_LOCK to prevent race conditions with
+    stop_recording_and_transcribe().
+    """
     global rec_thread, target_window_on_record_start, pending_status_timer
     
-    # Cancel any pending status timer from previous transcription
-    if pending_status_timer is not None:
-        try:
-            pending_status_timer.cancel()
-        except Exception:
-            pass
-        pending_status_timer = None
-    
     with STATE_LOCK:
+        # Check if already recording or transcribing (must be first check inside lock)
         if recording_flag.is_set() or transcribing_flag.is_set():
             return
+        
+        # Cancel any pending status timer from previous transcription
+        if pending_status_timer is not None:
+            try:
+                pending_status_timer.cancel()
+            except (AttributeError, RuntimeError):
+                pass  # Timer already fired or cancelled
+            pending_status_timer = None
+        
         # Capture focus BEFORE we start (before our UI updates)
         # This ensures we know where to paste when transcription completes
         try:
             user32 = ctypes.windll.user32
             target_window_on_record_start = user32.GetForegroundWindow()
-        except Exception:
+        except (AttributeError, OSError):
             target_window_on_record_start = None
+        
+        # Clean up previous temp file
         try:
             if os.path.exists(WAV_TMP):
                 os.remove(WAV_TMP)
-        except Exception:
-            pass
+        except OSError:
+            pass  # File in use or already deleted
+        
+        # Set flag to indicate recording has started
         recording_flag.set()
+    
+    # UI update and thread start outside lock (safe since flag is already set)
     set_status_safe("🎙️ Listening...", Theme.PINK_DARK, Theme.TEXT_PRIMARY, Theme.PINK_PRIMARY)
     rec_thread = threading.Thread(target=record_loop, daemon=True)
     rec_thread.start()
@@ -2365,15 +2602,20 @@ def run_whisper(filename, bin_path, model_path=None):
     log_line(f"DEBUG wav_path = {filename}")
     log_line(f"DEBUG cmd = {cmd}")
 
-    res = subprocess.run(
-        cmd,
-        cwd=workdir,
-        env=env,
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-    )
+    try:
+        res = subprocess.run(
+            cmd,
+            cwd=workdir,
+            env=env,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=WHISPER_TIMEOUT_SEC,
+        )
+    except subprocess.TimeoutExpired:
+        log_line(f"[whisper] Process timed out after {WHISPER_TIMEOUT_SEC}s")
+        return 1, "", "Transcription timed out"
 
     stderr_lower = (res.stderr or "").lower()
     if "cuda" in stderr_lower and "found" in stderr_lower and res.returncode == 0:
@@ -2416,14 +2658,19 @@ def run_whisper(filename, bin_path, model_path=None):
         
         safe_print(f"[whisper] CPU fallback: bs={cpu_batch_size}" + (f", bo={cpu_best_of}" if cpu_best_of else "") + f", threads={num_threads}")
         
-        res = subprocess.run(
-            cmd_cpu,
-            cwd=workdir,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-        )
+        try:
+            res = subprocess.run(
+                cmd_cpu,
+                cwd=workdir,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=WHISPER_TIMEOUT_SEC,
+            )
+        except subprocess.TimeoutExpired:
+            log_line(f"[whisper] CPU fallback timed out after {WHISPER_TIMEOUT_SEC}s")
+            return 1, "", "Transcription timed out (CPU fallback)"
     safe_print(f"[whisper] exit={res.returncode} stdout={len(res.stdout)}B stderr={len(res.stderr)}B out='{out_txt}'")
 
     text = ""
@@ -2449,14 +2696,19 @@ def run_whisper(filename, bin_path, model_path=None):
             filename,
             base_args=["-l", "en", "-nt", "-bs", "5", "-otxt", "-of", out_txt[:-4]],
         )
-        res = subprocess.run(
-            cmd_fallback,
-            cwd=workdir,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-        )
+        try:
+            res = subprocess.run(
+                cmd_fallback,
+                cwd=workdir,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=WHISPER_TIMEOUT_SEC,
+            )
+        except subprocess.TimeoutExpired:
+            log_line(f"[whisper] bad-args fallback timed out after {WHISPER_TIMEOUT_SEC}s")
+            return 1, "", "Transcription timed out (fallback)"
         try:
             if os.path.exists(out_txt):
                 with open(out_txt, "r", encoding="utf-8", errors="replace") as fh:
@@ -2708,9 +2960,22 @@ def on_hotkey_release(e):
 
 # --- Diagnostics ---
 def self_test_jfk():
-    sample = os.path.join("whisper.cpp", "samples", "jfk.wav")
-    if not os.path.exists(sample):
-        notify("Self-test sample not found: whisper.cpp/samples/jfk.wav")
+    # Try multiple locations for test sample
+    sample_locations = [
+        os.path.join("whisper.cpp", "samples", "jfk.wav"),  # Legacy location
+        os.path.join(_app_dir, "samples", "jfk.wav"),  # Bundled location
+        os.path.join(_bundle_dir, "samples", "jfk.wav"),  # PyInstaller location
+        os.environ.get("WHISPER_TEST_SAMPLE"),  # Environment variable override
+    ]
+    
+    sample = None
+    for loc in sample_locations:
+        if loc and os.path.exists(loc):
+            sample = loc
+            break
+    
+    if not sample:
+        notify("Self-test sample not found. Set WHISPER_TEST_SAMPLE environment variable or place jfk.wav in samples/ directory.")
         return
     if resolved_whisper_bin is None and not os.path.exists(WHISPER_BIN):
         notify("No whisper binary available for self-test")
@@ -2731,9 +2996,22 @@ def self_test_jfk():
 
 
 def run_debug_probe():
-    sample = os.path.join("whisper.cpp", "samples", "jfk.wav")
-    if not os.path.exists(sample):
-        notify("Debug: sample not found whisper.cpp/samples/jfk.wav")
+    # Try multiple locations for test sample
+    sample_locations = [
+        os.path.join("whisper.cpp", "samples", "jfk.wav"),  # Legacy location
+        os.path.join(_app_dir, "samples", "jfk.wav"),  # Bundled location
+        os.path.join(_bundle_dir, "samples", "jfk.wav"),  # PyInstaller location
+        os.environ.get("WHISPER_TEST_SAMPLE"),  # Environment variable override
+    ]
+    
+    sample = None
+    for loc in sample_locations:
+        if loc and os.path.exists(loc):
+            sample = loc
+            break
+    
+    if not sample:
+        notify("Debug: sample not found. Set WHISPER_TEST_SAMPLE environment variable or place jfk.wav in samples/ directory.")
         return
     candidates = []
     if os.path.exists(os.path.join(".", "main.exe")):
