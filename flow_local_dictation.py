@@ -1,6 +1,7 @@
 import os, subprocess, time, threading, queue, datetime, shlex
 import sys, shutil, tempfile, uuid
 import logging
+import traceback
 import logging.handlers
 import sounddevice as sd
 import soundfile as sf
@@ -3069,24 +3070,70 @@ def _tray_debug(_=None):
         safe_print(f"Debug error: {e}")
 
 def _tray_open_dashboard(_=None):
-    """Open dashboard from tray."""
+    """Open dashboard from tray - thread-safe version."""
     global dashboard_window
-    try:
-        if gui and gui.root:
+    
+    def _open_dashboard_main_thread():
+        """Actually create/show dashboard - must run on main thread."""
+        global dashboard_window
+        try:
             if dashboard_window is None or not dashboard_window.winfo_exists():
                 dashboard_window = DashboardWindow(gui.root)
             else:
                 dashboard_window.lift()
                 dashboard_window.focus_force()
+        except Exception as e:
+            safe_print(f"Dashboard error: {e}")
+    
+    try:
+        if gui and gui.root:
+            # Use ui_queue to marshal to main thread (same pattern as set_status_safe)
+            ui_queue.put((_open_dashboard_main_thread, ()))
     except Exception as e:
-        safe_print(f"Dashboard error: {e}")
+        safe_print(f"Dashboard queue error: {e}")
 
 def _tray_quit(_=None):
+    log_line("[TRAY] User selected Quit from tray menu")
     try:
         if recording_flag.is_set():
             stop_recording_and_transcribe()
     finally:
         os._exit(0)
+
+def _tray_restart_gui(_=None):
+    """Restart the GUI window without killing the whole application."""
+    log_line("[TRAY] User selected Restart GUI from tray menu")
+    notify("Restarting GUI...")
+    
+    def restart_gui_thread():
+        global gui
+        try:
+            # Destroy old GUI if it exists
+            try:
+                if gui and gui.root:
+                    gui.root.destroy()
+            except:
+                pass
+            
+            time.sleep(0.5)  # Brief pause before recreating
+            
+            # Create new GUI on main thread via queue
+            def create_new_gui():
+                global gui
+                try:
+                    gui = FloatingPill()
+                    gui.set_status("ready")
+                    log_line("[GUI_RESTART] New GUI created successfully")
+                    notify("✅ GUI restarted! Hold WIN + CTRL to speak.")
+                except Exception as e:
+                    log_line(f"[GUI_RESTART_ERROR] Failed to create new GUI: {e}\n{traceback.format_exc()}", "error")
+                    notify(f"❌ Failed to restart GUI: {e}")
+            
+            ui_queue.put((create_new_gui, ()))
+        except Exception as e:
+            log_line(f"[GUI_RESTART_ERROR] {e}\n{traceback.format_exc()}", "error")
+    
+    threading.Thread(target=restart_gui_thread, daemon=True).start()
 
 def start_tray():
     global tray_icon
@@ -3106,6 +3153,8 @@ def start_tray():
         menu=pystray.Menu(
             pystray.MenuItem("Open Dashboard", _tray_open_dashboard, default=True),
             pystray.MenuItem("Toggle Listening", _tray_toggle),
+            pystray.Menu.SEPARATOR,
+            pystray.MenuItem("Restart GUI", _tray_restart_gui),
             pystray.Menu.SEPARATOR,
             pystray.MenuItem("Self-test (JFK)", _tray_selftest),
             pystray.MenuItem("Run Debug Probe", _tray_debug),
@@ -3176,25 +3225,108 @@ def main():
         pass
 
     was_down = False
+    
+    # Health monitoring state
+    health_check_count = [0]
+    last_gui_response_time = [time.time()]
+    keyboard_health_failures = [0]
+    
+    def health_check():
+        """Periodic health check to detect GUI and keyboard library issues."""
+        health_check_count[0] += 1
+        issues = []
+        
+        # Check keyboard library health
+        try:
+            # Try to query keyboard state - this will fail if library is in bad state
+            _ = keyboard.is_pressed("shift")
+            keyboard_health_failures[0] = 0
+        except Exception as e:
+            keyboard_health_failures[0] += 1
+            issues.append(f"keyboard library error: {e}")
+        
+        # Check if GUI is responsive (root window exists and is mapped)
+        try:
+            if gui.root.winfo_exists():
+                gui.root.update_idletasks()  # Force process pending events
+                last_gui_response_time[0] = time.time()
+            else:
+                issues.append("GUI root window does not exist")
+        except tk.TclError as e:
+            issues.append(f"GUI TclError: {e}")
+        except Exception as e:
+            issues.append(f"GUI error: {e}")
+        
+        # Log health status every 10 checks (5 minutes) or immediately on issues
+        if issues:
+            log_line(f"[HEALTH_CHECK #{health_check_count[0]}] ISSUES DETECTED: {', '.join(issues)}", "warning")
+        elif health_check_count[0] % 10 == 0:
+            uptime_min = (time.time() - last_gui_response_time[0]) / 60
+            log_line(f"[HEALTH_CHECK #{health_check_count[0]}] OK - keyboard_fails={keyboard_health_failures[0]}, gui_responsive=True")
+        
+        # Warn if keyboard library has repeated failures
+        if keyboard_health_failures[0] >= 3:
+            log_line(f"[HEALTH_WARNING] Keyboard library has failed {keyboard_health_failures[0]} consecutive checks - consider restarting", "warning")
+            notify("⚠️ Keyboard detection may be unreliable. Consider restarting the app.")
+        
+        # Schedule next health check (every 30 seconds)
+        try:
+            gui.root.after(30000, health_check)
+        except:
+            pass  # GUI may have been destroyed
+    
+    # Start health monitoring after a short delay
+    gui.root.after(5000, health_check)
 
-    keyboard.on_press_key("f8", lambda e: threading.Thread(target=self_test_jfk, daemon=True).start())
-    keyboard.on_press_key("f9", lambda e: threading.Thread(target=run_debug_probe, daemon=True).start())
-    keyboard.add_hotkey("ctrl+alt+j", lambda: threading.Thread(target=self_test_jfk, daemon=True).start())
-    keyboard.add_hotkey("ctrl+alt+d", lambda: threading.Thread(target=run_debug_probe, daemon=True).start())
+    # Wrapped debug hotkey handlers with logging
+    def _safe_self_test_jfk(e=None):
+        log_line("[HOTKEY] F8/Ctrl+Alt+J pressed - starting self_test_jfk")
+        try:
+            self_test_jfk()
+        except Exception as ex:
+            log_line(f"[HOTKEY_ERROR] self_test_jfk failed: {ex}\n{traceback.format_exc()}", "error")
+    
+    def _safe_run_debug_probe(e=None):
+        log_line("[HOTKEY] F9/Ctrl+Alt+D pressed - starting run_debug_probe")
+        try:
+            run_debug_probe()
+        except Exception as ex:
+            log_line(f"[HOTKEY_ERROR] run_debug_probe failed: {ex}\n{traceback.format_exc()}", "error")
+    
+    keyboard.on_press_key("f8", lambda e: threading.Thread(target=_safe_self_test_jfk, daemon=True).start())
+    keyboard.on_press_key("f9", lambda e: threading.Thread(target=_safe_run_debug_probe, daemon=True).start())
+    keyboard.add_hotkey("ctrl+alt+j", lambda: threading.Thread(target=_safe_self_test_jfk, daemon=True).start())
+    keyboard.add_hotkey("ctrl+alt+d", lambda: threading.Thread(target=_safe_run_debug_probe, daemon=True).start())
     keyboard.add_hotkey("ctrl+alt+b", lambda: set_bullet_next())
+
+    # Track ESC key state for debouncing
+    esc_pressed_start = [None]  # Use list for nonlocal mutation
+    last_keyboard_check_error = [0]  # Track keyboard library errors
+    keyboard_error_count = [0]  # Count consecutive errors
 
     def poll_hotkey():
         nonlocal was_down
         global last_edge_ts
+        
+        # Check for keyboard library issues
         try:
             down = listening_enabled and keyboard.is_pressed("windows") and keyboard.is_pressed("ctrl")
-        except Exception:
+            keyboard_error_count[0] = 0  # Reset error count on success
+        except Exception as e:
             down = False
+            keyboard_error_count[0] += 1
+            now = time.time()
+            # Log keyboard errors, but rate-limit to avoid spam
+            if now - last_keyboard_check_error[0] > 30:  # Log at most every 30 seconds
+                log_line(f"[KEYBOARD_ERROR] is_pressed failed (count={keyboard_error_count[0]}): {e}", "warning")
+                last_keyboard_check_error[0] = now
+        
         try:
             if (keyboard.is_pressed("windows") and keyboard.is_pressed("ctrl") and keyboard.is_pressed("s")):
                 open_settings_window(gui.root)
         except Exception:
             pass
+        
         now = time.time()
         if down and not was_down and (now - last_edge_ts) * 1000 > EDGE_COOLDOWN_MS:
             last_edge_ts = now
@@ -3203,17 +3335,60 @@ def main():
             last_edge_ts = now
             threading.Thread(target=stop_recording_and_transcribe, daemon=True).start()
         was_down = down
+        
+        # Debounced ESC detection - require 500ms hold to prevent accidental exit
         try:
-            if keyboard.is_pressed("esc"):
-                gui.root.destroy()
-                return
-        except Exception:
-            pass
+            esc_is_pressed = keyboard.is_pressed("esc")
+            if esc_is_pressed:
+                if esc_pressed_start[0] is None:
+                    esc_pressed_start[0] = time.time()
+                    log_line("[ESC] ESC key pressed - waiting for 500ms hold confirmation")
+                elif time.time() - esc_pressed_start[0] >= 0.5:
+                    log_line("[ESC] ESC held for 500ms - user confirmed exit")
+                    gui.root.destroy()
+                    return
+            else:
+                if esc_pressed_start[0] is not None:
+                    hold_duration = time.time() - esc_pressed_start[0]
+                    if hold_duration > 0.1:  # Only log if it was a real press, not a glitch
+                        log_line(f"[ESC] ESC released after {hold_duration:.2f}s (not long enough to exit)")
+                esc_pressed_start[0] = None
+        except Exception as e:
+            log_line(f"[KEYBOARD_ERROR] ESC check failed: {e}", "warning")
+            esc_pressed_start[0] = None  # Reset on error to prevent false exits
+        
         gui.root.after(10, poll_hotkey)
 
     gui.pump_queue()
     gui.root.after(10, poll_hotkey)
-    gui.root.mainloop()
+    
+    log_line("[MAINLOOP] Entering mainloop")
+    mainloop_exit_reason = "unknown"
+    
+    try:
+        gui.root.mainloop()
+        mainloop_exit_reason = "normal"
+    except tk.TclError as e:
+        mainloop_exit_reason = f"TclError: {e}"
+        log_line(f"[MAINLOOP_TCLERROR] {e}", "error")
+    except Exception as e:
+        mainloop_exit_reason = f"Exception: {e}"
+        log_line(f"[MAINLOOP_EXCEPTION] {e}\n{traceback.format_exc()}", "error")
+    finally:
+        # Log diagnostic info on exit
+        try:
+            esc_state = keyboard.is_pressed("esc")
+        except:
+            esc_state = "error"
+        log_line(f"[MAINLOOP_EXIT] Reason: {mainloop_exit_reason}, ESC state: {esc_state}, keyboard_errors: {keyboard_error_count[0]}")
+        
+        # Notify user if GUI closed unexpectedly (not from ESC key)
+        if mainloop_exit_reason != "normal" or (esc_state != True and esc_state != "error"):
+            try:
+                notify("⚠️ GUI closed. Right-click tray icon → 'Restart GUI' to restore.")
+            except:
+                pass
+    
     if recording_flag.is_set():
         stop_recording_and_transcribe()
     safe_print("Bye.")
