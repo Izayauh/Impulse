@@ -10,7 +10,7 @@ import unittest
 from unittest.mock import patch, MagicMock, Mock
 
 # Add parent directory to path for imports
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src"))
 
 
 class TestThemeConfiguration(unittest.TestCase):
@@ -18,13 +18,13 @@ class TestThemeConfiguration(unittest.TestCase):
     
     def test_theme_class_exists(self):
         """Test Theme class is defined."""
-        from flow_local_dictation import Theme
+        from whisper_local.flow_local_dictation import Theme
         
         self.assertIsNotNone(Theme)
     
     def test_theme_has_required_colors(self):
         """Test Theme class has all required color constants."""
-        from flow_local_dictation import Theme
+        from whisper_local.flow_local_dictation import Theme
         
         required_colors = [
             'BG_ELEVATED',
@@ -46,7 +46,7 @@ class TestThemeConfiguration(unittest.TestCase):
     
     def test_theme_colors_are_valid_hex(self):
         """Test theme colors are valid hex codes."""
-        from flow_local_dictation import Theme
+        from whisper_local.flow_local_dictation import Theme
         import re
         
         # Get all color attributes
@@ -99,14 +99,14 @@ class TestUIConfiguration(unittest.TestCase):
     
     def test_hotkey_defined(self):
         """Test hotkey is defined."""
-        from flow_local_dictation import HOTKEY_HOLD
+        from whisper_local.flow_local_dictation import HOTKEY_HOLD
         
         self.assertIsInstance(HOTKEY_HOLD, str)
         self.assertGreater(len(HOTKEY_HOLD), 0)
     
     def test_hotkey_debounce_defined(self):
         """Test hotkey debounce is defined."""
-        from flow_local_dictation import HOTKEY_DEBOUNCE_MS
+        from whisper_local.flow_local_dictation import HOTKEY_DEBOUNCE_MS
         
         self.assertIsInstance(HOTKEY_DEBOUNCE_MS, int)
         self.assertGreater(HOTKEY_DEBOUNCE_MS, 0)
@@ -114,7 +114,7 @@ class TestUIConfiguration(unittest.TestCase):
     
     def test_ui_animation_fps(self):
         """Test UI animation FPS is reasonable."""
-        from flow_local_dictation import UI_ANIMATION_FPS
+        from whisper_local.flow_local_dictation import UI_ANIMATION_FPS
         
         self.assertIsInstance(UI_ANIMATION_FPS, int)
         self.assertGreater(UI_ANIMATION_FPS, 0)
@@ -122,7 +122,7 @@ class TestUIConfiguration(unittest.TestCase):
     
     def test_ui_queue_poll_rate(self):
         """Test UI queue polling rate is defined."""
-        from flow_local_dictation import UI_QUEUE_POLL_MS
+        from whisper_local.flow_local_dictation import UI_QUEUE_POLL_MS
         
         self.assertIsInstance(UI_QUEUE_POLL_MS, int)
         self.assertGreater(UI_QUEUE_POLL_MS, 0)
@@ -130,7 +130,7 @@ class TestUIConfiguration(unittest.TestCase):
     
     def test_status_display_duration(self):
         """Test status message display duration is reasonable."""
-        from flow_local_dictation import STATUS_SUCCESS_DISPLAY_SEC
+        from whisper_local.flow_local_dictation import STATUS_SUCCESS_DISPLAY_SEC
         
         self.assertIsInstance(STATUS_SUCCESS_DISPLAY_SEC, float)
         self.assertGreater(STATUS_SUCCESS_DISPLAY_SEC, 0)
@@ -142,7 +142,7 @@ class TestUIState(unittest.TestCase):
     
     def test_ui_queue_exists(self):
         """Test UI update queue exists."""
-        from flow_local_dictation import ui_queue
+        from whisper_local.flow_local_dictation import ui_queue
         
         self.assertIsNotNone(ui_queue)
         # Should be a queue.Queue
@@ -151,7 +151,7 @@ class TestUIState(unittest.TestCase):
     
     def test_dashboard_window_reference(self):
         """Test dashboard window reference exists."""
-        from flow_local_dictation import dashboard_window
+        from whisper_local.flow_local_dictation import dashboard_window
         
         # Should be None or a Tk window
         self.assertTrue(dashboard_window is None or hasattr(dashboard_window, 'winfo_exists'))
@@ -162,7 +162,7 @@ class TestApplicationMetadata(unittest.TestCase):
     
     def test_app_name_defined(self):
         """Test application name is defined."""
-        from flow_local_dictation import APP_NAME
+        from whisper_local.flow_local_dictation import APP_NAME
         
         self.assertIsInstance(APP_NAME, str)
         self.assertGreater(len(APP_NAME), 0)
@@ -170,7 +170,7 @@ class TestApplicationMetadata(unittest.TestCase):
     
     def test_app_version_defined(self):
         """Test application version is defined."""
-        from flow_local_dictation import APP_VERSION
+        from whisper_local.flow_local_dictation import APP_VERSION
         
         self.assertIsInstance(APP_VERSION, str)
         self.assertGreater(len(APP_VERSION), 0)
@@ -179,7 +179,7 @@ class TestApplicationMetadata(unittest.TestCase):
     
     def test_app_author_defined(self):
         """Test application author is defined."""
-        from flow_local_dictation import APP_AUTHOR
+        from whisper_local.flow_local_dictation import APP_AUTHOR
         
         self.assertIsInstance(APP_AUTHOR, str)
         self.assertGreater(len(APP_AUTHOR), 0)
@@ -190,7 +190,7 @@ class TestPathResolution(unittest.TestCase):
     
     def test_is_frozen_function(self):
         """Test is_frozen function exists."""
-        from flow_local_dictation import is_frozen
+        from whisper_local.flow_local_dictation import is_frozen
         
         result = is_frozen()
         self.assertIsInstance(result, bool)
@@ -199,7 +199,7 @@ class TestPathResolution(unittest.TestCase):
     
     def test_get_bundle_dir(self):
         """Test get_bundle_dir returns valid path."""
-        from flow_local_dictation import get_bundle_dir
+        from whisper_local.flow_local_dictation import get_bundle_dir
         
         bundle_dir = get_bundle_dir()
         self.assertIsInstance(bundle_dir, str)
@@ -207,7 +207,7 @@ class TestPathResolution(unittest.TestCase):
     
     def test_get_app_dir(self):
         """Test get_app_dir returns valid path."""
-        from flow_local_dictation import get_app_dir
+        from whisper_local.flow_local_dictation import get_app_dir
         
         app_dir = get_app_dir()
         self.assertIsInstance(app_dir, str)
@@ -215,7 +215,7 @@ class TestPathResolution(unittest.TestCase):
     
     def test_get_user_data_dir(self):
         """Test get_user_data_dir returns valid path."""
-        from flow_local_dictation import get_user_data_dir
+        from whisper_local.flow_local_dictation import get_user_data_dir
         
         user_dir = get_user_data_dir()
         self.assertIsInstance(user_dir, str)
@@ -223,7 +223,7 @@ class TestPathResolution(unittest.TestCase):
     
     def test_get_config_file(self):
         """Test get_config_file returns valid path."""
-        from flow_local_dictation import get_config_file
+        from whisper_local.flow_local_dictation import get_config_file
         
         config_file = get_config_file()
         self.assertIsInstance(config_file, str)
@@ -235,15 +235,15 @@ class TestNotificationSystem(unittest.TestCase):
     
     def test_notify_function_exists(self):
         """Test notify function exists."""
-        from flow_local_dictation import notify
+        from whisper_local.flow_local_dictation import notify
         
         self.assertIsNotNone(notify)
         self.assertTrue(callable(notify))
     
-    @patch('flow_local_dictation.log_line')
+    @patch('whisper_local.flow_local_dictation.log_line')
     def test_notify_logs_message(self, mock_log):
         """Test notify function logs messages."""
-        from flow_local_dictation import notify
+        from whisper_local.flow_local_dictation import notify
         
         test_message = "Test notification"
         notify(test_message)
@@ -257,21 +257,21 @@ class TestErrorHandling(unittest.TestCase):
     
     def test_friendly_error_function_exists(self):
         """Test show_friendly_error function exists."""
-        from flow_local_dictation import show_friendly_error
+        from whisper_local.flow_local_dictation import show_friendly_error
         
         self.assertIsNotNone(show_friendly_error)
         self.assertTrue(callable(show_friendly_error))
     
     def test_get_friendly_error_message_exists(self):
         """Test get_friendly_error_message function exists."""
-        from flow_local_dictation import get_friendly_error_message
+        from whisper_local.flow_local_dictation import get_friendly_error_message
         
         self.assertIsNotNone(get_friendly_error_message)
         self.assertTrue(callable(get_friendly_error_message))
     
     def test_handle_startup_issue_exists(self):
         """Test handle_startup_issue function exists."""
-        from flow_local_dictation import handle_startup_issue
+        from whisper_local.flow_local_dictation import handle_startup_issue
         
         self.assertIsNotNone(handle_startup_issue)
         self.assertTrue(callable(handle_startup_issue))
@@ -282,7 +282,7 @@ class TestClipboardOperations(unittest.TestCase):
     
     def test_clipboard_settle_delay(self):
         """Test clipboard settle delay is defined."""
-        from flow_local_dictation import CLIPBOARD_SETTLE_DELAY_SEC
+        from whisper_local.flow_local_dictation import CLIPBOARD_SETTLE_DELAY_SEC
         
         self.assertIsInstance(CLIPBOARD_SETTLE_DELAY_SEC, float)
         self.assertGreater(CLIPBOARD_SETTLE_DELAY_SEC, 0)
@@ -294,7 +294,7 @@ class TestSingleInstance(unittest.TestCase):
     
     def test_singleton_lock_functions_exist(self):
         """Test singleton lock functions exist."""
-        from flow_local_dictation import _acquire_single_instance, _release_single_instance
+        from whisper_local.flow_local_dictation import _acquire_single_instance, _release_single_instance
         
         self.assertIsNotNone(_acquire_single_instance)
         self.assertIsNotNone(_release_single_instance)
@@ -304,4 +304,5 @@ class TestSingleInstance(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
 

@@ -26,8 +26,8 @@ No Python, no configuration, no technical knowledge required.
 git clone https://github.com/Izayauh/whisper.git
 cd whisper
 
-# Run the launcher (installs dependencies automatically)
-.\start_dictation.bat
+# Run the canonical Windows launcher
+.\run_whisperlocal.bat
 ```
 
 ---

@@ -36,6 +36,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Graceful fallback to CPU if GPU unavailable
   - Flash Attention support for 2x faster inference
 
+- **🎮 GPU Load Monitoring**: Real-time adaptive model selection (NEW!)
+  - Monitors GPU utilization every 2 seconds
+  - Automatically switches to lighter models when GPU is busy (70%+ load)
+  - Forces base.en model during critical GPU load (85%+)
+  - Prevents game stuttering and frame drops
+  - Detects non-NVIDIA GPUs (AMD, Intel) and uses compatible models
+  - Background monitoring with minimal overhead (<0.1% CPU)
+
 - **Privacy-First Design**: 100% local processing
   - No internet connection required after installation
   - No data collection or telemetry

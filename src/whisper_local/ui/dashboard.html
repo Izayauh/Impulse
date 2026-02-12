@@ -1,0 +1,1179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Whisper Local Dashboard</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="dashboard_stats.js" onerror="console.log('No exported stats file')"></script>
+</head>
+<body>
+  <div id="confetti-container"></div>
+  <div id="achievement-popup"></div>
+  <div id="achievement-toast-container"></div>
+  <div id="toast-container"></div>
+
+  <div id="app-shell">
+    <aside class="sidebar">
+      <div class="sidebar-brand">
+        <div class="brand-dot"></div>
+        <div>
+          <h1>Whisper Local</h1>
+          <p id="sidebar-level" data-bind="stats.level">Lvl 9</p>
+        </div>
+      </div>
+
+      <nav class="sidebar-nav">
+        <button id="nav-home" class="nav-item active" onclick="switchView('home')"><span>Home</span><span class="nav-count">Feed</span></button>
+        <button id="nav-snippets" class="nav-item" onclick="switchView('snippets')"><span>Snippets</span><span id="snippet-count" class="nav-count" data-bind="snippets.length">0</span></button>
+        <button id="nav-dictionary" class="nav-item" onclick="switchView('dictionary')"><span>Dictionary</span><span id="dictionary-count" class="nav-count" data-bind="vocabularyWords.length">0</span></button>
+        <button id="nav-achievements" class="nav-item" onclick="switchView('achievements')"><span>Achievements</span><span id="achievement-count" class="nav-count" data-bind="achievements.unlocked/total">0</span></button>
+        <button id="nav-challenges" class="nav-item" onclick="switchView('challenges')"><span>Challenges</span><span class="nav-count">Daily</span></button>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="profile-card">
+          <div class="profile-avatar">WL</div>
+          <div class="profile-meta">
+            <div>Rank: <span id="rank" data-bind="stats.rank">Word Warrior</span></div>
+            <div><span id="header-xp-display" data-bind="stats.totalWords">0</span> XP</div>
+          </div>
+          <button class="gear-btn" onclick="openSettings()" title="Settings">&#9881;</button>
+        </div>
+      </div>
+    </aside>
+
+    <main class="main-panel">
+      <div class="main-toolbar">
+        <button class="ghost-btn" onclick="copyLast()">Copy Last</button>
+        <div class="window-controls">
+          <button onclick="minimizeWindow()">-</button>
+          <button onclick="closeWindow()">x</button>
+        </div>
+      </div>
+      <div id="tab-content"></div>
+    </main>
+  </div>
+
+  <div id="settings-modal" class="settings-modal" onclick="handleModalBackdrop(event)">
+    <div class="settings-dialog" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+      <div class="settings-head">
+        <h2 id="settings-title">Settings</h2>
+        <button class="close-btn" onclick="closeSettings()">x</button>
+      </div>
+      <div class="settings-body">
+        <aside class="settings-nav">
+          <button id="settings-nav-general" onclick="setSettingsTab('general')">General</button>
+          <button id="settings-nav-audio" onclick="setSettingsTab('audio')">Audio</button>
+          <button id="settings-nav-models" onclick="setSettingsTab('models')">Models</button>
+          <button id="settings-nav-data" onclick="setSettingsTab('data')">Data</button>
+        </aside>
+        <section id="settings-panel" class="settings-panel"></section>
+      </div>
+    </div>
+  </div>
+
+<script>
+let currentView = 'home';
+let activeCategory = 'all';
+let snippetScope = 'all';
+let snippetSearch = '';
+let settingsTab = 'general';
+let pythonPollingStarted = false;
+let achievementsInitializedFromBackend = false;
+let lastStatsDigest = '';
+let lastAchievementsDigest = '';
+let lastRecentDigest = '';
+let lastModelSettingsDigest = '';
+let lastVocabularyDigest = '';
+let lastSidebarDigest = '';
+let lastHotkeyDigest = '';
+let lastSnippetsDigest = '';
+let lastUserSettingsDigest = '';
+const PY_POLL_MS = 1000;
+let renderQueued = false;
+let pollBusy = false;
+let pollTick = 0;
+let hotkeyRecording = false;
+let hotkeyCapturePressed = new Set();
+let hotkeyCaptureDraft = [];
+
+let stats = {
+  userName: 'Isaiah', xp: 2300, xpToNextLevel: 3500, level: 9, rank: 'Word Warrior', nextRank: 'Voice Virtuoso',
+  today: 823, thisWeek: 10430, thisMonth: 28490, avgWpm: 142, bestWpm: 187, totalWords: 54620,
+  totalSessions: 441, totalTime: '47h 23m', dayStreak: 8, weekStreak: 2,
+  recentTranscripts: [
+    { text: "Let's make this really interactive and fun...", words: 18, time: '03:33 PM' },
+    { text: 'The achievement system should feel rewarding', words: 12, time: '03:27 PM' },
+    { text: 'Please fix the syntax error for the audio pipeline', words: 10, time: '03:25 PM' }
+  ],
+  last7Days: [{ day: 'Sun', words: 737 }, { day: 'Mon', words: 5460 }, { day: 'Tue', words: 90 }, { day: 'Wed', words: 4177 }, { day: 'Thu', words: 12 }, { day: 'Fri', words: 1853 }, { day: 'Sat', words: 923 }],
+  records: { mostWordsDay: { value: 5460, date: '2026-01-12' }, fastestWpm: { value: 187, date: '2026-01-16' }, longestSession: { value: '2h 14m', date: '2026-01-12' }, longestStreak: { value: 14, date: '2026-01-31' } }
+};
+
+const achievements = [
+  { id: 1, key: 'daily_100', category: 'milestones', name: 'Centurion', description: '100 words in a day', icon: '100', rarity: 'common', xp: 25, unlocked: true },
+  { id: 2, key: 'daily_500', category: 'milestones', name: 'Chatterbox', description: '500 words in a day', icon: '500', rarity: 'common', xp: 40, unlocked: true },
+  { id: 3, key: 'total_1k', category: 'milestones', name: 'Starter Stack', description: '1,000 total words', icon: '1K', rarity: 'common', xp: 25, unlocked: true },
+  { id: 4, key: 'total_10k', category: 'milestones', name: 'Wordsmith', description: '10,000 total words', icon: '10K', rarity: 'rare', xp: 120, unlocked: true },
+  { id: 5, key: 'speed_100', category: 'speed', name: 'Lightning', description: 'Reach 100 WPM', icon: '100', rarity: 'rare', xp: 75, unlocked: true },
+  { id: 6, key: 'speed_120', category: 'speed', name: 'Rapid Fire', description: 'Reach 120 WPM', icon: '120', rarity: 'rare', xp: 100, unlocked: true },
+  { id: 7, key: 'speed_150', category: 'speed', name: 'Speed Demon', description: 'Reach 150 WPM', icon: '150', rarity: 'epic', xp: 200, unlocked: false, progress: 95 },
+  { id: 8, key: 'streak_7', category: 'streaks', name: 'Full Week', description: '7-day streak', icon: '7D', rarity: 'rare', xp: 75, unlocked: true },
+  { id: 9, category: 'streaks', name: 'Monthly Master', description: '30-day streak', icon: '30D', rarity: 'epic', xp: 350, unlocked: false, progress: 27 },
+  { id: 10, category: 'accuracy', name: 'Precise', description: '98% session accuracy', icon: '98', rarity: 'rare', xp: 75, unlocked: true },
+  { id: 11, key: 'secret_whisper', category: 'quirky', name: 'Whisper Mode', description: 'Very quiet audio transcribed', icon: 'Q1', rarity: 'common', xp: 25, unlocked: true },
+  { id: 12, category: 'social', name: 'Beta Tester', description: 'Used during beta period', icon: 'SO', rarity: 'epic', xp: 200, unlocked: true },
+  { id: 13, category: 'secret', name: 'Hello World', description: 'Say hello world', icon: 'HW', rarity: 'rare', xp: 50, unlocked: true },
+  { id: 14, category: 'secret', name: 'Konami', description: 'Classic cheat code', icon: 'KN', rarity: 'legendary', xp: 500, unlocked: false, progress: 4 }
+];
+
+const categories = [{ id: 'all', name: 'All' }, { id: 'milestones', name: 'Milestones' }, { id: 'speed', name: 'Speed' }, { id: 'streaks', name: 'Streaks' }, { id: 'accuracy', name: 'Accuracy' }, { id: 'quirky', name: 'Quirky' }, { id: 'social', name: 'Social' }, { id: 'secret', name: 'Secret' }];
+const dailyChallenges = [{ id: 1, name: 'Word Count', target: 500, unit: 'words', xp: 50 }, { id: 2, name: 'Speed Goal', target: 120, unit: 'WPM', xp: 30 }, { id: 3, name: 'Marathon', target: 1000, unit: 'words', xp: 100 }];
+const weeklyChallenges = [{ id: 1, name: 'Weekly Words', target: 5000, unit: 'words', xp: 200 }, { id: 2, name: 'Active Days', target: 5, unit: 'days', xp: 100 }, { id: 3, name: 'Speed Week', target: 100, unit: 'avg WPM', xp: 150 }];
+let snippets = [
+  { id: 1, scope: 'personal', trigger: 'personal email', replacement: 'user@example.com' },
+  { id: 2, scope: 'personal', trigger: 'intro email', replacement: 'Hey, would love to find some time to chat later this week.' },
+  { id: 3, scope: 'shared', trigger: 'my calendly link', replacement: 'calendly.com/12345%448' }
+];
+let vocabularyWords = [];
+const settingsState = {
+  launchBehavior: 'start_minimized',
+  theme: 'hot_pink',
+  commandMode: true,
+  autoCopy: true,
+  microphone: 'Default System Microphone',
+  vadSensitivity: 65,
+  vadSilenceMs: 700,
+  modelMode: 'auto',
+  manualModel: 'base',
+  activeModel: 'base',
+  vramTotalGb: 0,
+  hotkey: 'ctrl+windows',
+  markdownMode: false
+};
+const microphones = ['Default System Microphone', 'USB Audio Interface', 'Headset Microphone', 'Webcam Microphone'];
+
+const esc = (v) => String(v || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+const digest = (v) => { try { return JSON.stringify(v); } catch { return String(Date.now()); } };
+const unlockCount = () => achievements.filter(a => a.unlocked).length;
+const xpPct = () => Math.max(0, Math.min(100, ((Number(stats.xp) || 0) / (Number(stats.xpToNextLevel) || 1)) * 100));
+const headerXp = () => typeof stats.totalWords === 'number' ? stats.totalWords : 0;
+const weekWords = () => {
+  const explicit = Number(stats.thisWeek);
+  if (Number.isFinite(explicit) && explicit > 0) return explicit;
+  const series = Array.isArray(stats.last7Days) ? stats.last7Days : [];
+  return series.reduce((total, day) => total + (Number(day.words) || 0), 0);
+};
+const modelLabel = (m) => {
+  const map = { auto: 'Auto', base: 'Base', small: 'Small', medium: 'Medium', large: 'Large' };
+  return map[String(m || '').toLowerCase()] || 'Base';
+};
+const hotkeyPartLabel = (part) => {
+  const key = String(part || '').toLowerCase();
+  const map = { ctrl: 'Ctrl', alt: 'Alt', shift: 'Shift', windows: 'Win', space: 'Space', esc: 'Esc', enter: 'Enter', tab: 'Tab' };
+  return map[key] || (key.length === 1 ? key.toUpperCase() : key.toUpperCase());
+};
+const hotkeyDisplay = (value) => {
+  const parts = String(value || '').split('+').map((p) => p.trim()).filter(Boolean);
+  return parts.map(hotkeyPartLabel).join(' + ');
+};
+const hotkeyTokenFromEvent = (e) => {
+  if (!e || typeof e.key !== 'string') return '';
+  const raw = e.key.trim().toLowerCase();
+  const map = {
+    control: 'ctrl',
+    ctrl: 'ctrl',
+    alt: 'alt',
+    shift: 'shift',
+    meta: 'windows',
+    win: 'windows',
+    command: 'windows',
+    cmd: 'windows',
+    ' ': 'space',
+    spacebar: 'space',
+    escape: 'esc',
+    return: 'enter',
+    arrowup: 'up',
+    arrowdown: 'down',
+    arrowleft: 'left',
+    arrowright: 'right'
+  };
+  const mapped = map[raw] || raw;
+  const compact = mapped.replace(/\s+/g, '');
+  if (/^[a-z0-9]$/.test(compact)) return compact;
+  if (/^f([1-9]|1[0-9]|2[0-4])$/.test(compact)) return compact;
+  if (/^numpad[0-9]$/.test(compact)) return compact;
+  if (['ctrl', 'alt', 'shift', 'windows', 'space', 'tab', 'enter', 'esc', 'backspace', 'delete', 'insert', 'home', 'end', 'pageup', 'pagedown', 'up', 'down', 'left', 'right', 'capslock'].includes(compact)) return compact;
+  return '';
+};
+const orderHotkeyTokens = (tokens) => {
+  const unique = Array.from(new Set((tokens || []).filter(Boolean)));
+  const order = ['ctrl', 'alt', 'shift', 'windows'];
+  const mods = order.filter((k) => unique.includes(k));
+  const rest = unique.filter((k) => !order.includes(k));
+  return [...mods, ...rest];
+};
+const isValidHotkeyTokens = (tokens) => {
+  const ordered = orderHotkeyTokens(tokens);
+  if (ordered.length < 2) return false;
+  return ordered.some((k) => k === 'ctrl' || k === 'alt' || k === 'shift' || k === 'windows');
+};
+
+// ================================================================
+// Bridge abstraction (Research $7) -- single entry-point for all
+// Python backend calls.  Wraps pywebview.api with readiness checks
+// and error handling in one place.
+// ================================================================
+const Bridge = (() => {
+  function api() { return window.pywebview && window.pywebview.api; }
+
+  async function invoke(getter) {
+    const a = api();
+    if (!a) return null;
+    try { return await getter(a); } catch (e) { console.warn('[Bridge]', e); return null; }
+  }
+
+  return {
+    ready: () => Boolean(api()),
+
+    settings: {
+      getAll:           () => invoke(a => a.get_user_settings()),
+      update:       (k, v) => invoke(a => a.update_user_setting(k, v)),
+      getHotkey:        () => invoke(a => a.get_hotkey()),
+      setHotkey:       (h) => invoke(a => a.set_hotkey(h)),
+      getVocabulary:    () => invoke(a => a.get_vocabulary()),
+      addWord:         (w) => invoke(a => a.add_vocabulary_word(w)),
+      getSnippets:      () => invoke(a => a.get_snippets()),
+      addSnippet:   (t, r) => invoke(a => a.add_snippet(t, r)),
+      deleteSnippet:  (id) => invoke(a => a.delete_snippet(id)),
+    },
+
+    transcription: {
+      getModelMode:     () => invoke(a => a.get_model_mode()),
+      setModelMode:    (m) => invoke(a => a.set_model_mode(m)),
+      loadModel:       (m) => invoke(a => a.transcription ? a.transcription.load_model(m) : null),
+      getLoadingStatus: () => invoke(a => a.transcription ? a.transcription.get_loading_status() : null),
+    },
+
+    stats: {
+      get:              () => invoke(a => a.get_stats()),
+      getChartData:    (d) => invoke(a => a.stats ? a.stats.get_chart_data(d || 7) : null),
+      getTotals:        () => invoke(a => a.stats ? a.stats.get_totals() : null),
+      getHistory:       () => invoke(a => a.get_transcription_history()),
+      getAchievements:  () => invoke(a => a.get_achievements()),
+      unlockAchievement: (id) => invoke(a => a.unlock_achievement(id)),
+      getActivity:      () => invoke(a => a.get_activity_data()),
+    },
+
+    system: {
+      minimize:         () => invoke(a => a.minimize()),
+      close:            () => invoke(a => a.close()),
+      copyText:        (t) => invoke(a => a.copy_text(t)),
+      exportCsv:        () => invoke(a => a.export_data_csv()),
+      ping:             () => invoke(a => a.bridge_ping()),
+    },
+  };
+})();
+
+// Async Python -> JS event callbacks (Research $7.3).
+// TranscriptionController pushes events via evaluate_js().
+window.bridgeEvents = {
+  onLoadProgress(pct) {
+    console.log('[bridgeEvents] load progress:', pct, '%');
+  },
+  onModelLoaded(modelName) {
+    showToast('Model loaded: ' + modelLabel(modelName));
+    loadModelSettingsFromPython();
+  },
+  onError(msg) {
+    console.error('[bridgeEvents] error:', msg);
+    showToast('Error: ' + String(msg));
+  },
+};
+
+function normalize7(source) {
+  if (!Array.isArray(source) || source.length === 0) return [{ day: 'Sun', words: 0 }, { day: 'Mon', words: 0 }, { day: 'Tue', words: 0 }, { day: 'Wed', words: 0 }, { day: 'Thu', words: 0 }, { day: 'Fri', words: 0 }, { day: 'Sat', words: 0 }];
+  const out = source.map((x) => ({ day: String((x.day || 'NA')).slice(0, 3), words: Number(x.words) || 0 })).filter(Boolean);
+  if (out.length >= 7) return out.slice(-7);
+  while (out.length < 7) out.unshift({ day: 'NA', words: 0 });
+  return out;
+}
+
+// ================================================================
+// Format adapters – translate SQLite controller responses into the
+// shapes that renderHome() and updateSidebar() already consume.
+// ================================================================
+
+/**
+ * Converts StatsController.get_chart_data(7) response to stats.last7Days format.
+ * Input:  {labels: ["Mon","Tue",...], datasets: [{label:"Words", data:[0,1234,...]}]}
+ * Output: [{day:"Mon", words:0}, {day:"Tue", words:1234}, ...]
+ */
+function chartDataToLast7Days(chartData) {
+  if (!chartData || !Array.isArray(chartData.labels)) return null;
+  const values = (chartData.datasets && chartData.datasets[0] && chartData.datasets[0].data) || [];
+  return chartData.labels.map((label, i) => ({
+    day: String(label).slice(0, 3),
+    words: Number(values[i]) || 0,
+  }));
+}
+
+/**
+ * Merges StatsController.get_totals() into the global stats object.
+ * Input:  {totalWords: N, totalSessions: N, avgWpm: N, bestWpm: N}
+ * Effect: Updates stats.totalWords, stats.totalSessions, stats.avgWpm, stats.bestWpm
+ */
+function mergeSqlTotals(totals) {
+  if (!totals || typeof totals !== 'object') return;
+  if (typeof totals.totalWords === 'number') stats.totalWords = totals.totalWords;
+  if (typeof totals.totalSessions === 'number') stats.totalSessions = totals.totalSessions;
+  if (typeof totals.avgWpm === 'number') stats.avgWpm = totals.avgWpm;
+  if (typeof totals.bestWpm === 'number') stats.bestWpm = totals.bestWpm;
+}
+
+/**
+ * Converts get_activity_data() response to stats.last7Days format.
+ * Input:  [["2026-02-08", 500], ["2026-02-09", 1200], ...]
+ * Output: [{day:"Sat", words:500}, {day:"Sun", words:1200}, ...]
+ */
+function activityPairsToLast7Days(pairs) {
+  if (!Array.isArray(pairs)) return null;
+  const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  return pairs.map((pair) => {
+    const dateStr = Array.isArray(pair) ? pair[0] : '';
+    const words = Array.isArray(pair) ? (Number(pair[1]) || 0) : 0;
+    const d = new Date(dateStr + 'T12:00:00');
+    const dayLabel = isNaN(d.getTime()) ? 'NA' : dayNames[d.getDay()];
+    return { day: dayLabel, words };
+  });
+}
+
+function updateSidebar() {
+  const snapshot = {
+    rank: String(stats.rank || 'Word Warrior'),
+    xp: Number(headerXp() || 0),
+    level: Number(stats.level || 9),
+    achievements: `${unlockCount()}/${achievements.length}`,
+    snippets: String(snippets.length),
+    dictionary: String(vocabularyWords.length),
+  };
+  const currentDigest = digest(snapshot);
+  if (currentDigest === lastSidebarDigest) return;
+  lastSidebarDigest = currentDigest;
+
+  const rank = document.getElementById('rank');
+  const xp = document.getElementById('header-xp-display');
+  const lvl = document.getElementById('sidebar-level');
+  const ac = document.getElementById('achievement-count');
+  const sc = document.getElementById('snippet-count');
+  const dc = document.getElementById('dictionary-count');
+  if (rank) rank.textContent = snapshot.rank;
+  if (xp) xp.textContent = snapshot.xp.toLocaleString();
+  if (lvl) lvl.textContent = 'Lvl ' + snapshot.level;
+  if (ac) ac.textContent = snapshot.achievements;
+  if (sc) sc.textContent = snapshot.snippets;
+  if (dc) dc.textContent = snapshot.dictionary;
+}
+
+function updateNav() {
+  ['home', 'snippets', 'dictionary', 'achievements', 'challenges'].forEach((v) => {
+    const b = document.getElementById('nav-' + v);
+    if (!b) return;
+    b.classList.toggle('active', v === currentView);
+  });
+}
+
+function scheduleRender() {
+  if (renderQueued) return;
+  renderQueued = true;
+  requestAnimationFrame(() => {
+    renderQueued = false;
+    renderContent();
+  });
+}
+
+function renderIfCurrentViewIn(views) {
+  if (views.includes(currentView)) scheduleRender();
+}
+
+function isModelsSettingsVisible() {
+  const modal = document.getElementById('settings-modal');
+  return Boolean(modal && modal.classList.contains('is-open') && settingsTab === 'models');
+}
+
+function rarityClass(r) { return r === 'legendary' ? 'rarity-legendary' : r === 'epic' ? 'rarity-epic' : r === 'rare' ? 'rarity-rare' : 'rarity-common'; }
+function actTime(t, i) { if (typeof t === 'string' && /\d{1,2}:\d{2}\s*[AP]M/i.test(t)) return t.toUpperCase(); if (typeof t === 'string' && /^\d+$/.test(t)) return 'RECENT'; return t || (i === 0 ? 'NOW' : i + 'm AGO'); }
+
+function switchView(v) { currentView = v; scheduleRender(); if (v === 'dictionary') loadVocabularyFromPython(); if (v === 'snippets') loadSnippetsFromPython(); }
+function setCategory(c) { activeCategory = c; if (currentView === 'achievements') scheduleRender(); }
+function setSnippetScope(s) { snippetScope = s; scheduleRender(); }
+function setSnippetSearch(s) { snippetSearch = String(s || ''); scheduleRender(); }
+
+// ================================================================
+// Home view sub-renderers – each owns one visual region.
+// renderHome() composes them into the full home layout.
+// ================================================================
+
+/**
+ * Renders the welcome banner with user greeting, metric chips, and XP progress bar.
+ * Data source: Bridge.stats.get() → stats.userName, stats.level, stats.xp, stats.dayStreak
+ */
+function renderWelcomeHeader() {
+  const weeklyTotal = weekWords();
+  return `
+    <header class="card home-header WelcomeHeader" data-source="Bridge.stats.get" data-update-fn="renderWelcomeHeader">
+      <div class="welcome-row WelcomeHeader__row">
+        <div><h2>Welcome back, ${esc(stats.userName || 'Writer')}</h2><p>Voice performance at a glance.</p></div>
+        <div class="header-metrics WelcomeHeader__metrics">
+          <span class="metric-chip WelcomeHeader__chip" data-bind="stats.level">Lvl ${Number(stats.level) || 9}</span>
+          <span class="metric-chip metric-chip-xp WelcomeHeader__chip" data-bind="stats.xp">${Number(stats.xp || 0).toLocaleString()} XP</span>
+          <span class="metric-chip metric-chip-streak WelcomeHeader__chip" data-bind="stats.dayStreak">${Number(stats.dayStreak || 0)} Day Streak</span>
+          <span class="metric-chip metric-chip-week WelcomeHeader__chip" data-bind="stats.thisWeek">${Number(weeklyTotal || 0).toLocaleString()} Weekly Words</span>
+        </div>
+      </div>
+      <div class="xp-block XpProgress">
+        <div class="xp-meta"><span>XP Progress</span><span>${Number(stats.xp || 0).toLocaleString()} / ${Number(stats.xpToNextLevel || 0).toLocaleString()}</span></div>
+        <div class="xp-track XpProgress__track"><div class="xp-fill XpProgress__fill" data-bind="stats.xp / stats.xpToNextLevel" style="width:${xpPct()}%"></div></div>
+      </div>
+    </header>`;
+}
+
+/**
+ * Renders the 7-day activity bar chart.
+ * Data source: Bridge.stats.getChartData(7) → stats.last7Days
+ * @param {Array} series - normalized 7-element array from normalize7()
+ * @param {number} weeklyTotal - sum of words this week
+ */
+function renderActivityGraph(series, weeklyTotal) {
+  const m = Math.max(1, ...series.map((s) => s.words));
+  const barMaxPx = 100;
+  const bars = series.map((s, i) => {
+    const words = Number(s.words) || 0;
+    const heightPx = words === 0 ? 2 : Math.max(4, Math.round((words / m) * barMaxPx));
+    return `<div class="mini-bar-col ActivityGraph__bar ${i === series.length - 1 ? 'is-today ActivityGraph__bar--today' : ''}" data-bind="stats.last7Days[${i}].words" title="${esc(s.day)}: ${words.toLocaleString()} words"><div class="mini-bar-value ActivityGraph__value">${words.toLocaleString()}</div><div class="mini-bar" style="height:${heightPx}px"></div><span class="mini-day ActivityGraph__label">${esc(s.day)}</span></div>`;
+  }).join('');
+  return `
+    <section class="card mini-activity ActivityGraph" data-source="Bridge.stats.getChartData" data-update-fn="renderActivityGraph">
+      <div class="mini-activity-head"><h3>Weekly activity</h3><strong>${Number(weeklyTotal || 0).toLocaleString()} words</strong></div>
+      <div class="mini-bars">${bars}</div>
+    </section>`;
+}
+
+/**
+ * Renders the right-column recent transcription timeline.
+ * Data source: Bridge.stats.getHistory() → stats.recentTranscripts
+ * @param {Array} transcripts - array of {text, fullText, words, time}
+ */
+function renderRecentTimeline(transcripts) {
+  const cards = (transcripts || []).map((t, i) => `<article class="timeline-card RecentTimeline__card"><div class="timeline-time RecentTimeline__time">${esc(actTime(t.time, i))}</div><div class="timeline-body RecentTimeline__body"><p>${esc(t.fullText || t.text || 'No transcript')}</p><div class="timeline-meta RecentTimeline__meta">${Number(t.words || 0)} words</div></div><button class="copy-btn" onclick="copyTranscriptItem(${i})">Copy</button></article>`).join('');
+  return `
+    <section class="activity-section RecentTimeline" data-source="Bridge.stats.getHistory" data-update-fn="renderRecentTimeline">
+      <div class="section-head"><h3>Recent Activity</h3><span>${new Date().toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' }).toUpperCase()}</span></div>
+      <div class="timeline-list RecentTimeline__list">${cards || '<div class="card empty-card">No transcripts yet.</div>'}</div>
+    </section>`;
+}
+
+/**
+ * Composes the full Home view from sub-renderers.
+ * This is the entry point called by renderContent() when currentView === 'home'.
+ */
+function renderHome() {
+  const series = normalize7(stats.last7Days);
+  const weeklyTotal = weekWords();
+  return `
+    <section class="home-view">
+      <div class="home-left">
+        ${renderWelcomeHeader()}
+        <section class="card hero-card"><div><h3>Voice dictation in any app</h3><p>Trigger, speak, and keep momentum while stacking XP and streak points.</p></div><button class="primary-btn" onclick="copyLast()">Copy latest</button></section>
+        ${renderActivityGraph(series, weeklyTotal)}
+      </div>
+      <div class="home-right">
+        ${renderRecentTimeline(stats.recentTranscripts)}
+      </div>
+    </section>`;
+}
+
+function renderSnippets() {
+  const s = snippetSearch.trim().toLowerCase();
+  const filtered = snippets.filter((x) => (snippetScope === 'all' || x.scope === snippetScope) && (!s || (x.trigger + ' ' + x.replacement).toLowerCase().includes(s)));
+  const rows = filtered.map((x) => `<div class="snippet-row"><div class="snippet-key">${esc(x.trigger)}</div><div class="snippet-arrow">-></div><div class="snippet-value">${esc(x.replacement)}</div><button class="copy-btn" onclick="copySnippet(${x.id})">Copy</button><button class="copy-btn" onclick="deleteSnippet(${x.id})" style="margin-left:4px;opacity:0.7">Del</button></div>`).join('');
+  const pills = snippets.slice(0, 3).map((x) => `<div class="snippet-pill"><span>${esc(x.trigger)}</span><span class="arrow">-></span><span>${esc(x.replacement)}</span></div>`).join('');
+  return `
+    <section class="snippets-view">
+      <header class="view-header card"><div><h2>Snippets</h2><p>Text replacement shortcuts for faster dictation cleanup.</p></div><button class="primary-btn" onclick="addSnippet()">Add new</button></header>
+      <section class="card snippet-banner"><h3>The stuff you should not have to re-type.</h3><p>Save shortcuts for emails, links, addresses, and recurring prompts.</p><div class="snippet-pill-row">${pills}</div></section>
+      <section class="snippet-controls card"><div class="scope-tabs"><button class="${snippetScope === 'all' ? 'active' : ''}" onclick="setSnippetScope('all')">All</button><button class="${snippetScope === 'personal' ? 'active' : ''}" onclick="setSnippetScope('personal')">Personal</button><button class="${snippetScope === 'shared' ? 'active' : ''}" onclick="setSnippetScope('shared')">Shared with team</button></div><input type="text" placeholder="Search snippets..." value="${esc(snippetSearch)}" oninput="setSnippetSearch(this.value)"></section>
+      <section class="snippet-list card">${rows || '<div class="empty-card">No snippets match this filter.</div>'}</section>
+    </section>`;
+}
+
+function normalizeVocabularyWord(v) { return String(v || '').trim().replace(/\s+/g, ' '); }
+
+function renderDictionary() {
+  const rows = vocabularyWords.map((w) => `<div class="dictionary-pill">${esc(w)}</div>`).join('');
+  return `
+    <section class="dictionary-view">
+      <header class="view-header card">
+        <div><h2>Dictionary</h2><p>Add names and jargon to bias Whisper transcription.</p></div>
+      </header>
+      <section class="card dictionary-editor">
+        <div class="dictionary-input-row">
+          <input id="dictionary-word-input" type="text" placeholder="Add word or phrase..." onkeydown="if(event.key==='Enter'){event.preventDefault();addVocabularyWord();}">
+          <button class="primary-btn" onclick="addVocabularyWord()">Add Word</button>
+        </div>
+        <p>Saved instantly to your local vocabulary file.</p>
+      </section>
+      <section class="card dictionary-list">${rows || '<div class="empty-card">No custom words yet.</div>'}</section>
+    </section>`;
+}
+
+function renderAchievements() {
+  const set = { common: [0, 0], rare: [0, 0], epic: [0, 0], legendary: [0, 0] };
+  achievements.forEach((a) => { if (set[a.rarity]) { set[a.rarity][1] += 1; if (a.unlocked) set[a.rarity][0] += 1; } });
+  const rarity = ['common', 'rare', 'epic', 'legendary'].map((r) => `<div class="rarity-card ${rarityClass(r)}"><div>${r[0].toUpperCase() + r.slice(1)}</div><strong>${set[r][0]}/${set[r][1]}</strong></div>`).join('');
+  const cbtn = categories.map((c) => { const tot = c.id === 'all' ? achievements.length : achievements.filter((a) => a.category === c.id).length; const un = c.id === 'all' ? unlockCount() : achievements.filter((a) => a.category === c.id && a.unlocked).length; return `<button class="${activeCategory === c.id ? 'active' : ''}" onclick="setCategory('${c.id}')">${esc(c.name)} ${un}/${tot}</button>`; }).join('');
+  const items = (activeCategory === 'all' ? achievements : achievements.filter((a) => a.category === activeCategory)).map((a) => `<article class="achievement-card ${a.unlocked ? 'unlocked' : 'locked'} ${rarityClass(a.rarity)}" onclick="showAchievementDetail(${a.id})"><div class="achievement-icon">${a.unlocked ? esc(a.icon) : 'LOCK'}</div><h4>${esc(a.name)}</h4><p>${esc(a.description)}</p><div class="achievement-xp">+${a.xp} XP</div>${a.unlocked ? '' : `<div class="achievement-progress"><span style="width:${Math.max(0, Math.min(100, Number(a.progress || 0)))}%"></span></div>`}</article>`).join('');
+  return `<section class="achievements-view"><header class="view-header card"><div><h2>Achievements</h2><p>${unlockCount()} of ${achievements.length} unlocked</p></div></header><section class="rarity-grid">${rarity}</section><section class="category-filters">${cbtn}</section><section class="achievement-grid">${items}</section></section>`;
+}
+
+function challengeProgress(c, mode) {
+  if (mode === 'daily') { if (c.id === 1) return Number(stats.today) || 0; if (c.id === 2) return Number(stats.avgWpm) || 0; return Number(stats.today) || 0; }
+  if (c.id === 1) return weekWords();
+  if (c.id === 2) return Math.min(Number(stats.weekStreak) || 0, 7);
+  return Number(stats.avgWpm) || 0;
+}
+
+function renderChallenges() {
+  const daily = dailyChallenges.map((c) => { const p = challengeProgress(c, 'daily'); const pct = Math.max(0, Math.min(100, (p / c.target) * 100)); const ok = p >= c.target; return `<article class="challenge-card ${ok ? 'complete' : ''}"><div class="challenge-head"><h4>${esc(c.name)}</h4><span>+${c.xp} XP ${ok ? 'OK' : ''}</span></div><div class="challenge-bar"><span style="width:${pct}%"></span></div><p>${Number(p).toLocaleString()} / ${c.target.toLocaleString()} ${esc(c.unit)}</p></article>`; }).join('');
+  const weekly = weeklyChallenges.map((c) => { const p = challengeProgress(c, 'weekly'); const pct = Math.max(0, Math.min(100, (p / c.target) * 100)); const ok = p >= c.target; return `<article class="challenge-card ${ok ? 'complete' : ''}"><div class="challenge-head"><h4>${esc(c.name)}</h4><span>+${c.xp} XP ${ok ? 'OK' : ''}</span></div><div class="challenge-bar"><span style="width:${pct}%"></span></div><p>${Number(p).toLocaleString()} / ${c.target.toLocaleString()} ${esc(c.unit)}</p></article>`; }).join('');
+  return `<section class="challenges-view"><header class="view-header card"><div><h2>Challenges</h2><p>Daily and weekly targets with XP rewards.</p></div></header><section class="challenge-section"><div class="section-head"><h3>Daily Challenges</h3><span>Resets in 5h 23m</span></div><div class="challenge-stack">${daily}</div></section><section class="challenge-section"><div class="section-head"><h3>Weekly Challenges</h3><span>Resets in 3d 5h</span></div><div class="challenge-stack">${weekly}</div></section><section class="records-grid"><article class="record-card"><h4>Most Words (Day)</h4><strong>${Number(stats.records.mostWordsDay.value || 0).toLocaleString()}</strong><span>${esc(stats.records.mostWordsDay.date || 'N/A')}</span></article><article class="record-card"><h4>Fastest WPM</h4><strong>${esc(stats.records.fastestWpm.value || '0')}</strong><span>${esc(stats.records.fastestWpm.date || 'N/A')}</span></article><article class="record-card"><h4>Longest Session</h4><strong>${esc(stats.records.longestSession.value || 'N/A')}</strong><span>${esc(stats.records.longestSession.date || 'N/A')}</span></article><article class="record-card"><h4>Best Streak</h4><strong>${esc(stats.records.longestStreak.value || '0')} days</strong><span>${esc(stats.records.longestStreak.date || 'N/A')}</span></article></section></section>`;
+}
+
+function renderContent() {
+  const content = document.getElementById('tab-content');
+  if (!content) return;
+  const y = content.scrollTop;
+  content.innerHTML = currentView === 'home' ? renderHome() : currentView === 'snippets' ? renderSnippets() : currentView === 'dictionary' ? renderDictionary() : currentView === 'achievements' ? renderAchievements() : renderChallenges();
+  updateSidebar();
+  updateNav();
+  content.scrollTop = y;
+}
+
+function renderSettingsPanel() {
+  ['general', 'audio', 'models', 'data'].forEach((t) => { const b = document.getElementById('settings-nav-' + t); if (b) b.classList.toggle('active', settingsTab === t); });
+  const panel = document.getElementById('settings-panel');
+  if (!panel) return;
+  if (settingsTab === 'general') {
+    panel.innerHTML = `
+      <h3>General</h3>
+      <div class="settings-row">
+        <div><h4>Launch Behavior</h4><p>Choose startup behavior.</p></div>
+        <select onchange="updateSetting('launchBehavior', this.value)">
+          <option value="start_minimized" ${settingsState.launchBehavior === 'start_minimized' ? 'selected' : ''}>Start minimized</option>
+          <option value="open_dashboard" ${settingsState.launchBehavior === 'open_dashboard' ? 'selected' : ''}>Open dashboard</option>
+        </select>
+      </div>
+      <div class="settings-row">
+        <div><h4>Theme</h4><p>Choose your dashboard color scheme.</p></div>
+        <select onchange="updateSetting('theme', this.value)">
+          <option value="hot_pink" ${settingsState.theme === 'hot_pink' ? 'selected' : ''}>Hot Pink</option>
+          <option value="neon_dark" ${settingsState.theme === 'neon_dark' ? 'selected' : ''}>Neon Dark</option>
+          <option value="midnight_green" ${settingsState.theme === 'midnight_green' ? 'selected' : ''}>Midnight Green</option>
+        </select>
+      </div>
+      <div class="settings-row">
+        <div><h4>Record Shortcut</h4><p>Press and hold this combo to start dictation.</p></div>
+        <div class="hotkey-control">
+          <input id="hotkey-record-input" class="hotkey-input" type="text" readonly value="${esc(hotkeyDisplay(settingsState.hotkey))}">
+          <button class="primary-btn hotkey-record-btn ${hotkeyRecording ? 'is-recording' : ''}" onclick="toggleHotkeyRecording()">${hotkeyRecording ? 'Press keys...' : 'Record Shortcut'}</button>
+        </div>
+      </div>
+      <div class="settings-row">
+        <div><h4>Command Mode</h4><p>Edit with voice commands.</p></div>
+        <label class="switch"><input type="checkbox" ${settingsState.commandMode ? 'checked' : ''} onchange="toggleSetting('commandMode')"><span></span></label>
+      </div>
+      <div class="settings-row">
+        <div><h4>Auto-copy transcript</h4><p>Copy latest output automatically.</p></div>
+        <label class="switch"><input type="checkbox" ${settingsState.autoCopy ? 'checked' : ''} onchange="toggleSetting('autoCopy')"><span></span></label>
+      </div>
+      <div class="settings-row">
+        <div><h4>Markdown Mode</h4><p>Format transcripts as structured Markdown via local LLM.</p></div>
+        <label class="switch"><input type="checkbox" ${settingsState.markdownMode ? 'checked' : ''} onchange="toggleSetting('markdownMode')"><span></span></label>
+      </div>`;
+    return;
+  }
+  if (settingsTab === 'audio') {
+    panel.innerHTML = `<h3>Audio</h3><div class="settings-row"><div><h4>Microphone Input</h4><p>Select the microphone source.</p></div><select onchange="updateSetting('microphone', this.value)">${microphones.map((m) => `<option value="${esc(m)}" ${settingsState.microphone === m ? 'selected' : ''}>${esc(m)}</option>`).join('')}</select></div><div class="settings-row slider-row"><div><h4>VAD Sensitivity</h4><p>Higher catches quieter speech.</p></div><div class="slider-wrap"><input type="range" min="1" max="100" value="${settingsState.vadSensitivity}" oninput="updateSetting('vadSensitivity', this.value, true)"><span id="value-vadSensitivity">${settingsState.vadSensitivity}</span></div></div><div class="settings-row slider-row"><div><h4>Silence Timeout (ms)</h4><p>Silence needed to stop capture.</p></div><div class="slider-wrap"><input type="range" min="250" max="2000" step="50" value="${settingsState.vadSilenceMs}" oninput="updateSetting('vadSilenceMs', this.value, true)"><span id="value-vadSilenceMs">${settingsState.vadSilenceMs}</span></div></div>`;
+    return;
+  }
+  if (settingsTab === 'models') {
+    const rows = [
+      { id: 'auto', title: 'Auto', desc: 'Use VRAM-aware selection: Large when VRAM > 8GB, otherwise Base.' },
+      { id: 'base', title: 'Base', desc: 'Fastest turnaround.' },
+      { id: 'small', title: 'Small', desc: 'Higher accuracy at medium cost.' },
+      { id: 'medium', title: 'Medium', desc: 'Best quality for complex dictation.' }
+    ];
+    const grid = rows.map((m) => `<button class="model-card ${settingsState.modelMode === m.id ? 'active' : ''}" onclick="selectModel('${m.id}')"><h4>${m.title}</h4><p>${m.desc}</p>${m.id === 'auto' ? `<span class="model-meta">Current: ${modelLabel(settingsState.activeModel)}${settingsState.vramTotalGb > 0 ? ` (${settingsState.vramTotalGb.toFixed(1)} GB VRAM)` : ''}</span>` : ''}</button>`).join('');
+    panel.innerHTML = `<h3>Models</h3><div class="model-grid model-grid-4">${grid}</div>`;
+    return;
+  }
+  panel.innerHTML = `<h3>Data</h3><div class="settings-row"><div><h4>Export History</h4><p>Download transcripts, snippets, and achievements.</p></div><button class="primary-btn" onclick="exportHistory()">Export History</button></div><div class="settings-row"><div><h4>Snapshot</h4><p>${Number(stats.totalWords || 0).toLocaleString()} total words, ${(stats.recentTranscripts || []).length} recent transcripts, ${unlockCount()} achievements unlocked.</p></div></div>`;
+}
+
+function setSettingsTab(t) { settingsTab = t; renderSettingsPanel(); }
+function updateSetting(k, v, n = false) {
+  settingsState[k] = n ? Number(v) : v;
+  const e = document.getElementById('value-' + k);
+  if (e) e.textContent = String(settingsState[k]);
+  if (k === 'theme') applyTheme(settingsState[k]);
+  persistSettingToBackend(k, settingsState[k]);
+}
+function toggleSetting(k) {
+  settingsState[k] = !settingsState[k];
+  persistSettingToBackend(k, settingsState[k]);
+}
+
+async function persistSettingToBackend(key, value) {
+  const backendKeyMap = {
+    launchBehavior: 'launch_behavior', theme: 'theme',
+    commandMode: 'command_mode', autoCopy: 'auto_copy',
+    markdownMode: 'markdown_mode',
+    microphone: 'input_device', vadSensitivity: 'vad_sensitivity',
+    vadSilenceMs: 'vad_silence_ms',
+  };
+  await Bridge.settings.update(backendKeyMap[key] || key, value);
+}
+
+function applyTheme(name) {
+  const valid = ['hot_pink', 'neon_dark', 'midnight_green'];
+  if (!valid.includes(name)) name = 'hot_pink';
+  document.body.dataset.theme = name;
+}
+
+function applyModelSettingsPayload(payload, emitAutoToast = false) {
+  if (!payload || typeof payload !== 'object') return;
+  const prevMode = settingsState.modelMode;
+  const prevManual = settingsState.manualModel;
+  const prevActive = settingsState.activeModel;
+  const prevVram = settingsState.vramTotalGb;
+  settingsState.modelMode = String(payload.mode || settingsState.modelMode || 'auto').toLowerCase();
+  settingsState.manualModel = String(payload.manualModel || settingsState.manualModel || 'base').toLowerCase();
+  settingsState.activeModel = String(payload.activeModel || settingsState.activeModel || 'base').toLowerCase();
+  settingsState.vramTotalGb = Number(payload.vramTotalGb || 0);
+  const changed = (
+    prevMode !== settingsState.modelMode
+    || prevManual !== settingsState.manualModel
+    || prevActive !== settingsState.activeModel
+    || prevVram !== settingsState.vramTotalGb
+  );
+  if (changed && settingsTab === 'models') renderSettingsPanel();
+  if (emitAutoToast && settingsState.modelMode === 'auto' && payload.autoSwitched) {
+    showToast(`Switched to ${modelLabel(settingsState.activeModel)}.`);
+  }
+}
+
+async function selectModel(m) {
+  settingsState.modelMode = String(m || '').toLowerCase();
+  renderSettingsPanel();
+  const payload = await Bridge.transcription.setModelMode(settingsState.modelMode);
+  if (payload) {
+    applyModelSettingsPayload(payload, true);
+    if (settingsState.modelMode !== 'auto') showToast('Model set to ' + modelLabel(settingsState.modelMode));
+  } else if (!Bridge.ready()) {
+    showToast('Model set to ' + modelLabel(settingsState.modelMode));
+  } else {
+    showToast('Failed to update model');
+  }
+}
+
+function setHotkeyRecording(v) {
+  hotkeyRecording = Boolean(v);
+  if (!hotkeyRecording) {
+    hotkeyCapturePressed = new Set();
+    hotkeyCaptureDraft = [];
+  }
+  if (settingsTab === 'general') renderSettingsPanel();
+}
+
+async function saveHotkeySetting(value) {
+  const normalized = String(value || '').toLowerCase();
+  if (!Bridge.ready()) {
+    settingsState.hotkey = normalized || settingsState.hotkey;
+    showToast('Shortcut updated');
+    return true;
+  }
+  const result = await Bridge.settings.setHotkey(normalized);
+  if (!result || !result.ok) {
+    showToast((result && result.error) ? result.error : 'Invalid shortcut');
+    return false;
+  }
+  settingsState.hotkey = String(result.hotkey || settingsState.hotkey);
+  showToast('Shortcut set to ' + hotkeyDisplay(settingsState.hotkey));
+  return true;
+}
+
+function finalizeRecordedHotkey() {
+  const ordered = orderHotkeyTokens(hotkeyCaptureDraft);
+  setHotkeyRecording(false);
+  if (!isValidHotkeyTokens(ordered)) {
+    showToast('Use at least one modifier key (Ctrl/Alt/Shift/Win).');
+    return;
+  }
+  const combo = ordered.join('+');
+  saveHotkeySetting(combo);
+}
+
+function toggleHotkeyRecording() {
+  if (hotkeyRecording) {
+    setHotkeyRecording(false);
+    return;
+  }
+  hotkeyCapturePressed = new Set();
+  hotkeyCaptureDraft = [];
+  setHotkeyRecording(true);
+}
+
+function onHotkeyCaptureKeyDown(e) {
+  if (!hotkeyRecording) return;
+  const key = hotkeyTokenFromEvent(e);
+  if (!key) return;
+  e.preventDefault();
+  e.stopPropagation();
+  hotkeyCapturePressed.add(key);
+  hotkeyCaptureDraft = orderHotkeyTokens(Array.from(hotkeyCapturePressed));
+  const input = document.getElementById('hotkey-record-input');
+  if (input) input.value = hotkeyDisplay(hotkeyCaptureDraft.join('+'));
+}
+
+function onHotkeyCaptureKeyUp(e) {
+  if (!hotkeyRecording) return;
+  const key = hotkeyTokenFromEvent(e);
+  if (!key) return;
+  e.preventDefault();
+  e.stopPropagation();
+  hotkeyCapturePressed.delete(key);
+  if (hotkeyCaptureDraft.length > 0 && hotkeyCapturePressed.size === 0) {
+    finalizeRecordedHotkey();
+  }
+}
+
+function openSettings() {
+  const m = document.getElementById('settings-modal');
+  if (!m) return;
+  m.classList.add('is-open');
+  document.body.classList.add('modal-open');
+  settingsTab = 'general';
+  setHotkeyRecording(false);
+  renderSettingsPanel();
+}
+function closeSettings() {
+  const m = document.getElementById('settings-modal');
+  if (!m) return;
+  setHotkeyRecording(false);
+  m.classList.remove('is-open');
+  document.body.classList.remove('modal-open');
+}
+function handleModalBackdrop(e) { if (e.target && e.target.id === 'settings-modal') closeSettings(); }
+
+async function addSnippet() {
+  const t = window.prompt('Snippet shortcut name');
+  if (!t) return;
+  const r = window.prompt('Replacement text');
+  if (!r) return;
+  const result = await Bridge.settings.addSnippet(t, r);
+  if (result && result.ok && Array.isArray(result.snippets)) {
+    snippets = result.snippets;
+    updateSidebar();
+    renderIfCurrentViewIn(['snippets']);
+    showToast('Snippet added');
+    return;
+  }
+  if (result) { showToast(result.error || 'Failed to add snippet'); return; }
+  snippets.unshift({ id: Date.now(), scope: 'personal', trigger: t, replacement: r });
+  updateSidebar();
+  renderIfCurrentViewIn(['snippets']);
+  showToast('Snippet added');
+}
+
+async function deleteSnippet(id) {
+  const result = await Bridge.settings.deleteSnippet(id);
+  if (result && result.ok && Array.isArray(result.snippets)) {
+    snippets = result.snippets;
+  } else {
+    snippets = snippets.filter((x) => x.id !== id);
+  }
+  updateSidebar();
+  renderIfCurrentViewIn(['snippets']);
+  showToast('Snippet deleted');
+}
+
+async function addVocabularyWord() {
+  const input = document.getElementById('dictionary-word-input');
+  const raw = input ? input.value : '';
+  const word = normalizeVocabularyWord(raw);
+  if (!word) return;
+  const result = await Bridge.settings.addWord(word);
+  if (result && Array.isArray(result.words)) {
+    vocabularyWords = result.words;
+    if (input) input.value = '';
+    updateSidebar();
+    renderIfCurrentViewIn(['dictionary']);
+    showToast(result.added ? `Added "${word}"` : `"${word}" already exists`);
+    return;
+  }
+  if (!vocabularyWords.some((w) => w.toLowerCase() === word.toLowerCase())) {
+    vocabularyWords.push(word);
+    showToast(`Added "${word}"`);
+  } else {
+    showToast(`"${word}" already exists`);
+  }
+  if (input) input.value = '';
+  updateSidebar();
+  renderIfCurrentViewIn(['dictionary']);
+}
+
+async function copyText(txt) {
+  const v = String(txt || '');
+  if (!v) return false;
+  const ok = await Bridge.system.copyText(v);
+  if (ok) return true;
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    try { await navigator.clipboard.writeText(v); return true; } catch {}
+  }
+  return false;
+}
+
+async function copyTranscriptItem(i) { const t = (stats.recentTranscripts || [])[i]; if (!t) return; if (await copyText(t.fullText || t.text || '')) showToast('Transcript copied'); }
+async function copySnippet(id) { const s = snippets.find((x) => x.id === id); if (!s) return; if (await copyText(s.replacement)) showToast('Snippet copied'); }
+function copyLast() { if ((stats.recentTranscripts || []).length > 0) copyTranscriptItem(0); }
+
+function showConfetti() {
+  const c = document.getElementById('confetti-container');
+  if (!c) return;
+  c.innerHTML = '';
+  ['#bb86fc', '#03dac6', '#cf6679'].forEach((col) => {
+    for (let i = 0; i < 6; i += 1) {
+      const b = document.createElement('div');
+      b.className = 'confetti-bit';
+      b.style.left = Math.random() * 100 + '%';
+      b.style.animationDelay = Math.random() * 0.8 + 's';
+      b.style.animationDuration = (1.8 + Math.random() * 1.2) + 's';
+      b.style.backgroundColor = col;
+      c.appendChild(b);
+    }
+  });
+  setTimeout(() => { c.innerHTML = ''; }, 2800);
+}
+
+function mountAnimatedNode(container, node, ttlMs = 2300) {
+  if (!container || !node) return;
+  container.appendChild(node);
+  requestAnimationFrame(() => node.classList.add('is-visible'));
+  setTimeout(() => {
+    node.classList.remove('is-visible');
+    setTimeout(() => { if (node.parentNode) node.parentNode.removeChild(node); }, 220);
+  }, ttlMs);
+}
+
+function showAchievementPopup(a) {
+  const p = document.getElementById('achievement-popup');
+  if (!p) return;
+  p.innerHTML = '';
+  const card = document.createElement('div');
+  card.className = 'achievement-popup-card';
+  card.innerHTML = `<div class="achievement-popup-title">Achievement Unlocked</div><h4>${esc(a.name)}</h4><p>${esc(a.description)}</p><span>+${a.xp} XP</span>`;
+  mountAnimatedNode(p, card, 2600);
+}
+
+function showAchievementToast(a) {
+  const c = document.getElementById('achievement-toast-container');
+  if (!c) return;
+  const t = document.createElement('div');
+  t.className = 'achievement-toast';
+  t.innerHTML = `<strong>Achievement Unlocked</strong><span>${esc(a.name)}</span>`;
+  mountAnimatedNode(c, t, 2600);
+}
+
+function showToast(msg) {
+  const c = document.getElementById('toast-container');
+  if (!c) return;
+  const t = document.createElement('div');
+  t.className = 'toast-notification';
+  t.textContent = msg;
+  mountAnimatedNode(c, t, 2300);
+}
+
+function showAchievementDetail(id) { const a = achievements.find((x) => x.id === id); if (!a || !a.unlocked) return; showAchievementPopup(a); showConfetti(); }
+
+function applyUnlockedAchievements(ids, emit = false) {
+  const incoming = new Set((ids || []).map((x) => String(x)));
+  achievements.forEach((a) => {
+    const ok = incoming.has(String(a.id)) || (a.key && incoming.has(String(a.key)));
+    if (emit && ok && !a.unlocked) { showAchievementToast(a); showToast('Unlocked: ' + a.name); }
+    a.unlocked = ok;
+  });
+  updateSidebar();
+}
+
+function minimizeWindow() { Bridge.system.minimize(); }
+function closeWindow() { if (Bridge.ready()) Bridge.system.close(); else window.close(); }
+
+async function exportHistory() {
+  const result = await Bridge.system.exportCsv();
+  if (result && result.ok) {
+    showToast('CSV exported to ' + (result.path || 'exports folder'));
+    return;
+  }
+  if (result) { showToast(result.error || 'Export failed'); return; }
+  const blob = new Blob([JSON.stringify({ exportedAt: new Date().toISOString(), stats, recentTranscripts: stats.recentTranscripts || [], unlockedAchievements: achievements.filter((a) => a.unlocked), snippets }, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'whisper_local_history_' + new Date().toISOString().slice(0, 10) + '.json';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showToast('History exported');
+}
+
+function loadStatsFromJSFile() {
+  if (!window.WHISPER_STATS) return false;
+  const d = digest(window.WHISPER_STATS);
+  if (d === lastStatsDigest) return true;
+  Object.assign(stats, window.WHISPER_STATS);
+  stats.last7Days = normalize7(stats.last7Days || stats.last7_days || stats.last7DaysSeries);
+  if (!Array.isArray(stats.recentTranscripts)) stats.recentTranscripts = [];
+  lastStatsDigest = d;
+  lastRecentDigest = digest((stats.recentTranscripts || []).map((t) => t.fullText || t.text || ''));
+  updateSidebar();
+  renderIfCurrentViewIn(['home', 'challenges']);
+  return true;
+}
+
+function loadAchievementsFromJSFile() {
+  if (!Array.isArray(window.WHISPER_ACHIEVEMENTS)) return false;
+  const d = digest(window.WHISPER_ACHIEVEMENTS.slice().sort());
+  if (d === lastAchievementsDigest) return true;
+  applyUnlockedAchievements(window.WHISPER_ACHIEVEMENTS, achievementsInitializedFromBackend);
+  achievementsInitializedFromBackend = true;
+  lastAchievementsDigest = d;
+  renderIfCurrentViewIn(['achievements']);
+  return true;
+}
+
+async function loadStatsFromPython() {
+  if (!Bridge.ready()) { loadStatsFromJSFile(); return; }
+  const data = await Bridge.stats.get();
+  if (!data) { loadStatsFromJSFile(); return; }
+  const d = digest(data);
+  if (d === lastStatsDigest) return;
+  Object.assign(stats, data);
+  stats.last7Days = normalize7(data.last7Days || data.last7_days || data.last7DaysSeries);
+  if (!Array.isArray(stats.recentTranscripts)) stats.recentTranscripts = [];
+  lastStatsDigest = d;
+  lastRecentDigest = digest((stats.recentTranscripts || []).map((t) => t.fullText || t.text || ''));
+  updateSidebar();
+  renderIfCurrentViewIn(['home', 'challenges']);
+}
+
+async function loadRecentTranscriptionsFromPython() {
+  const recent = await Bridge.stats.getHistory();
+  if (!Array.isArray(recent)) return;
+  const d = digest(recent.map((t) => t.fullText || t.text || ''));
+  if (d === lastRecentDigest) return;
+  stats.recentTranscripts = recent;
+  lastRecentDigest = d;
+  renderIfCurrentViewIn(['home']);
+}
+
+async function loadAchievementsFromPython() {
+  if (!Bridge.ready()) { loadAchievementsFromJSFile(); return; }
+  const ids = await Bridge.stats.getAchievements();
+  if (!Array.isArray(ids)) { loadAchievementsFromJSFile(); return; }
+  const d = digest(ids.slice().sort());
+  if (d === lastAchievementsDigest) return;
+  applyUnlockedAchievements(ids, achievementsInitializedFromBackend);
+  achievementsInitializedFromBackend = true;
+  lastAchievementsDigest = d;
+  renderIfCurrentViewIn(['achievements']);
+}
+
+async function loadModelSettingsFromPython() {
+  const payload = await Bridge.transcription.getModelMode();
+  if (!payload) return;
+  const d = digest(payload);
+  if (d === lastModelSettingsDigest) return;
+  lastModelSettingsDigest = d;
+  applyModelSettingsPayload(payload, true);
+}
+
+async function loadVocabularyFromPython() {
+  const words = await Bridge.settings.getVocabulary();
+  if (!Array.isArray(words)) return;
+  const d = digest(words);
+  if (d === lastVocabularyDigest) return;
+  lastVocabularyDigest = d;
+  vocabularyWords = words;
+  updateSidebar();
+  renderIfCurrentViewIn(['dictionary']);
+}
+
+async function loadHotkeyFromPython() {
+  const payload = await Bridge.settings.getHotkey();
+  if (!payload || !payload.ok) return;
+  const nextHotkey = String(payload.hotkey || '').toLowerCase();
+  const d = digest(nextHotkey);
+  if (d === lastHotkeyDigest) return;
+  lastHotkeyDigest = d;
+  settingsState.hotkey = nextHotkey || settingsState.hotkey;
+  if (settingsTab === 'general') renderSettingsPanel();
+}
+
+async function loadSnippetsFromPython() {
+  const items = await Bridge.settings.getSnippets();
+  if (!Array.isArray(items)) return;
+  const d = digest(items);
+  if (d === lastSnippetsDigest) return;
+  lastSnippetsDigest = d;
+  snippets = items;
+  updateSidebar();
+  renderIfCurrentViewIn(['snippets']);
+}
+
+async function loadUserSettingsFromPython() {
+  const result = await Bridge.settings.getAll();
+  if (!result || !result.ok || !result.settings) return;
+  const d = digest(result.settings);
+  if (d === lastUserSettingsDigest) return;
+  lastUserSettingsDigest = d;
+  const s = result.settings;
+  if (s.launch_behavior) settingsState.launchBehavior = s.launch_behavior;
+  if (s.theme) { settingsState.theme = s.theme; applyTheme(s.theme); }
+  if (typeof s.command_mode === 'boolean') settingsState.commandMode = s.command_mode;
+  if (typeof s.auto_copy === 'boolean') settingsState.autoCopy = s.auto_copy;
+  if (s.input_device) settingsState.microphone = s.input_device;
+  if (typeof s.vad_sensitivity === 'number') settingsState.vadSensitivity = s.vad_sensitivity;
+  if (typeof s.vad_silence_ms === 'number') settingsState.vadSilenceMs = s.vad_silence_ms;
+  if (typeof s.markdown_mode === 'boolean') settingsState.markdownMode = s.markdown_mode;
+}
+
+// ================================================================
+// SQLite-backed loaders – call the new Bridge.stats paths that
+// read from the StatsController (WAL-mode SQLite).
+// These run alongside loadStatsFromPython() and progressively
+// replace JSON-sourced data with SQLite-sourced data.
+// ================================================================
+
+let lastChartDataDigest = '';
+let lastTotalsDigest = '';
+
+async function loadChartDataFromSqlite() {
+  const data = await Bridge.stats.getChartData(7);
+  if (!data) return;
+  const d = digest(data);
+  if (d === lastChartDataDigest) return;
+  lastChartDataDigest = d;
+  const converted = chartDataToLast7Days(data);
+  if (converted) {
+    stats.last7Days = converted;
+    renderIfCurrentViewIn(['home', 'challenges']);
+  }
+}
+
+async function loadTotalsFromSqlite() {
+  const totals = await Bridge.stats.getTotals();
+  if (!totals) return;
+  const d = digest(totals);
+  if (d === lastTotalsDigest) return;
+  lastTotalsDigest = d;
+  mergeSqlTotals(totals);
+  updateSidebar();
+  renderIfCurrentViewIn(['home', 'challenges']);
+}
+
+async function verifyBridgeHealth() { await Bridge.system.ping(); }
+
+window.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeSettings(); });
+window.addEventListener('keydown', onHotkeyCaptureKeyDown, true);
+window.addEventListener('keyup', onHotkeyCaptureKeyUp, true);
+
+window.addEventListener('DOMContentLoaded', () => {
+  applyTheme(settingsState.theme);
+  stats.last7Days = normalize7(stats.last7Days);
+  renderContent();
+  lastStatsDigest = digest(stats);
+  lastAchievementsDigest = digest(achievements.filter((a) => a.unlocked).map((a) => a.id).sort());
+  lastRecentDigest = digest((stats.recentTranscripts || []).map((t) => t.fullText || t.text || ''));
+  lastHotkeyDigest = digest(settingsState.hotkey);
+
+  async function pollPythonData() {
+    if (pollBusy || document.hidden) return;
+    pollBusy = true;
+    try {
+      pollTick += 1;
+      const jobs = [];
+      const statsHeavyView = currentView === 'home' || currentView === 'challenges';
+      const shouldPollStats = statsHeavyView || (pollTick % 15 === 0);
+      const shouldPollAchievements = currentView === 'achievements' || (pollTick % 15 === 0);
+      const shouldPollModels = isModelsSettingsVisible() || (pollTick % 30 === 0);
+      const shouldPollVocabulary = currentView === 'dictionary' || (pollTick % 30 === 0);
+      const shouldPollHotkey = (settingsTab === 'general' && document.body.classList.contains('modal-open')) || (pollTick % 30 === 0);
+      const shouldPollSnippets = currentView === 'snippets' || (pollTick % 30 === 0);
+      const shouldPollUserSettings = (pollTick % 60 === 0);
+
+      if (shouldPollStats) {
+        jobs.push(loadStatsFromPython());
+        jobs.push(loadChartDataFromSqlite());
+        jobs.push(loadTotalsFromSqlite());
+      }
+      if (shouldPollAchievements) jobs.push(loadAchievementsFromPython());
+      if (currentView === 'home') jobs.push(loadRecentTranscriptionsFromPython());
+      if (shouldPollModels) jobs.push(loadModelSettingsFromPython());
+      if (shouldPollVocabulary) jobs.push(loadVocabularyFromPython());
+      if (shouldPollHotkey) jobs.push(loadHotkeyFromPython());
+      if (shouldPollSnippets) jobs.push(loadSnippetsFromPython());
+      if (shouldPollUserSettings) jobs.push(loadUserSettingsFromPython());
+
+      if (jobs.length === 0) return;
+      await Promise.allSettled(jobs);
+    } finally {
+      pollBusy = false;
+    }
+  }
+
+  function startPyPoll() {
+    if (pythonPollingStarted) return false;
+    if (!Bridge.ready()) return false;
+    pythonPollingStarted = true;
+    loadStatsFromPython();
+    loadChartDataFromSqlite();
+    loadTotalsFromSqlite();
+    loadAchievementsFromPython();
+    loadRecentTranscriptionsFromPython();
+    loadModelSettingsFromPython();
+    loadVocabularyFromPython();
+    loadHotkeyFromPython();
+    loadSnippetsFromPython();
+    loadUserSettingsFromPython();
+    verifyBridgeHealth();
+    setInterval(() => { pollPythonData(); }, PY_POLL_MS);
+    return true;
+  }
+
+  function startFallback() { setTimeout(() => { loadStatsFromJSFile(); loadAchievementsFromJSFile(); }, 120); }
+
+  window.addEventListener('pywebviewready', () => { startPyPoll(); });
+
+  if (startPyPoll()) return;
+  let tries = 0;
+  const probe = setInterval(() => {
+    if (startPyPoll()) { clearInterval(probe); return; }
+    tries += 1;
+    if (tries >= 6) { clearInterval(probe); startFallback(); }
+  }, 500);
+});
+</script>
+</body>
+</html>
