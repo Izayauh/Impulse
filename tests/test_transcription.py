@@ -12,7 +12,7 @@ import tempfile
 import subprocess
 
 # Add parent directory to path for imports
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src"))
 
 
 class TestModelConfiguration(unittest.TestCase):
@@ -20,7 +20,7 @@ class TestModelConfiguration(unittest.TestCase):
     
     def test_model_paths_defined(self):
         """Test all model paths are defined."""
-        from flow_local_dictation import MODEL_BASE, MODEL_MEDIUM, MODEL_LARGE
+        from whisper_local.flow_local_dictation import MODEL_BASE, MODEL_MEDIUM, MODEL_LARGE
         
         self.assertIsInstance(MODEL_BASE, str)
         self.assertIsInstance(MODEL_MEDIUM, str)
@@ -32,7 +32,7 @@ class TestModelConfiguration(unittest.TestCase):
     
     def test_word_thresholds_defined(self):
         """Test word count thresholds are defined."""
-        from flow_local_dictation import WORD_THRESHOLD_BASE, WORD_THRESHOLD_MEDIUM
+        from whisper_local.flow_local_dictation import WORD_THRESHOLD_BASE, WORD_THRESHOLD_MEDIUM
         
         self.assertIsInstance(WORD_THRESHOLD_BASE, int)
         self.assertIsInstance(WORD_THRESHOLD_MEDIUM, int)
@@ -42,7 +42,7 @@ class TestModelConfiguration(unittest.TestCase):
     
     def test_word_thresholds_reasonable(self):
         """Test word count thresholds are reasonable values."""
-        from flow_local_dictation import WORD_THRESHOLD_BASE, WORD_THRESHOLD_MEDIUM
+        from whisper_local.flow_local_dictation import WORD_THRESHOLD_BASE, WORD_THRESHOLD_MEDIUM
         
         # Base should be for short phrases (10-50 words)
         self.assertGreater(WORD_THRESHOLD_BASE, 5)
@@ -58,7 +58,7 @@ class TestModelSelection(unittest.TestCase):
     
     def test_short_phrase_threshold(self):
         """Test detection of short phrases."""
-        from flow_local_dictation import WORD_THRESHOLD_BASE
+        from whisper_local.flow_local_dictation import WORD_THRESHOLD_BASE
         
         short_text = " ".join(["word"] * (WORD_THRESHOLD_BASE - 1))
         word_count = len(short_text.split())
@@ -67,7 +67,7 @@ class TestModelSelection(unittest.TestCase):
     
     def test_medium_phrase_threshold(self):
         """Test detection of medium phrases."""
-        from flow_local_dictation import WORD_THRESHOLD_BASE, WORD_THRESHOLD_MEDIUM
+        from whisper_local.flow_local_dictation import WORD_THRESHOLD_BASE, WORD_THRESHOLD_MEDIUM
         
         medium_text = " ".join(["word"] * 50)
         word_count = len(medium_text.split())
@@ -77,7 +77,7 @@ class TestModelSelection(unittest.TestCase):
     
     def test_long_phrase_threshold(self):
         """Test detection of long phrases."""
-        from flow_local_dictation import WORD_THRESHOLD_MEDIUM
+        from whisper_local.flow_local_dictation import WORD_THRESHOLD_MEDIUM
         
         long_text = " ".join(["word"] * (WORD_THRESHOLD_MEDIUM + 10))
         word_count = len(long_text.split())
@@ -90,7 +90,7 @@ class TestTranscriptSanitization(unittest.TestCase):
     
     def setUp(self):
         """Import sanitization function."""
-        from flow_local_dictation import sanitize_transcript
+        from whisper_local.flow_local_dictation import sanitize_transcript
         self.sanitize = sanitize_transcript
     
     def test_empty_input(self):
@@ -160,14 +160,14 @@ class TestWhisperBinaryResolution(unittest.TestCase):
     
     def test_whisper_bin_defined(self):
         """Test Whisper binary path is defined."""
-        from flow_local_dictation import WHISPER_BIN
+        from whisper_local.flow_local_dictation import WHISPER_BIN
         
         self.assertIsInstance(WHISPER_BIN, str)
         self.assertTrue(len(WHISPER_BIN) > 0)
     
     def test_whisper_candidates_defined(self):
         """Test Whisper binary candidates are defined."""
-        from flow_local_dictation import WHISPER_CANDIDATES
+        from whisper_local.flow_local_dictation import WHISPER_CANDIDATES
         
         self.assertIsInstance(WHISPER_CANDIDATES, list)
         self.assertGreater(len(WHISPER_CANDIDATES), 0)
@@ -178,11 +178,47 @@ class TestWhisperBinaryResolution(unittest.TestCase):
     
     def test_timeout_reasonable(self):
         """Test Whisper process timeout is reasonable."""
-        from flow_local_dictation import WHISPER_TIMEOUT_SEC
+        from whisper_local.flow_local_dictation import WHISPER_TIMEOUT_SEC
         
         # Should be long enough for transcription but not infinite
         self.assertGreater(WHISPER_TIMEOUT_SEC, 10)
         self.assertLess(WHISPER_TIMEOUT_SEC, 600)
+
+
+class TestWhisperRuntimeArgs(unittest.TestCase):
+    """Tests for runtime argument compatibility."""
+
+    @patch("whisper_local.flow_local_dictation.subprocess.run")
+    @patch("whisper_local.flow_local_dictation._resolve_whisper_exe")
+    @patch("whisper_local.flow_local_dictation.sf.info")
+    def test_run_whisper_omits_ngl_for_whisper_cli(self, mock_sf_info, mock_resolve_exe, mock_run):
+        """whisper-cli.exe path should not include unsupported -ngl flag."""
+        from whisper_local.flow_local_dictation import run_whisper
+
+        mock_sf_info.return_value = Mock(samplerate=16000, frames=16000)
+        mock_resolve_exe.return_value = "whisper-cli.exe"
+        mock_run.return_value = subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr="")
+
+        run_whisper("dummy.wav", "whisper-cli.exe", model_path="dummy-model.bin")
+
+        cmd = mock_run.call_args_list[0][0][0]
+        self.assertNotIn("-ngl", cmd)
+
+    @patch("whisper_local.flow_local_dictation.subprocess.run")
+    @patch("whisper_local.flow_local_dictation._resolve_whisper_exe")
+    @patch("whisper_local.flow_local_dictation.sf.info")
+    def test_run_whisper_keeps_ngl_for_main_exe(self, mock_sf_info, mock_resolve_exe, mock_run):
+        """main.exe path should preserve -ngl for legacy compatibility."""
+        from whisper_local.flow_local_dictation import run_whisper
+
+        mock_sf_info.return_value = Mock(samplerate=16000, frames=16000)
+        mock_resolve_exe.return_value = "main.exe"
+        mock_run.return_value = subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr="")
+
+        run_whisper("dummy.wav", "main.exe", model_path="dummy-model.bin")
+
+        cmd = mock_run.call_args_list[0][0][0]
+        self.assertIn("-ngl", cmd)
 
 
 class TestInputValidation(unittest.TestCase):
@@ -190,7 +226,7 @@ class TestInputValidation(unittest.TestCase):
     
     def test_max_transcript_size(self):
         """Test maximum transcript size is defined."""
-        from flow_local_dictation import MAX_TRANSCRIPT_BYTES
+        from whisper_local.flow_local_dictation import MAX_TRANSCRIPT_BYTES
         
         self.assertIsInstance(MAX_TRANSCRIPT_BYTES, int)
         self.assertGreater(MAX_TRANSCRIPT_BYTES, 0)
@@ -198,7 +234,7 @@ class TestInputValidation(unittest.TestCase):
     
     def test_max_transcript_lines(self):
         """Test maximum transcript line count is defined."""
-        from flow_local_dictation import MAX_TRANSCRIPT_LINE_COUNT
+        from whisper_local.flow_local_dictation import MAX_TRANSCRIPT_LINE_COUNT
         
         self.assertIsInstance(MAX_TRANSCRIPT_LINE_COUNT, int)
         self.assertGreater(MAX_TRANSCRIPT_LINE_COUNT, 0)
@@ -206,7 +242,7 @@ class TestInputValidation(unittest.TestCase):
     
     def test_max_line_length(self):
         """Test maximum line length is defined."""
-        from flow_local_dictation import MAX_LINE_LENGTH_CHARS
+        from whisper_local.flow_local_dictation import MAX_LINE_LENGTH_CHARS
         
         self.assertIsInstance(MAX_LINE_LENGTH_CHARS, int)
         self.assertGreater(MAX_LINE_LENGTH_CHARS, 0)
@@ -218,19 +254,19 @@ class TestPostProcessing(unittest.TestCase):
     
     def test_filler_mode_defined(self):
         """Test filler word removal mode is defined."""
-        from flow_local_dictation import MODE_FILLER
+        from whisper_local.flow_local_dictation import MODE_FILLER
         
         self.assertIsInstance(MODE_FILLER, bool)
     
     def test_punct_mode_defined(self):
         """Test punctuation mode is defined."""
-        from flow_local_dictation import MODE_PUNCT
+        from whisper_local.flow_local_dictation import MODE_PUNCT
         
         self.assertIsInstance(MODE_PUNCT, bool)
     
     def test_bullet_mode_defined(self):
         """Test bullet list mode is defined."""
-        from flow_local_dictation import MODE_BULLET_NEXT
+        from whisper_local.flow_local_dictation import MODE_BULLET_NEXT
         
         self.assertIsInstance(MODE_BULLET_NEXT, bool)
 
@@ -240,7 +276,7 @@ class TestTranscriptionState(unittest.TestCase):
     
     def test_transcribing_flag_exists(self):
         """Test transcribing flag is defined."""
-        from flow_local_dictation import transcribing_flag
+        from whisper_local.flow_local_dictation import transcribing_flag
         
         self.assertIsNotNone(transcribing_flag)
         # Should be a threading.Event
@@ -250,7 +286,7 @@ class TestTranscriptionState(unittest.TestCase):
     
     def test_last_transcription_storage(self):
         """Test last transcription can be stored."""
-        from flow_local_dictation import last_transcription
+        from whisper_local.flow_local_dictation import last_transcription
         
         # Should be None or a string
         self.assertTrue(last_transcription is None or isinstance(last_transcription, str))
@@ -262,7 +298,7 @@ class TestWhisperCommandBuilding(unittest.TestCase):
     
     def test_command_includes_binary(self, mock_run):
         """Test command includes binary path."""
-        from flow_local_dictation import build_whisper_cmd
+        from whisper_local.flow_local_dictation import build_whisper_cmd
         
         exe = "whisper-cli.exe"
         model = "models/ggml-base.en.bin"
@@ -274,7 +310,7 @@ class TestWhisperCommandBuilding(unittest.TestCase):
     
     def test_command_includes_model(self, mock_run):
         """Test command includes model path."""
-        from flow_local_dictation import build_whisper_cmd
+        from whisper_local.flow_local_dictation import build_whisper_cmd
         
         exe = "whisper-cli.exe"
         model = "models/ggml-base.en.bin"
@@ -287,7 +323,7 @@ class TestWhisperCommandBuilding(unittest.TestCase):
     
     def test_command_includes_input_file(self, mock_run):
         """Test command includes input WAV file."""
-        from flow_local_dictation import build_whisper_cmd
+        from whisper_local.flow_local_dictation import build_whisper_cmd
         
         exe = "whisper-cli.exe"
         model = "models/ggml-base.en.bin"
@@ -301,4 +337,6 @@ class TestWhisperCommandBuilding(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
 

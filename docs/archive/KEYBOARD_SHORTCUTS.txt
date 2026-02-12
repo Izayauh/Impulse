@@ -1,0 +1,120 @@
+╔══════════════════════════════════════════════════════════════╗
+║                                                              ║
+║      🎤 WHISPER LOCAL DICTATION - KEYBOARD SHORTCUTS        ║
+║                                                              ║
+╠══════════════════════════════════════════════════════════════╣
+║                                                              ║
+║  PRIMARY CONTROLS                                            ║
+║  ────────────────────────────────────────────────────────    ║
+║                                                              ║
+║  WIN + CTRL (hold)      Record audio                         ║
+║  WIN + CTRL (release)   Transcribe & paste text              ║
+║                                                              ║
+║  ESC                    Exit application                     ║
+║                                                              ║
+╠══════════════════════════════════════════════════════════════╣
+║                                                              ║
+║  SETTINGS & DIAGNOSTICS                                      ║
+║  ────────────────────────────────────────────────────────    ║
+║                                                              ║
+║  WIN + CTRL + S         Open microphone settings             ║
+║                                                              ║
+║  F8                     Run self-test (JFK sample)           ║
+║  CTRL + ALT + J         Run self-test (alternate)           ║
+║                                                              ║
+║  F9                     Run debug probe                      ║
+║  CTRL + ALT + D         Run debug probe (alternate)         ║
+║                                                              ║
+║  CTRL + ALT + B         Enable bullet list mode              ║
+║                                                              ║
+╠══════════════════════════════════════════════════════════════╣
+║                                                              ║
+║  VOICE COMMANDS (speak during recording)                     ║
+║  ────────────────────────────────────────────────────────    ║
+║                                                              ║
+║  "new line"             Insert line break                    ║
+║  "new paragraph"        Insert double line break             ║
+║  "comma"                Insert , (comma)                     ║
+║  "period"               Insert . (period)                    ║
+║  "exclamation"          Insert ! (exclamation mark)          ║
+║  "question mark"        Insert ? (question mark)             ║
+║                                                              ║
+╠══════════════════════════════════════════════════════════════╣
+║                                                              ║
+║  SYSTEM TRAY MENU                                            ║
+║  ────────────────────────────────────────────────────────    ║
+║                                                              ║
+║  Right-click tray icon:                                      ║
+║    • Toggle Listening       Pause/resume dictation           ║
+║    • Self-test (JFK)        Run test transcription          ║
+║    • Run Debug Probe        Generate diagnostic files       ║
+║    • Quit                   Exit application                ║
+║                                                              ║
+╠══════════════════════════════════════════════════════════════╣
+║                                                              ║
+║  STATUS BAR INDICATORS                                       ║
+║  ────────────────────────────────────────────────────────    ║
+║                                                              ║
+║  🎤 Ready              System ready, waiting for input       ║
+║  🎙️ Listening...       Recording your voice                  ║
+║  ⚙️ Transcribing...    Processing speech to text             ║
+║  ✅ Pasted!            Text successfully pasted              ║
+║  🔇 No speech          No audio detected                     ║
+║  ❌ Failed             Transcription error                   ║
+║                                                              ║
+╠══════════════════════════════════════════════════════════════╣
+║                                                              ║
+║  TIPS FOR BEST RESULTS                                       ║
+║  ────────────────────────────────────────────────────────    ║
+║                                                              ║
+║  ✓ Speak clearly at normal pace                             ║
+║  ✓ Use quiet environment (minimal background noise)         ║
+║  ✓ Use good quality microphone (headset recommended)        ║
+║  ✓ Wait for "Ready" status before recording again           ║
+║  ✓ Keep recordings under 30 seconds for best speed          ║
+║  ✓ Position cursor before starting to dictate               ║
+║                                                              ║
+╠══════════════════════════════════════════════════════════════╣
+║                                                              ║
+║  TROUBLESHOOTING QUICK FIXES                                 ║
+║  ────────────────────────────────────────────────────────    ║
+║                                                              ║
+║  "No speech detected" → Press WIN+CTRL+S → Test mic          ║
+║  Slow transcription   → First run loads model (be patient)   ║
+║  Not pasting         → Check cursor position, try manual     ║
+║  GPU not working     → Check gpu_last.log for details        ║
+║                                                              ║
+╠══════════════════════════════════════════════════════════════╣
+║                                                              ║
+║  FILE LOCATIONS                                              ║
+║  ────────────────────────────────────────────────────────    ║
+║                                                              ║
+║  flow.log            Application log with timestamps         ║
+║  gpu_last.log        GPU test results                        ║
+║  flow_input.wav      Last recorded audio                     ║
+║  flow_out.txt        Last transcription output               ║
+║  test_results.log    System test results                     ║
+║                                                              ║
+╠══════════════════════════════════════════════════════════════╣
+║                                                              ║
+║  DOCUMENTATION                                               ║
+║  ────────────────────────────────────────────────────────    ║
+║                                                              ║
+║  QUICK_START.md      30-second quick start guide            ║
+║  USER_GUIDE.md       Complete user manual                   ║
+║  IMPROVEMENTS.md     System improvements summary            ║
+║  README.md           Project overview                       ║
+║                                                              ║
+╚══════════════════════════════════════════════════════════════╝
+
+                  🔒 100% Private • ⚡ GPU Accelerated
+                  🌍 System-wide • 📝 Smart Processing
+
+           For detailed help, see USER_GUIDE.md
+
+
+
+
+
+
+

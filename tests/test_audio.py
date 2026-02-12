@@ -11,7 +11,7 @@ from unittest.mock import patch, MagicMock, Mock
 import numpy as np
 
 # Add parent directory to path for imports
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src"))
 
 
 class TestAudioConfiguration(unittest.TestCase):
@@ -19,28 +19,28 @@ class TestAudioConfiguration(unittest.TestCase):
     
     def test_sample_rate_defined(self):
         """Test sample rate is properly defined."""
-        from flow_local_dictation import SAMPLE_RATE_HZ
+        from whisper_local.flow_local_dictation import SAMPLE_RATE_HZ
         
         self.assertEqual(SAMPLE_RATE_HZ, 16000)
         self.assertIsInstance(SAMPLE_RATE_HZ, int)
     
     def test_channels_defined(self):
         """Test audio channels are properly defined."""
-        from flow_local_dictation import AUDIO_CHANNELS
+        from whisper_local.flow_local_dictation import AUDIO_CHANNELS
         
         self.assertEqual(AUDIO_CHANNELS, 1)
         self.assertIsInstance(AUDIO_CHANNELS, int)
     
     def test_sample_rate_valid(self):
         """Test sample rate is a valid audio rate."""
-        from flow_local_dictation import SAMPLE_RATE
+        from whisper_local.flow_local_dictation import SAMPLE_RATE
         
         valid_rates = [8000, 16000, 22050, 44100, 48000]
         self.assertIn(SAMPLE_RATE, valid_rates)
     
     def test_channels_valid(self):
         """Test channel count is valid (mono or stereo)."""
-        from flow_local_dictation import CHANNELS
+        from whisper_local.flow_local_dictation import CHANNELS
         
         self.assertIn(CHANNELS, [1, 2])
 
@@ -50,7 +50,7 @@ class TestVoiceActivityDetection(unittest.TestCase):
     
     def test_rms_threshold_defined(self):
         """Test RMS threshold is defined."""
-        from flow_local_dictation import RMS_THRESHOLD_VOICED
+        from whisper_local.flow_local_dictation import RMS_THRESHOLD_VOICED
         
         self.assertIsInstance(RMS_THRESHOLD_VOICED, float)
         self.assertGreater(RMS_THRESHOLD_VOICED, 0)
@@ -58,7 +58,7 @@ class TestVoiceActivityDetection(unittest.TestCase):
     
     def test_silence_threshold_defined(self):
         """Test silence detection threshold is defined."""
-        from flow_local_dictation import SILENCE_RMS_THRESHOLD
+        from whisper_local.flow_local_dictation import SILENCE_RMS_THRESHOLD
         
         self.assertIsInstance(SILENCE_RMS_THRESHOLD, float)
         self.assertGreater(SILENCE_RMS_THRESHOLD, 0)
@@ -92,7 +92,7 @@ class TestVoiceActivityDetection(unittest.TestCase):
     
     def test_voice_threshold_reasonable(self):
         """Test voice activity threshold is reasonable."""
-        from flow_local_dictation import RMS_THRESHOLD_VOICED
+        from whisper_local.flow_local_dictation import RMS_THRESHOLD_VOICED
         
         # Should be sensitive enough to detect whispers but not clicks
         self.assertGreater(RMS_THRESHOLD_VOICED, 0.0001)
@@ -104,7 +104,7 @@ class TestAudioTiming(unittest.TestCase):
     
     def test_min_speech_duration(self):
         """Test minimum speech duration is defined."""
-        from flow_local_dictation import MIN_SPEECH_DURATION_SEC
+        from whisper_local.flow_local_dictation import MIN_SPEECH_DURATION_SEC
         
         self.assertIsInstance(MIN_SPEECH_DURATION_SEC, float)
         self.assertGreater(MIN_SPEECH_DURATION_SEC, 0)
@@ -112,7 +112,7 @@ class TestAudioTiming(unittest.TestCase):
     
     def test_audio_block_duration(self):
         """Test audio block duration for RMS calculation."""
-        from flow_local_dictation import AUDIO_BLOCK_DURATION_SEC
+        from whisper_local.flow_local_dictation import AUDIO_BLOCK_DURATION_SEC
         
         self.assertIsInstance(AUDIO_BLOCK_DURATION_SEC, float)
         self.assertGreater(AUDIO_BLOCK_DURATION_SEC, 0)
@@ -120,7 +120,7 @@ class TestAudioTiming(unittest.TestCase):
     
     def test_postroll_duration(self):
         """Test postroll duration after key release."""
-        from flow_local_dictation import POSTROLL_DURATION_SEC
+        from whisper_local.flow_local_dictation import POSTROLL_DURATION_SEC
         
         self.assertIsInstance(POSTROLL_DURATION_SEC, float)
         self.assertGreater(POSTROLL_DURATION_SEC, 0)
@@ -132,14 +132,14 @@ class TestAudioPathResolution(unittest.TestCase):
     
     def test_wav_tmp_path_defined(self):
         """Test temporary WAV path is defined."""
-        from flow_local_dictation import WAV_TMP
+        from whisper_local.flow_local_dictation import WAV_TMP
         
         self.assertIsInstance(WAV_TMP, str)
         self.assertTrue(WAV_TMP.endswith('.wav'))
     
     def test_wav_path_in_user_directory(self):
         """Test WAV file is stored in user data directory."""
-        from flow_local_dictation import WAV_TMP, get_user_data_dir
+        from whisper_local.flow_local_dictation import WAV_TMP, get_user_data_dir
         
         user_dir = get_user_data_dir()
         self.assertTrue(WAV_TMP.startswith(user_dir))
@@ -164,7 +164,7 @@ class TestAudioDeviceSelection(unittest.TestCase):
     
     def test_input_device_configuration(self):
         """Test input device can be configured."""
-        from flow_local_dictation import INPUT_DEVICE
+        from whisper_local.flow_local_dictation import INPUT_DEVICE
         
         # Should be None or a valid device identifier
         self.assertTrue(INPUT_DEVICE is None or isinstance(INPUT_DEVICE, (int, str)))
@@ -175,7 +175,7 @@ class TestAudioRecordingState(unittest.TestCase):
     
     def test_recording_flag_exists(self):
         """Test recording flag is defined."""
-        from flow_local_dictation import recording_flag
+        from whisper_local.flow_local_dictation import recording_flag
         
         self.assertIsNotNone(recording_flag)
         # Should be a threading.Event
@@ -185,7 +185,7 @@ class TestAudioRecordingState(unittest.TestCase):
     
     def test_state_lock_exists(self):
         """Test state lock is defined."""
-        from flow_local_dictation import STATE_LOCK
+        from whisper_local.flow_local_dictation import STATE_LOCK
         
         self.assertIsNotNone(STATE_LOCK)
         # Should be a threading.Lock
@@ -195,4 +195,5 @@ class TestAudioRecordingState(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
 
