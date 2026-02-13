@@ -354,9 +354,170 @@ class TestTextPostProcessing(unittest.TestCase):
         self.assertIn("-", result)
 
 
+class TestVocabularyPostProcessing(unittest.TestCase):
+    """Tests for vocabulary-backed deterministic replacements."""
+
+    def test_apply_vocabulary_corrections_handles_punctuation_terms(self):
+        from whisper_local.flow_local_dictation import apply_vocabulary_corrections
+
+        with patch("whisper_local.flow_local_dictation.load_vocabulary", return_value=["C++"]):
+            result = apply_vocabulary_corrections("c + + C + + C++17")
+
+        self.assertEqual(result, "c++ C++ C++17")
+
+    def test_apply_vocabulary_corrections_preserves_case_style(self):
+        from whisper_local.flow_local_dictation import apply_vocabulary_corrections
+
+        with patch("whisper_local.flow_local_dictation.load_vocabulary", return_value=["Ableton Live"]):
+            result = apply_vocabulary_corrections("ABLETON   LIVE ableton   live Ableton   Live")
+
+        self.assertEqual(result, "ABLETON LIVE ableton live Ableton Live")
+
+    def test_postprocess_runs_vocabulary_stage_before_domain_passes(self):
+        from whisper_local.flow_local_dictation import postprocess
+
+        class PreserveCaseContext:
+            app_type = "unit-test"
+
+            def should_preserve_casing(self):
+                return True
+
+            def is_casual_context(self):
+                return False
+
+        observed = {"fix_ip_input": None}
+
+        def _capture_fix_ip_input(text):
+            observed["fix_ip_input"] = text
+            return text
+
+        with patch("whisper_local.flow_local_dictation.load_vocabulary", return_value=["C++"]):
+            with patch("whisper_local.flow_local_dictation.fix_ip_addresses", side_effect=_capture_fix_ip_input):
+                postprocess("c + +", context=PreserveCaseContext())
+
+        self.assertEqual(observed["fix_ip_input"], "c++")
+
+
+class TestFuzzyVocabularyMatching(unittest.TestCase):
+    """Tests for fuzzy vocabulary matching (pass 2)."""
+
+    def test_fuzzy_catches_word_splitting(self):
+        """Whisper splitting 'Ableton' into 'able ton' is corrected."""
+        from whisper_local.flow_local_dictation import _fuzzy_vocabulary_pass
+
+        result = _fuzzy_vocabulary_pass("open able ton live", ["Ableton Live"])
+        # "able ton live" concatenated = "abletonlive" matches "abletonlive"
+        self.assertIn("ableton live", result.lower())
+
+    def test_fuzzy_catches_minor_misspelling(self):
+        """Near-miss single word spelling is corrected."""
+        from whisper_local.flow_local_dictation import _fuzzy_vocabulary_pass
+
+        # "Isaih" is close enough to "Isaiah" (1 char swap)
+        result = _fuzzy_vocabulary_pass("hello Isaih", ["Isaiah"])
+        self.assertIn("Isaiah", result)
+
+    def test_fuzzy_catches_split_compound(self):
+        """Whisper splitting a compound word is corrected via expanded window."""
+        from whisper_local.flow_local_dictation import _fuzzy_vocabulary_pass
+
+        # "bid fta" split from "BidFTA" - concat "bidfta" matches
+        # Case style: input is lowercase so output preserves lowercase.
+        result = _fuzzy_vocabulary_pass("open bid fta now", ["BidFTA"])
+        self.assertIn("bidfta", result.lower())
+
+    def test_fuzzy_skips_exact_matches(self):
+        """Words already matching exactly are not double-processed."""
+        from whisper_local.flow_local_dictation import _fuzzy_vocabulary_pass
+
+        result = _fuzzy_vocabulary_pass("hello Isaiah", ["Isaiah"])
+        self.assertEqual(result, "hello Isaiah")
+
+    def test_fuzzy_does_not_false_positive(self):
+        """Dissimilar words are not replaced."""
+        from whisper_local.flow_local_dictation import _fuzzy_vocabulary_pass
+
+        result = _fuzzy_vocabulary_pass("the weather is nice today", ["Isaiah"])
+        self.assertNotIn("Isaiah", result)
+        self.assertIn("weather", result)
+
+    def test_fuzzy_multiword_priority(self):
+        """Longer multi-word vocab terms get priority over shorter ones."""
+        from whisper_local.flow_local_dictation import _fuzzy_vocabulary_pass
+
+        # "whisper locale directory" is close to "Whisper Local Directory"
+        # Case style: input is all lowercase, so output preserves lowercase.
+        result = _fuzzy_vocabulary_pass(
+            "check the whisper locale directory",
+            ["Whisper Local", "Whisper Local Directory"],
+        )
+        self.assertIn("whisper local directory", result.lower())
+
+    def test_full_pipeline_with_fuzzy(self):
+        """End-to-end: apply_vocabulary_corrections uses both passes."""
+        from whisper_local.flow_local_dictation import apply_vocabulary_corrections
+
+        with patch(
+            "whisper_local.flow_local_dictation.load_vocabulary",
+            return_value=["Ableton Live"],
+        ):
+            # Whisper splits "Ableton" into "able ton"
+            result = apply_vocabulary_corrections("open able ton live")
+        self.assertIn("ableton live", result.lower())
+
+
+class TestFuzzySnippetMatching(unittest.TestCase):
+    """Tests for fuzzy snippet trigger matching."""
+
+    def test_fuzzy_catches_near_miss_trigger(self):
+        from whisper_local.snippets import _fuzzy_snippet_pass
+
+        items = [{"trigger": "BidFTA Directory", "replacement": "C:\\path\\to\\bidfta"}]
+        result = _fuzzy_snippet_pass("check the bid FTA directory", items)
+        self.assertIn("C:\\path\\to\\bidfta", result)
+
+    def test_fuzzy_does_not_false_positive(self):
+        from whisper_local.snippets import _fuzzy_snippet_pass
+
+        items = [{"trigger": "BidFTA Directory", "replacement": "C:\\path\\to\\bidfta"}]
+        result = _fuzzy_snippet_pass("the weather is nice today", items)
+        self.assertNotIn("C:\\path\\to\\bidfta", result)
+
+    def test_fuzzy_skips_exact_match(self):
+        from whisper_local.snippets import _fuzzy_snippet_pass
+
+        items = [{"trigger": "hello world", "replacement": "replaced"}]
+        # Exact match should be skipped (handled by pass 1).
+        result = _fuzzy_snippet_pass("hello world", items)
+        self.assertEqual(result, "hello world")
+
+    def test_full_apply_snippets_with_fuzzy(self):
+        """End-to-end: apply_snippets uses both exact and fuzzy passes."""
+        from whisper_local.snippets import apply_snippets
+
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".json", delete=False, encoding="utf-8"
+        ) as f:
+            json.dump(
+                {"snippets": [{"id": 1, "trigger": "Jarvis Ableton", "replacement": "C:\\JarvisAbleton"}]},
+                f,
+            )
+            path = f.name
+        try:
+            # Exact match
+            result = apply_snippets("open Jarvis Ableton", path)
+            self.assertIn("C:\\JarvisAbleton", result)
+
+            # Fuzzy match (Whisper mishearing)
+            result = apply_snippets("open jarvis able ton", path)
+            self.assertIn("C:\\JarvisAbleton", result)
+        finally:
+            os.remove(path)
+
+
 class TestConfigValidation(unittest.TestCase):
     """Tests for configuration validation."""
-    
+
     def test_sample_rate_valid(self):
         """Sample rate is a valid audio rate."""
         from whisper_local.flow_local_dictation import SAMPLE_RATE

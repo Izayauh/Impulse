@@ -66,6 +66,7 @@ from whisper_local.model_selection import (
 from whisper_local.hotkey_settings import hotkey_tokens, load_hotkey, settings_file
 from whisper_local.snippets import apply_snippets, snippets_file
 from whisper_local.vocabulary import compose_prompt, load_vocabulary, save_vocabulary, vocabulary_file
+from whisper_local.audio_ducking import AudioDuckingSessionManager
 
 # ============================================================================
 # DEBUG MODE DETECTION
@@ -277,6 +278,8 @@ WORD_THRESHOLD_BALANCED = 75  # 25-75 words: use medium.en (balanced, ~500ms)
 # ============================================================================
 # Debouncing for hotkey detection to prevent accidental double-triggers
 HOTKEY_DEBOUNCE_MS = 150  # Minimum ms between hotkey state changes
+DUCKING_RESTORE_DELAY_MS = 90  # Debounce restore to avoid volume flicker on rapid taps
+HUD_BACKEND_REQUESTED = os.environ.get("WHISPER_HUD_BACKEND", "ambient").strip().lower()
 
 # Animation timing
 UI_ANIMATION_FPS = 15  # Frame rate for pulse animations (reduced for CPU efficiency)
@@ -582,10 +585,10 @@ class Theme:
     
     # DPI-scaled sizes (computed at class load time)
     # Base sizes at 100% DPI, scaled by DPI_SCALE
-    # Note: Floating pill keeps original size for minimal UI footprint
-    PILL_WIDTH = 180  # Keep original size - minimal floating indicator
-    PILL_HEIGHT = 36
-    PILL_RADIUS = 18
+    # Floating status panel stays compact but readable at a glance.
+    PILL_WIDTH = 320
+    PILL_HEIGHT = 74
+    PILL_RADIUS = 16
     
     DASHBOARD_WIDTH = scaled(420)
     DASHBOARD_HEIGHT = scaled(750)  # Height breakdown: Title(40) + Stats(106) + Streak(96) + Goals(96) + Graph(150) + Recent(160) + Actions(60) + Padding(42) = ~750px
@@ -918,6 +921,7 @@ os.environ.setdefault("GGML_CUDA_ENABLE", "1")
 _bundle_dir = get_bundle_dir()  # Where bundled resources are (models, DLLs)
 _app_dir = get_app_dir()        # Where the exe/script is located
 _user_dir = get_user_data_dir() # User-writable directory for logs, temp files
+AUDIO_DUCK_STATE_FILE = os.path.join(_user_dir, "state", "audio_duck_state.json")
 
 # Auto-detect whisper binary - check runtime/bin first, then bundle/app dirs
 _runtime_bin_dir = os.path.join(_app_dir, "runtime", "bin")
@@ -1196,6 +1200,34 @@ def _settings_mtime(path: str) -> float:
         return 0.0
 
 
+def _hotkey_display_text(hotkey_value: str) -> str:
+    """Render a persisted hotkey value as readable key labels."""
+    label_map = {
+        "ctrl": "CTRL",
+        "alt": "ALT",
+        "shift": "SHIFT",
+        "windows": "WIN",
+        "space": "SPACE",
+        "esc": "ESC",
+        "enter": "ENTER",
+        "tab": "TAB",
+    }
+    tokens = hotkey_tokens(hotkey_value) or []
+    if not tokens:
+        return "CTRL + WIN"
+    pretty = []
+    for token in tokens:
+        if token in label_map:
+            pretty.append(label_map[token])
+        elif re.fullmatch(r"f([1-9]|1[0-9]|2[0-4])", token):
+            pretty.append(token.upper())
+        elif len(token) == 1:
+            pretty.append(token.upper())
+        else:
+            pretty.append(token.replace("_", " ").upper())
+    return " + ".join(pretty)
+
+
 # ============================================================================
 # CONTEXT AWARENESS - Detect active application for smart formatting
 # ============================================================================
@@ -1371,12 +1403,12 @@ def capture_context_on_record():
 # FLOATING PILL STATUS BAR
 # ============================================================================
 class FloatingPill:
-    """Minimal, pill-shaped floating status indicator with animations."""
-    
+    """Always-visible compact status panel for recording lifecycle."""
+
     def __init__(self):
         # Set DPI awareness before creating tkinter windows
         set_dpi_awareness()
-        
+
         self.root = tk.Tk()
         self.root.overrideredirect(True)
         self.root.attributes("-topmost", True)
@@ -1385,115 +1417,112 @@ class FloatingPill:
             self.root.wm_attributes("-toolwindow", True)
         except Exception:
             pass
-        
+
         self.width = Theme.PILL_WIDTH
         self.height = Theme.PILL_HEIGHT
         self.root.configure(bg=Theme.BG_DARKEST)
-        
+
         # Canvas for custom drawing
         self.canvas = Canvas(
-            self.root, 
-            width=self.width, 
-            height=self.height, 
-            highlightthickness=0, 
+            self.root,
+            width=self.width,
+            height=self.height,
+            highlightthickness=0,
             bg=Theme.BG_DARKEST
         )
         self.canvas.pack()
-        
-        # State
-        self.current_state = "ready"
+
+        # Status state and animation
+        self.current_state = "armed"
+        self.status_detail = ""
+        self.hotkey_display = _hotkey_display_text(HOTKEY_HOLD)
         self.animation_id = None
         self.pulse_phase = 0
-        self.glow_intensity = 0
-        self._is_visible = False  # Track visibility state
-        self._auto_hide_timer = None  # Timer for auto-hide after completion
+        self._is_visible = False
+        self._revert_timer = None
 
-        # Draw initial state
-        self._draw_pill("ready")
+        self._palette = {
+            "idle": {"accent": "#808791", "chip_bg": "#20252D", "label": "IDLE", "hint": "Listening paused. Use tray to re-arm."},
+            "armed": {"accent": "#54D7C3", "chip_bg": "#13262A", "label": "ARMED", "hint": "Hold hotkey to record. Release to transcribe."},
+            "recording": {"accent": "#FF5A7A", "chip_bg": "#311520", "label": "RECORDING", "hint": "Recording in progress. Keep keys held while speaking."},
+            "transcribing": {"accent": "#58B6FF", "chip_bg": "#112538", "label": "TRANSCRIBING", "hint": "Processing audio and preparing output."},
+            "done": {"accent": "#5CE394", "chip_bg": "#132A20", "label": "DONE", "hint": "Transcription complete."},
+            "error": {"accent": "#FF6C6C", "chip_bg": "#331A1A", "label": "ERROR", "hint": "Transcription failed. Try again."},
+        }
+
+        self._draw_panel("armed")
         self._position_near_taskbar()
+        self.show()
 
-        # Start hidden (will show when recording starts)
-        self.root.withdraw()
-        
         # Bind click to open dashboard
         self.canvas.bind("<Button-1>", self._on_click)
         self.canvas.bind("<Button-3>", self._on_right_click)
-        
+
         # Context menu
         self.context_menu = tk.Menu(self.root, tearoff=0, bg=Theme.BG_ELEVATED, fg=Theme.TEXT_PRIMARY)
         self.context_menu.add_command(label="Open Dashboard", command=self._open_dashboard)
         self.context_menu.add_command(label="Settings", command=lambda: open_settings_window(self.root))
         self.context_menu.add_separator()
         self.context_menu.add_command(label="Exit", command=self._quit)
-    
-    def _draw_pill(self, state, pulse=0):
-        """Draw the pill shape with current state."""
+
+    def _base_state(self) -> str:
+        return "armed" if listening_enabled else "idle"
+
+    def set_hotkey_hint(self, hotkey_value: str) -> None:
+        """Update the displayed hotkey guidance."""
+        self.hotkey_display = _hotkey_display_text(hotkey_value)
+        self._draw_panel(self.current_state)
+
+    def _draw_panel(self, state: str, pulse: float = 0.0) -> None:
+        """Draw compact high-contrast status panel."""
         self.canvas.delete("all")
-        
-        w, h = self.width, self.height
-        r = Theme.PILL_RADIUS
-        
-        # Colors based on state
-        colors = {
-            "ready": (Theme.BG_ELEVATED, Theme.PINK_PRIMARY, "●  Ready"),
-            "listening": (Theme.PINK_DARK, Theme.PINK_LIGHT, "●  Listening..."),
-            "transcribing": (Theme.BG_ELEVATED, Theme.INFO, "◐  Processing..."),
-            "success": (Theme.BG_ELEVATED, Theme.SUCCESS, "✓  Done!"),
-            "error": (Theme.BG_ELEVATED, Theme.ERROR, "✕  Error"),
-            "warning": (Theme.BG_ELEVATED, Theme.WARNING, "⚠  No speech"),
-        }
-        
-        bg_color, accent_color, text = colors.get(state, colors["ready"])
-        
-        # Fixed dimensions for drawing (pill keeps original size, no scaling)
-        border_offset = 2
-        glow_base = 3
-        dot_base_radius = 4
-        
-        # Glow effect for listening state
-        if state == "listening":
-            glow_size = glow_base + int(pulse * 2)
-            glow_alpha = 0.3 + pulse * 0.2
-            # Draw glow layers
-            for i in range(glow_size, 0, -1):
-                alpha = int((glow_alpha / glow_size) * i * 255)
-                glow_color = self._blend_color(Theme.PINK_PRIMARY, Theme.BG_DARKEST, i / glow_size)
-                self._draw_rounded_rect(
-                    border_offset - i, border_offset - i, w - border_offset + i, h - border_offset + i, r + i,
-                    fill=glow_color, outline=""
-                )
-        
-        # Main pill background
-        self._draw_rounded_rect(border_offset, border_offset, w - border_offset, h - border_offset, r, fill=bg_color, outline=accent_color)
-        
-        # Accent dot/icon
-        dot_x = 18
-        dot_y = h // 2
-        if state == "listening":
-            # Pulsing dot
-            dot_r = dot_base_radius + int(pulse * 2)
-            self.canvas.create_oval(
-                dot_x - dot_r, dot_y - dot_r,
-                dot_x + dot_r, dot_y + dot_r,
-                fill=accent_color, outline=""
-            )
-        else:
-            # Static indicator
-            self.canvas.create_oval(
-                dot_x - dot_base_radius, dot_y - dot_base_radius,
-                dot_x + dot_base_radius, dot_y + dot_base_radius,
-                fill=accent_color, outline=""
-            )
-        
-        # Status text (keep small font for minimal pill)
-        self.canvas.create_text(
-            w // 2 + 8, h // 2,
-            text=text.split("  ")[1] if "  " in text else text,
-            fill=Theme.TEXT_PRIMARY,
-            font=(Theme.FONT_FAMILY, 10, "bold"),
-            anchor="center"
+
+        spec = self._palette.get(state, self._palette["armed"])
+        accent = spec["accent"]
+        border_color = self._blend_color(accent, "#FFFFFF", 0.6 + (pulse * 0.4) if state == "recording" else 0.65)
+
+        # Outer shell
+        self._draw_rounded_rect(
+            2, 2, self.width - 2, self.height - 2,
+            Theme.PILL_RADIUS,
+            fill="#101218",
+            outline=border_color,
         )
-    
+
+        # Status chip
+        chip_x1, chip_y1, chip_x2, chip_y2 = 14, 12, 138, 36
+        self._draw_rounded_rect(
+            chip_x1, chip_y1, chip_x2, chip_y2, 12,
+            fill=spec["chip_bg"],
+            outline=accent,
+        )
+        self.canvas.create_oval(24, 21, 32, 29, fill=accent, outline="")
+        self.canvas.create_text(
+            86, 24,
+            text=spec["label"],
+            fill="#F8FAFC",
+            font=(Theme.FONT_FAMILY, 10, "bold"),
+            anchor="center",
+        )
+
+        # Large hotkey guidance
+        self.canvas.create_text(
+            self.width - 14, 24,
+            text=self.hotkey_display,
+            fill="#FFFFFF",
+            font=(Theme.FONT_FAMILY, 13, "bold"),
+            anchor="e",
+        )
+
+        detail = self.status_detail.strip() if self.status_detail else spec["hint"]
+        self.canvas.create_text(
+            14, 54,
+            text=detail,
+            fill="#D3D8DF",
+            font=(Theme.FONT_FAMILY, 10),
+            anchor="w",
+        )
+
     def _draw_rounded_rect(self, x1, y1, x2, y2, radius, **kwargs):
         """Draw a rounded rectangle on the canvas."""
         points = [
@@ -1512,7 +1541,7 @@ class FloatingPill:
             x1 + radius, y1,
         ]
         return self.canvas.create_polygon(points, smooth=True, **kwargs)
-    
+
     def _blend_color(self, color1, color2, ratio):
         """Blend two hex colors."""
         def hex_to_rgb(hex_color):
@@ -1526,9 +1555,9 @@ class FloatingPill:
         rgb2 = hex_to_rgb(color2)
         blended = tuple(int(c1 * ratio + c2 * (1 - ratio)) for c1, c2 in zip(rgb1, rgb2))
         return rgb_to_hex(blended)
-    
+
     def _position_near_taskbar(self):
-        """Position the pill near the taskbar."""
+        """Position the panel near the taskbar."""
         user32 = ctypes.windll.user32
         shell32 = ctypes.windll.shell32
 
@@ -1545,9 +1574,9 @@ class FloatingPill:
         sw = user32.GetSystemMetrics(0)
         sh = user32.GetSystemMetrics(1)
 
-        # Fixed offset from taskbar edge (pill keeps original size)
+        # Keep panel close to the taskbar but readable.
         taskbar_offset = 12
-        
+
         x = (sw - self.width) // 2
         y = sh - self.height - taskbar_offset
         if res:
@@ -1567,106 +1596,117 @@ class FloatingPill:
                 y = sh - self.height - taskbar_offset
 
         self.root.geometry(f"{self.width}x{self.height}+{x}+{y}")
-    
+
+    def _schedule_revert_to_base(self, delay_ms: int = 1400):
+        self._cancel_revert()
+        self._revert_timer = self.root.after(delay_ms, lambda: self.set_status(self._base_state()))
+
+    def _cancel_revert(self):
+        if self._revert_timer is not None:
+            try:
+                self.root.after_cancel(self._revert_timer)
+            except Exception:
+                pass
+            self._revert_timer = None
+
     def set_status(self, state, text=None, bg=None, fg=None, border=None):
-        """Update the pill status with animation and auto-hide behavior."""
-        # Map old-style calls to new states
+        """Update status panel state (supports legacy status text calls)."""
         state_map = {
-            "🎤 Ready": "ready",
-            "🎤 Initializing...": "ready",
-            "🎙️ Listening...": "listening",
+            "idle": "idle",
+            "armed": "armed",
+            "recording": "recording",
+            "transcribing": "transcribing",
+            "done": "done",
+            "error": "error",
+            "ready": self._base_state(),
+            "listening": "recording",
+            "success": "done",
+            "warning": "done",
+            "🎤 Ready": self._base_state(),
+            "🎤 Initializing...": self._base_state(),
+            "🎙️ Listening...": "recording",
             "⚙️ Transcribing...": "transcribing",
-            "✅ Pasted!": "success",
+            "✅ Pasted!": "done",
+            "📋 Copied!": "done",
             "❌ Failed": "error",
             "❌ Mic not ready": "error",
             "❌ Paste error": "error",
-            "🔇 No speech detected": "warning",
-            "🔇 No speech": "warning",
-            "🔇 Empty transcript": "warning",
-            "⚠️ Issues detected": "warning",
+            "❌ Engine not found": "error",
+            "❌ Error": "error",
+            "❌ Try again": "error",
+            "🔇 No speech detected": "done",
+            "🔇 No speech": "done",
+            "🔇 Empty transcript": "done",
+            "⚠️ Issues detected": "done",
         }
 
-        # Check if state is actually a text string (old API)
-        if state in state_map:
-            new_state = state_map[state]
-        elif state in ["ready", "listening", "transcribing", "success", "error", "warning"]:
-            new_state = state
-        else:
-            new_state = "ready"
+        new_state = state_map.get(state, self._base_state())
+        new_detail = ""
+        if isinstance(text, str):
+            candidate = text.strip()
+            if candidate and not re.fullmatch(r"#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?", candidate):
+                new_detail = candidate
+        if not new_detail and isinstance(state, str) and state not in {"idle", "armed", "recording", "transcribing", "done", "error"}:
+            new_detail = state
 
         self.current_state = new_state
+        self.status_detail = new_detail
 
-        # Stop existing animation
+        self._cancel_revert()
         if self.animation_id:
-            self.root.after_cancel(self.animation_id)
+            try:
+                self.root.after_cancel(self.animation_id)
+            except Exception:
+                pass
             self.animation_id = None
 
-        # Auto-show/hide based on state
-        if new_state in ("listening", "transcribing"):
-            # Show pill during active recording/processing
-            self.show()
-        elif new_state in ("success", "error", "warning"):
-            # Show briefly then auto-hide after completion states
-            self.show()
-            self._schedule_auto_hide(1500)  # Hide after 1.5 seconds
-        elif new_state == "ready":
-            # Keep ready state visible so users always have a click target.
-            self.show()
+        self.show()
 
-        # Start pulsing animation for listening state
-        if new_state == "listening":
+        if new_state == "recording":
             self._animate_pulse()
         else:
-            self._draw_pill(new_state)
-    
-    def _animate_pulse(self):
-        """Animate the pulsing effect for listening state."""
-        self.pulse_phase += 0.2  # Slightly faster phase for smoother visual at lower FPS
-        pulse = (math.sin(self.pulse_phase) + 1) / 2  # 0 to 1
-        self._draw_pill("listening", pulse)
+            self._draw_panel(new_state)
 
-        if self.current_state == "listening":
-            self.animation_id = self.root.after(67, self._animate_pulse)  # 15fps (reduced from 20fps)
+        if new_state in ("done", "error"):
+            self._schedule_revert_to_base()
+
+    def _animate_pulse(self):
+        """Animate pulse while recording is active."""
+        self.pulse_phase += 0.22
+        pulse = (math.sin(self.pulse_phase) + 1) / 2
+        self._draw_panel("recording", pulse)
+
+        if self.current_state == "recording":
+            self.animation_id = self.root.after(67, self._animate_pulse)
 
     def show(self):
-        """Show the floating pill overlay."""
+        """Show panel."""
         if not self._is_visible:
             self._is_visible = True
-            # Cancel any pending auto-hide timer
-            if self._auto_hide_timer:
-                self.root.after_cancel(self._auto_hide_timer)
-                self._auto_hide_timer = None
             self.root.deiconify()
 
     def hide(self):
-        """Hide the floating pill overlay."""
+        """Hide panel."""
         if self._is_visible:
             self._is_visible = False
             self.root.withdraw()
 
-    def _schedule_auto_hide(self, delay_ms=1500):
-        """Schedule the pill to hide after a delay."""
-        # Cancel any existing timer
-        if self._auto_hide_timer:
-            self.root.after_cancel(self._auto_hide_timer)
-        self._auto_hide_timer = self.root.after(delay_ms, self.hide)
-    
     def _on_click(self, event):
         """Handle left click - open dashboard."""
         self._open_dashboard()
-    
+
     def _on_right_click(self, event):
         """Handle right click - show context menu."""
         self.context_menu.tk_popup(event.x_root, event.y_root)
-    
+
     def _open_dashboard(self):
         """Open the main dashboard window."""
         _launch_dashboard_from_ui_trigger()
-    
+
     def _quit(self):
         """Quit the application."""
         self.root.destroy()
-    
+
     def pump_queue(self):
         """Process UI queue updates."""
         try:
@@ -1678,11 +1718,63 @@ class FloatingPill:
                     pass
         except queue.Empty:
             pass
-        self.root.after(50, self.pump_queue)  # Reduced from 30ms - less CPU overhead
-    
+        self.root.after(50, self.pump_queue)
+
     def bind_context_menu(self, on_settings):
         """Compatibility method - already handled internally."""
         pass
+
+
+def _create_status_hud():
+    """Create the preferred status HUD (AmbientPill when Qt is available)."""
+    try:
+        from whisper_local.ui.AmbientPill import (
+            AmbientPill,
+            is_qt_available,
+            qt_backend_diagnostics,
+        )
+
+        diag = qt_backend_diagnostics()
+        log_line(
+            "HUD_INIT request="
+            + f"{HUD_BACKEND_REQUESTED} qt_available={diag.get('qt_available')} "
+            + f"qt_binding={diag.get('qt_binding')} qt_error={diag.get('qt_import_error') or '-'}"
+        )
+
+        request = HUD_BACKEND_REQUESTED if HUD_BACKEND_REQUESTED in {"ambient", "legacy", "auto"} else "ambient"
+        ambient_ready = bool(is_qt_available())
+
+        if request in {"ambient", "auto"} and ambient_ready:
+            hud = AmbientPill(
+                ui_queue=ui_queue,
+                on_open_dashboard=_launch_dashboard_from_ui_trigger,
+                on_quit=lambda: _tray_quit(),
+                is_armed_fn=lambda: listening_enabled,
+                log_fn=log_line,
+            )
+            log_line(
+                f"HUD_BACKEND={hud.__class__.__name__} "
+                f"HUD_BACKEND_MODULE={hud.__class__.__module__}"
+            )
+            return hud
+
+        if request == "ambient" and not ambient_ready:
+            reason = diag.get("qt_import_error") or "Qt backend unavailable"
+            log_line(f"HUD_CRITICAL ambient requested but unavailable: {reason}", "critical")
+            raise RuntimeError(f"AmbientPill unavailable: {reason}")
+
+        if request == "legacy":
+            log_line("HUD_BACKEND=LegacyStatusWidget HUD_BACKEND_MODULE=flow_local_dictation")
+            return FloatingPill()
+
+        # request == auto and ambient unavailable
+        reason = diag.get("qt_import_error") or "Qt backend unavailable"
+        log_line(f"HUD_WARNING auto fallback to legacy: {reason}", "warning")
+        log_line("HUD_BACKEND=LegacyStatusWidget HUD_BACKEND_MODULE=flow_local_dictation")
+        return FloatingPill()
+    except Exception as e:
+        log_line(f"HUD_FATAL failed to create status HUD: {e}", "critical")
+        raise
 
 
 # ============================================================================
@@ -1989,6 +2081,15 @@ def log_line(message: str, level: str = "info"):
     }
     log_func = level_map.get(level.lower(), logger.info)
     log_func(message)
+
+# Temporary playback ducking manager for push-to-talk sessions.
+audio_ducking_manager = AudioDuckingSessionManager(
+    state_file=AUDIO_DUCK_STATE_FILE,
+    duck_level=0.0,
+    restore_delay_ms=DUCKING_RESTORE_DELAY_MS,
+    log_fn=log_line,
+)
+atexit.register(lambda: audio_ducking_manager.force_restore(reason="atexit"))
 
 
 def set_status_safe(text, bg, fg="#ffffff", border=None):
@@ -2474,6 +2575,213 @@ def clean_spacing(s: str) -> str:
     return s.strip()
 
 # ============================================================================
+# VOCABULARY-BASED CORRECTIONS
+# ============================================================================
+
+_VOCAB_BOUNDARY_ALNUM = r"A-Za-z0-9"
+
+
+def _is_title_style(text: str) -> bool:
+    """Return True when alphabetic words are in Title Case."""
+    words = re.findall(r"[A-Za-z]+", text or "")
+    if not words:
+        return False
+    return all((w[0].isupper() and w[1:].islower()) if len(w) > 1 else w[0].isupper() for w in words)
+
+
+def _to_title_style(text: str) -> str:
+    """Title-case only alphabetic runs; keep punctuation intact."""
+    return re.sub(r"[A-Za-z]+", lambda m: m.group(0)[0].upper() + m.group(0)[1:].lower(), text)
+
+
+def _apply_case_style(canonical: str, matched: str) -> str:
+    """Apply the matched case style to the canonical vocabulary term."""
+    alpha = [ch for ch in (matched or "") if ch.isalpha()]
+    if not alpha:
+        return canonical
+
+    if all(ch.isupper() for ch in alpha):
+        return canonical.upper()
+    if all(ch.islower() for ch in alpha):
+        return canonical.lower()
+    if _is_title_style(matched):
+        return _to_title_style(canonical)
+    return canonical
+
+
+def _build_vocabulary_pattern(term: str):
+    """
+    Build a punctuation-safe, case-insensitive regex for a vocabulary term.
+
+    Uses alnum lookarounds instead of \\b so terms like "C++" are matched.
+    Also tolerates incidental spaces around punctuation (e.g., "c + +").
+    """
+    tokens = re.findall(r"[A-Za-z0-9]+|\s+|[^A-Za-z0-9\s]+", term or "")
+    if not tokens:
+        return None
+
+    parts = []
+    for i, token in enumerate(tokens):
+        prev_token = tokens[i - 1] if i > 0 else ""
+        next_token = tokens[i + 1] if i + 1 < len(tokens) else ""
+
+        if token.isspace():
+            parts.append(r"\s+")
+            continue
+
+        if token.isalnum():
+            parts.append(re.escape(token))
+            continue
+
+        if prev_token and not prev_token.isspace():
+            parts.append(r"\s*")
+        parts.append(r"\s*".join(re.escape(ch) for ch in token))
+        if next_token and not next_token.isspace():
+            parts.append(r"\s*")
+
+    core = "".join(parts)
+    if not core:
+        return None
+
+    return re.compile(
+        rf"(?<![{_VOCAB_BOUNDARY_ALNUM}])({core})(?![{_VOCAB_BOUNDARY_ALNUM}])",
+        flags=re.IGNORECASE,
+    )
+
+
+def apply_vocabulary_corrections(text: str) -> str:
+    """Apply deterministic replacements from user vocabulary.
+
+    Two passes:
+    1. Exact regex matching (case-insensitive, punctuation-safe).
+    2. Fuzzy matching via sliding word windows to catch Whisper
+       misrecognitions (e.g. "is higher" -> "Isaiah").
+    """
+    if not text:
+        return text
+
+    words = load_vocabulary(VOCABULARY_FILE)
+    if not words:
+        return text
+
+    log_line(f"[vocab] loaded {len(words)} words from disk", "debug")
+
+    corrected = text
+    # Pass 1: exact regex matching (existing behaviour).
+    for canonical in sorted(words, key=len, reverse=True):
+        pattern = _build_vocabulary_pattern(canonical)
+        if pattern is None:
+            continue
+        corrected = pattern.sub(
+            lambda m, canonical_word=canonical: _apply_case_style(canonical_word, m.group(0)),
+            corrected,
+        )
+
+    # Pass 2: fuzzy matching for words that Whisper misrecognised.
+    corrected = _fuzzy_vocabulary_pass(corrected, words)
+
+    return corrected
+
+
+# Minimum similarity ratio for fuzzy vocabulary matching.  High enough
+# to avoid false positives, low enough to catch common Whisper errors
+# like word-splitting ("able ton" for "Ableton") or phonetic drift
+# ("is higher" for "Isaiah").
+_FUZZY_VOCAB_THRESHOLD = 0.78
+
+
+def _fuzzy_vocabulary_pass(text: str, vocab_words: list[str]) -> str:
+    """Replace near-miss transcriptions with the canonical vocabulary form.
+
+    Two strategies are tried for each vocabulary term:
+
+    1. **Same-size window** – a window of *n* words (where *n* = word count
+       of the vocab term) is compared via ``SequenceMatcher``.
+    2. **Expanded window** – windows of *n+1* and *n+2* words are
+       concatenated (spaces removed) and compared against the concatenated
+       canonical form.  This catches Whisper word-splitting errors like
+       "able ton" → "Ableton" or "bid F T A" → "BidFTA".
+
+    Only matches exceeding *_FUZZY_VOCAB_THRESHOLD* are accepted.
+    """
+    from difflib import SequenceMatcher
+
+    text_words = text.split()
+    if not text_words:
+        return text
+
+    # Sort longer terms first so multi-word terms get priority.
+    sorted_vocab = sorted(vocab_words, key=lambda w: len(w.split()), reverse=True)
+
+    # Track which word positions have already been replaced.
+    replaced: set[int] = set()
+
+    for canonical in sorted_vocab:
+        canon_tokens = canonical.split()
+        n = len(canon_tokens)
+        if n == 0:
+            continue
+        canon_lower = canonical.lower()
+        # Concatenated form for detecting word-splitting.
+        canon_concat = canon_lower.replace(" ", "")
+
+        # Try window sizes: same (n), expanded (n+1), expanded (n+2).
+        # Expanded windows catch Whisper splitting single words into
+        # multiple tokens (e.g. "Ableton" → "able ton").
+        window_sizes = [n]
+        if n + 1 <= len(text_words):
+            window_sizes.append(n + 1)
+        if n + 2 <= len(text_words):
+            window_sizes.append(n + 2)
+
+        best_match = None  # (start_idx, win_size, score, window_text)
+
+        for ws in window_sizes:
+            for i in range(len(text_words) - ws + 1):
+                if any(j in replaced for j in range(i, i + ws)):
+                    continue
+
+                window = " ".join(text_words[i : i + ws])
+                window_lower = window.lower()
+
+                # Skip if already an exact match (handled by pass 1).
+                if window_lower == canon_lower:
+                    continue
+
+                # Skip if the window already contains the canonical form
+                # as a substring – avoids false positives when correct
+                # instances bleed into adjacent windows.
+                if canon_lower in window_lower:
+                    continue
+
+                # For same-size windows, compare as-is.
+                # For expanded windows, compare concatenated forms.
+                if ws == n:
+                    ratio = SequenceMatcher(None, window_lower, canon_lower).ratio()
+                else:
+                    window_concat = window_lower.replace(" ", "")
+                    ratio = SequenceMatcher(None, window_concat, canon_concat).ratio()
+
+                if ratio >= _FUZZY_VOCAB_THRESHOLD:
+                    if best_match is None or ratio > best_match[2]:
+                        best_match = (i, ws, ratio, window)
+
+        if best_match is not None:
+            i, ws, ratio, window = best_match
+            replacement = _apply_case_style(canonical, window)
+            log_line(
+                f"[vocab-fuzzy] '{window}' -> '{replacement}' "
+                f"(score={ratio:.2f})",
+                "info",
+            )
+            text_words[i] = replacement
+            for j in range(i + 1, i + ws):
+                text_words[j] = ""
+            replaced.update(range(i, i + ws))
+
+    return " ".join(w for w in text_words if w)
+
+# ============================================================================
 # DOMAIN POST-PROCESSING (Sections 3 & 4)
 # ============================================================================
 
@@ -2586,12 +2894,13 @@ def postprocess(text: str, context: 'AppContext' = None) -> str:
     - Email/documents: Formal formatting with proper punctuation
 
     Processing order:
-    1. Apply voice commands (punctuation, formatting)
-    2. Handle corrections ("actually", "no wait", etc.)
-    3. Remove filler words
-    4. Handle list formatting
-    5. Clean up spacing
-    6. Capitalize sentences (context-aware)
+    1. Apply user vocabulary replacements
+    2. Apply voice commands (punctuation, formatting)
+    3. Handle corrections ("actually", "no wait", etc.)
+    4. Remove filler words
+    5. Handle list formatting
+    6. Clean up spacing
+    7. Capitalize sentences (context-aware)
 
     Args:
         text: Raw transcription text
@@ -2603,6 +2912,9 @@ def postprocess(text: str, context: 'AppContext' = None) -> str:
     # Use global context if not provided
     if context is None:
         context = active_app_context
+
+    # Vocabulary correction pass first, before other correction stages.
+    text = apply_vocabulary_corrections(text)
 
     # Domain-specific post-processing (Sections 3 & 4)
     text = fix_ip_addresses(text)
@@ -2844,7 +3156,7 @@ def startup_diagnostics():
         set_status_safe("🎤 Ready", Theme.BG_ELEVATED, Theme.TEXT_PRIMARY, Theme.PINK_PRIMARY)
         log_line("✓ All diagnostics passed!")
     
-    log_line(f"✓ Ready for dictation (Hold CTRL+Windows to speak)")
+    log_line(f"✓ Ready for dictation (Hold {_hotkey_display_text(HOTKEY_HOLD)} to speak)")
     return True
 
 
@@ -2990,6 +3302,7 @@ def record_loop():
     data = []
     voiced_samples = 0
     block_dur = AUDIO_BLOCK_DURATION_SEC
+    last_hud_push_ts = 0.0
 
     if selected_input_device_idx is None:
         set_status_safe("❌ Mic not ready", Theme.ERROR, Theme.TEXT_PRIMARY, Theme.ERROR)
@@ -3008,6 +3321,13 @@ def record_loop():
                 rms = float(np.sqrt(np.mean(block * block) + 1e-12))
                 if rms > RMS_THRESH:
                     voiced_samples += block.shape[0]
+                now_ts = time.time()
+                if now_ts - last_hud_push_ts >= 0.03:
+                    try:
+                        ui_queue.put((gui.set_audio_level, (rms,)))
+                    except Exception:
+                        pass
+                    last_hud_push_ts = now_ts
     except Exception as e:
         log_line(f"Mic open error: {e}")
         set_status_safe("Mic open error", Theme.ERROR)
@@ -3047,7 +3367,7 @@ def start_recording():
     with STATE_LOCK:
         # Check if already recording or transcribing (must be first check inside lock)
         if recording_flag.is_set() or transcribing_flag.is_set():
-            return
+            return False
 
         # Cancel any pending status timer from previous transcription
         if pending_status_timer is not None:
@@ -3079,9 +3399,21 @@ def start_recording():
         recording_flag.set()
 
     # UI update and thread start outside lock (safe since flag is already set)
-    set_status_safe("🎙️ Listening...", Theme.PINK_DARK, Theme.TEXT_PRIMARY, Theme.PINK_PRIMARY)
-    rec_thread = threading.Thread(target=record_loop, daemon=True)
-    rec_thread.start()
+    log_line("[rec] hotkey hold detected - starting recording")
+    duck_applied = audio_ducking_manager.activate(reason="recording_start")
+    log_line(f"DUCK_APPLY requested_by=recording_start applied={duck_applied}")
+    set_status_safe("recording", Theme.PINK_DARK, Theme.TEXT_PRIMARY, Theme.PINK_PRIMARY)
+    try:
+        rec_thread = threading.Thread(target=record_loop, daemon=True)
+        rec_thread.start()
+        return True
+    except Exception as e:
+        with STATE_LOCK:
+            recording_flag.clear()
+        log_line(f"[rec] failed to start recording thread: {e}", "error")
+        audio_ducking_manager.force_restore(reason="recording_start_error")
+        set_status_safe("❌ Error", Theme.ERROR, Theme.TEXT_PRIMARY, Theme.ERROR)
+        return False
 
 def _select_whisper_params(duration_sec):
     """Aggressive GPU-optimized parameters for maximum speed with large model."""
@@ -3819,36 +4151,44 @@ def stop_recording_and_transcribe():
             return
         transcribing_flag.set()
 
-    # Play sound effect to give immediate audio feedback that recording stopped
-    play_recording_stop_sound()
+    log_line("[rec] hotkey released - stopping recording")
+    restore_requested = audio_ducking_manager.release(reason="recording_stop")
+    log_line(f"DUCK_RESTORE requested_by=recording_stop pending_or_done={restore_requested}")
 
     try:
-        time.sleep(POSTROLL_SEC)
-    except Exception:
-        pass
+        # Play sound effect to give immediate audio feedback that recording stopped
+        play_recording_stop_sound()
 
-    with STATE_LOCK:
-        recording_flag.clear()
-
-    if rec_thread:
-        rec_thread.join()
-
-    if not os.path.exists(WAV_TMP) or os.path.getsize(WAV_TMP) < 1024:
         try:
-            if os.path.exists(WAV_TMP):
-                os.remove(WAV_TMP)
+            time.sleep(POSTROLL_SEC)
         except Exception:
             pass
-        # Skip slow toast - UI already shows status
-        set_status_safe("🔇 No speech", Theme.WARNING, Theme.BG_DARK, Theme.WARNING)
+
+        with STATE_LOCK:
+            recording_flag.clear()
+
+        if rec_thread:
+            rec_thread.join()
+
+        if not os.path.exists(WAV_TMP) or os.path.getsize(WAV_TMP) < 1024:
+            try:
+                if os.path.exists(WAV_TMP):
+                    os.remove(WAV_TMP)
+            except Exception:
+                pass
+            # Skip slow toast - UI already shows status
+            set_status_safe("🔇 No speech", Theme.WARNING, Theme.BG_DARK, Theme.WARNING)
+            return
+
+        _transcribe_and_paste(WAV_TMP)
+    except Exception as e:
+        log_line(f"[rec] stop/transcribe error: {e}", "error")
+        set_status_safe("❌ Error", Theme.ERROR, Theme.TEXT_PRIMARY, Theme.ERROR)
+    finally:
+        forced_restore = audio_ducking_manager.force_restore(reason="stop_finally")
+        log_line(f"DUCK_RESTORE requested_by=stop_finally forced={forced_restore}")
         with STATE_LOCK:
             transcribing_flag.clear()
-        return
-
-    _transcribe_and_paste(WAV_TMP)
-
-    with STATE_LOCK:
-        transcribing_flag.clear()
 
 def on_hotkey_press(e):
     if not recording_flag.is_set():
@@ -3857,6 +4197,9 @@ def on_hotkey_press(e):
 def on_hotkey_release(e):
     if recording_flag.is_set():
         stop_recording_and_transcribe()
+    else:
+        release = audio_ducking_manager.release(reason="release_without_recording")
+        log_line(f"DUCK_RESTORE requested_by=release_without_recording pending_or_done={release}")
 
 
 # --- Diagnostics ---
@@ -3960,6 +4303,11 @@ def _tray_toggle(_=None):
     global listening_enabled
     listening_enabled = not listening_enabled
     _tray_update(text=("Listening" if listening_enabled else "Paused"))
+    try:
+        if gui and gui.root and gui.root.winfo_exists():
+            ui_queue.put((gui.set_status, (("armed" if listening_enabled else "idle"),)))
+    except Exception:
+        pass
 
 
 def _tray_toggle_router(_=None):
@@ -3992,6 +4340,8 @@ def _tray_quit(_=None):
     try:
         if recording_flag.is_set():
             stop_recording_and_transcribe()
+        restored = audio_ducking_manager.force_restore(reason="tray_quit")
+        log_line(f"DUCK_RESTORE requested_by=tray_quit forced={restored}")
         # Stop GPU monitoring
         gpu_monitor.stop_monitoring()
     finally:
@@ -4013,18 +4363,26 @@ def _tray_restart_gui(_=None):
                     gui.root.focus_force()
                 except Exception:
                     pass
+                log_line(
+                    f"HUD_BACKEND={gui.__class__.__name__} "
+                    f"HUD_BACKEND_MODULE={gui.__class__.__module__} path=restart_restore"
+                )
                 log_line("[GUI_RESTART] Existing GUI restored")
-                notify("✅ GUI restored! Hold CTRL + Windows to speak.")
+                notify(f"✅ GUI restored! Hold {_hotkey_display_text(HOTKEY_HOLD)} to speak.")
                 return
         except Exception:
             pass
 
         try:
-            gui = FloatingPill()
-            gui.set_status("ready")
+            gui = _create_status_hud()
+            gui.set_status("armed" if listening_enabled else "idle")
             gui.show()
+            log_line(
+                f"HUD_BACKEND={gui.__class__.__name__} "
+                f"HUD_BACKEND_MODULE={gui.__class__.__module__} path=restart_new"
+            )
             log_line("[GUI_RESTART] New GUI created successfully")
-            notify("✅ GUI restarted! Hold CTRL + Windows to speak.")
+            notify(f"✅ GUI restarted! Hold {_hotkey_display_text(HOTKEY_HOLD)} to speak.")
         except Exception as e:
             log_line(f"[GUI_RESTART_ERROR] Failed to create GUI: {e}\n{traceback.format_exc()}", "error")
             notify(f"❌ Failed to restart GUI: {e}")
@@ -4084,7 +4442,7 @@ def run_whisper_main_loop():
         debug_print('')
 
     safe_print("📌 Controls:")
-    safe_print("  • Hold CTRL + Windows to record")
+    safe_print(f"  • Hold {_hotkey_display_text(HOTKEY_HOLD)} to record")
     safe_print("  • Release to transcribe & paste")
     safe_print("  • Dashboard shows status and stats")
     safe_print(f"  • Agent router: {'ON' if MODE_ROUTER else 'OFF'} ({ROUTER_MODEL})")
@@ -4099,8 +4457,19 @@ def run_whisper_main_loop():
 
     # Initialize FloatingPill GUI (required for event loop and hotkey polling)
     global gui
-    gui = FloatingPill()
-    gui.set_status("ready")
+    restored_stale_duck = audio_ducking_manager.restore_stale_state()
+    log_line(f"DUCK_STARTUP_RESTORE restored={restored_stale_duck}")
+    log_line(
+        f"DUCK_BACKEND_AVAILABLE available={audio_ducking_manager.is_available} "
+        f"backend={audio_ducking_manager.backend_name}"
+    )
+    gui = _create_status_hud()
+    log_line(
+        f"HUD_BACKEND={gui.__class__.__name__} "
+        f"HUD_BACKEND_MODULE={gui.__class__.__module__} path=startup"
+    )
+    gui.set_hotkey_hint(HOTKEY_HOLD)
+    gui.set_status("armed" if listening_enabled else "idle")
 
     startup_diagnostics()
     
@@ -4113,7 +4482,7 @@ def run_whisper_main_loop():
     
     try:
         device_lines = devices_summary_text()
-        notify("✅ Ready! Hold CTRL + Windows to speak.")
+        notify(f"✅ Ready! Hold {_hotkey_display_text(HOTKEY_HOLD)} to speak.")
         log_line("Startup devices:\n" + device_lines)
         safe_print(f"✅ Microphone: {selected_input_device_name}")
         
@@ -4252,6 +4621,13 @@ def run_whisper_main_loop():
 
         if changed:
             log_line(f"[HOTKEY] Active hold shortcut updated to: {active_hotkey_combo[0]}")
+            try:
+                if gui and gui.root and gui.root.winfo_exists():
+                    ui_queue.put((gui.set_hotkey_hint, (active_hotkey_combo[0],)))
+                    if not recording_flag.is_set() and not transcribing_flag.is_set():
+                        ui_queue.put((gui.set_status, (("armed" if listening_enabled else "idle"),)))
+            except Exception:
+                pass
 
     # Track ESC key state for debouncing
     esc_pressed_start = [None]  # Use list for nonlocal mutation
@@ -4285,7 +4661,7 @@ def run_whisper_main_loop():
         
         try:
             if _are_all_keys_pressed(settings_shortcut_keys):
-                open_settings_window(gui.root)
+                _launch_dashboard_from_ui_trigger()
         except Exception:
             pass
         
@@ -4354,6 +4730,8 @@ def run_whisper_main_loop():
     
     if recording_flag.is_set():
         stop_recording_and_transcribe()
+    restored = audio_ducking_manager.force_restore(reason="mainloop_exit")
+    log_line(f"DUCK_RESTORE requested_by=mainloop_exit forced={restored}")
     safe_print("Bye.")
 
 if __name__ == "__main__":
