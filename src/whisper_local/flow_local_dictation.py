@@ -1,4 +1,4 @@
-import os, subprocess, time, threading, queue, datetime, shlex
+import os, subprocess, time, threading, queue, datetime, shlex, hashlib
 import sys, shutil, tempfile, uuid
 import logging
 import traceback
@@ -63,6 +63,7 @@ from whisper_local.model_selection import (
     refresh_auto_state,
     save_state as save_model_selection_state,
 )
+from whisper_local.settings_manager import SettingsManager
 from whisper_local.hotkey_settings import hotkey_tokens, load_hotkey, settings_file
 from whisper_local.snippets import apply_snippets, snippets_file
 from whisper_local.vocabulary import compose_prompt, load_vocabulary, save_vocabulary, vocabulary_file
@@ -1094,20 +1095,9 @@ def _is_markdown_enabled() -> bool:
         return False
 
 # --- Vocabulary Biasing (Section 3) ---
-# Initial prompt for Whisper decoder biasing toward domain-specific terms.
-# Covers Audio Engineering, Software Development, and Gaming contexts.
-BASE_INITIAL_PROMPT = (
-    "Shure SM7B, Audient iD14, XLR, Preamp, Phantom Power 48V, "
-    "Ableton Live, Pro Tools, VST plugins, "
-    "Sidechain compression, High-pass filter HPF, Low-pass filter LPF, "
-    "Q-factor, THD+N, Signal-to-Noise Ratio SNR, Hz, kHz, Bit-depth, "
-    "Python, JSON, C++, CUDA, WSL, GitHub, "
-    "pandas, numpy, PyTorch, TensorFlow, Transformer, "
-    "__init__, snake_case, camelCase, def, import, "
-    "Dota 2, RuneScape, Mid lane, Gank, DPS, Aggro, "
-    "localhost, 127.0.0.1, sudo, apt-get"
-)
-INITIAL_PROMPT = BASE_INITIAL_PROMPT  # Legacy alias for compatibility.
+# The hardcoded dictionary was migrated to continual_context.json
+BASE_INITIAL_PROMPT = ""
+INITIAL_PROMPT = ""  # Legacy alias for compatibility.
 VOCABULARY_FILE = vocabulary_file(_user_dir)
 if not os.path.exists(VOCABULARY_FILE):
     save_vocabulary(VOCABULARY_FILE, [])
@@ -3468,9 +3458,35 @@ def _extract_error_snippet(text, keyword):
 
 
 def _build_dynamic_initial_prompt() -> str:
-    """Compose the base Whisper prompt plus user vocabulary words."""
+    """Compose the base Whisper prompt plus user vocabulary words and continual context."""
+    from whisper_local.continual_context import get_continual_context_string
     words = load_vocabulary(VOCABULARY_FILE)
-    return compose_prompt(BASE_INITIAL_PROMPT, words)
+    base = get_continual_context_string()
+    return compose_prompt(base, words)
+
+
+def _verify_binary_hash(exe_path: str) -> None:
+    """Verify the SHA256 hash of the whisper binary to prevent malicious replacement."""
+    # In a commercial release, EXPECTED_HASH is stamped into the pyc during the build process.
+    expected_hash = os.environ.get("WHISPER_EXPECTED_HASH")
+    if not expected_hash:
+        # Development mode fallback
+        return
+        
+    try:
+        sha256_hash = hashlib.sha256()
+        with open(exe_path, "rb") as f:
+            for byte_block in iter(lambda: f.read(4096), b""):
+                sha256_hash.update(byte_block)
+        actual_hash = sha256_hash.hexdigest()
+        
+        if actual_hash.lower() != expected_hash.lower():
+            log_line(f"[security] CRITICAL: Binary hash mismatch for {exe_path}. Expected {expected_hash}, got {actual_hash}", "error")
+            raise RuntimeError(f"Security Error: The speech engine binary ({os.path.basename(exe_path)}) is modified or corrupted.")
+            
+    except OSError as e:
+        log_line(f"[security] Failed to read binary for hash verification: {e}", "error")
+        raise RuntimeError("Security Error: Could not verify speech engine binary.")
 
 
 def run_whisper(filename, bin_path, model_path=None):
@@ -3488,6 +3504,8 @@ def run_whisper(filename, bin_path, model_path=None):
         model_path = MODEL_PATH_LARGE
     
     exe = os.path.abspath(_resolve_whisper_exe(bin_path))
+    _verify_binary_hash(exe)
+    
     workdir = os.path.dirname(exe) or "."
 
     out_txt = os.path.join(tempfile.gettempdir(), f"flow_out_{uuid.uuid4().hex}.txt")
@@ -4078,8 +4096,28 @@ def _transcribe_and_paste(wav_path):
             pending_status_timer.start()
             safe_print("Copied to clipboard (dashboard focused)")
         else:
+            # --- CONTEXT SANDWICH LOGIC ---
+            from whisper_local.settings_manager import SettingsManager
+            sandwich_active = False
+            try:
+                if SettingsManager().get_setting("context_sandwich"):
+                    original_clipboard = pyperclip.paste()
+                    if original_clipboard and original_clipboard.strip() and original_clipboard != text:
+                        # Append the dictated text above the clipboard
+                        text = f"{text}\n\n{original_clipboard}"
+                        sandwich_active = True
+            except Exception as e:
+                debug_print(f"Context Sandwich error: {e}")
+
             # Use pyautogui for reliable paste (Win32 SendInput blocked by Windows security)
             if instant_paste(text):
+                if sandwich_active:
+                    try:
+                        time.sleep(0.1) # Small delay to ensure host app processes paste before Enter
+                        pyautogui.press('enter')
+                    except Exception as e:
+                        debug_print(f"Failed to press enter for sandwich: {e}")
+
                 # Record stats async (don't block the paste experience)
                 word_count = len(text.split())
                 threading.Thread(
@@ -4391,19 +4429,36 @@ def _tray_restart_gui(_=None):
 
 def start_tray():
     global tray_icon
-    icon_path = res_path("whisper.ico")
+    icon_path = res_path("impulse.ico")
     try:
         img = Image.open(icon_path)
     except Exception:
-        # Create a simple pink circle icon
+        # Create a waveform icon
         img = Image.new("RGBA", (32, 32), (0, 0, 0, 0))
         draw = ImageDraw.Draw(img)
-        draw.ellipse([4, 4, 28, 28], fill=(255, 20, 147, 255))
+        
+        try:
+            theme_id = SettingsManager().get_setting("theme")
+        except Exception:
+            theme_id = "hot_pink"
+            
+        if theme_id == "neon_dark":
+            c = (187, 134, 252, 255) # bb86fc
+        elif theme_id == "midnight_green":
+            c = (0, 230, 118, 255) # 00e676
+        else:
+            c = (255, 20, 147, 255) # FF1493
+        
+        # Draw 4 vertical bars forming a waveform
+        draw.rounded_rectangle([4, 12, 8, 20], radius=2, fill=c)
+        draw.rounded_rectangle([10, 8, 14, 24], radius=2, fill=c)
+        draw.rounded_rectangle([16, 4, 20, 28], radius=2, fill=c)
+        draw.rounded_rectangle([22, 10, 26, 22], radius=2, fill=c)
     
     tray_icon = pystray.Icon(
-        "Whisper Local",
+        "Impulse",
         img,
-        "Whisper Local",
+        "Impulse",
         menu=pystray.Menu(
             pystray.MenuItem("Open Dashboard", _tray_open_dashboard, default=True),
             pystray.MenuItem("Toggle Listening", _tray_toggle),

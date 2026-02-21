@@ -8,10 +8,12 @@ from whisper_local.controllers.settings_controller import SettingsController
 from whisper_local.controllers.transcription_controller import TranscriptionController
 from whisper_local.controllers.stats_controller import StatsController
 from whisper_local.controllers.system_controller import SystemController
+from whisper_local.controllers.licensing_controller import LicensingController
 
 __all__ = [
     "SettingsController",
     "TranscriptionController",
     "StatsController",
     "SystemController",
+    "LicensingController",
 ]

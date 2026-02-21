@@ -184,10 +184,10 @@ class FirstRunWizard:
         # Logo
         logo = tk.Label(
             self.title_bar,
-            text="◉",
-            font=(Theme.FONT_FAMILY, Theme.FONT_SIZE_XXL),
-            fg=Theme.PINK_PRIMARY,
-            bg=Theme.BG_ELEVATED
+            text="ılıılı",  # Waveform logo
+            font=(Theme.FONT_FAMILY, 24, "bold"),
+            bg=Theme.BG_ELEVATED,
+            fg=Theme.PINK_PRIMARY
         )
         logo.pack(side="left", padx=(Theme.PAD_LG - 1, Theme.PAD_SM))
         

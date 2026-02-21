@@ -31,7 +31,9 @@ from whisper_local.controllers import (
     TranscriptionController,
     StatsController,
     SystemController,
+    LicensingController,
 )
+from whisper_local.licensing import LicensingManager
 from whisper_local.snippets import snippets_file
 from whisper_local.hotkey_settings import (
     default_settings as default_hotkey_settings,
@@ -134,6 +136,7 @@ class AppApi:
         )
         self.stats = StatsController(self.user_dir, self.stats_file)
         self.system = SystemController(self.user_dir, self.stats_file)
+        self.licensing = LicensingController(LicensingManager(self.user_dir))
 
         # Private refs (not exposed by pywebview)
         self._window = None
