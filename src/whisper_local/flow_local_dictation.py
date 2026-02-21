@@ -4429,11 +4429,12 @@ def _tray_restart_gui(_=None):
 
 def start_tray():
     global tray_icon
-    icon_path = res_path("impulse.ico")
+    icon_path = res_path(os.path.join("ui", "assets", "mic_logo.png"))
     try:
         img = Image.open(icon_path)
-    except Exception:
-        # Create a waveform icon
+    except Exception as e:
+        log_line(f"Failed to load new mic logo for tray: {e}", "warning")
+        # Fallback to the generated waveform icon
         img = Image.new("RGBA", (32, 32), (0, 0, 0, 0))
         draw = ImageDraw.Draw(img)
         
