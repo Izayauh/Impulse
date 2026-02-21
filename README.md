@@ -1,4 +1,4 @@
-# 🎤 WhisperLocal
+# 🎤 Impulse
 
 **Privacy-focused, GPU-accelerated speech-to-text dictation for Windows**
 
@@ -10,10 +10,10 @@ Transform your voice into text instantly - completely offline, using OpenAI's Wh
 
 ### Option 1: Installer (Recommended for most users)
 
-**[Download WhisperLocal-Setup.exe](https://github.com/Izayauh/whisper/releases/latest)**
+**[Download Impulse-Setup.exe](https://github.com/Izayauh/whisper/releases/latest)**
 
 1. Download the installer (~3.5 GB)
-2. Run `WhisperLocal-Setup.exe`
+2. Run `Impulse-Setup.exe`
 3. Follow the setup wizard
 4. Start dictating!
 
@@ -27,7 +27,7 @@ git clone https://github.com/Izayauh/whisper.git
 cd whisper
 
 # Run the canonical Windows launcher
-.\run_whisperlocal.bat
+.\run_impulse.bat
 ```
 
 ---
@@ -66,7 +66,7 @@ That's it! Your spoken words appear as text.
 
 ## 📊 Smart Model Selection
 
-WhisperLocal automatically selects the best model based on your dictation length:
+Impulse automatically selects the best model based on your dictation length:
 
 | Dictation Length | Model Used | Speed | Quality |
 |------------------|------------|-------|---------|
@@ -80,7 +80,7 @@ This gives you the best of both worlds: quick response for short commands, high 
 
 ## 🔐 Privacy
 
-WhisperLocal is designed for privacy:
+Impulse is designed for privacy:
 
 - ✅ **100% Local** - No internet connection required
 - ✅ **No Cloud** - Speech never leaves your computer
@@ -117,7 +117,7 @@ See our full [Privacy Policy](PRIVACY.md).
 ### Application won't start
 - Ensure you're running Windows 10 or later (64-bit)
 - Try reinstalling the application
-- Check the log file in `%LOCALAPPDATA%\WhisperLocal\flow.log`
+- Check the log file in `%LOCALAPPDATA%\Impulse\flow.log`
 
 See [`USER_GUIDE.md`](USER_GUIDE.md) for detailed troubleshooting.
 
@@ -126,8 +126,8 @@ See [`USER_GUIDE.md`](USER_GUIDE.md) for detailed troubleshooting.
 ## 📁 Project Structure
 
 ```
-WhisperLocal/
-├── WhisperLocal.exe           # Main application (installed version)
+Impulse/
+├── Impulse.exe           # Main application (installed version)
 ├── whisper-cli.exe            # Whisper inference engine
 ├── models/                    # AI models
 │   ├── ggml-base.en.bin       # Fast model (142 MB)
@@ -170,7 +170,7 @@ MIT License - Based on [Whisper.cpp](https://github.com/ggerganov/whisper.cpp)
 
 ## 🆘 Support
 
-1. Check the log file: `%LOCALAPPDATA%\WhisperLocal\flow.log`
+1. Check the log file: `%LOCALAPPDATA%\Impulse\flow.log`
 2. See [`USER_GUIDE.md`](USER_GUIDE.md) for detailed help
 3. Open an issue on GitHub
 
