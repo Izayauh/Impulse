@@ -11,6 +11,12 @@ import threading
 import time
 import ctypes
 
+try:
+    from PIL import Image, ImageTk
+except ImportError:
+    Image = None
+    ImageTk = None
+
 # Import from main module (will be available when bundled together)
 try:
     from whisper_local.flow_local_dictation import (
@@ -182,14 +188,41 @@ class FirstRunWizard:
         self.title_bar.pack_propagate(False)
         
         # Logo
-        logo = tk.Label(
-            self.title_bar,
-            text="ılıılı",  # Waveform logo
-            font=(Theme.FONT_FAMILY, 24, "bold"),
-            bg=Theme.BG_ELEVATED,
-            fg=Theme.PINK_PRIMARY
-        )
-        logo.pack(side="left", padx=(Theme.PAD_LG - 1, Theme.PAD_SM))
+        logo_handled = False
+        if Image and ImageTk:
+            try:
+                # Resolve using flow's res_path if available or relative path as fallback
+                try:
+                    from whisper_local.flow_local_dictation import res_path
+                    logo_path = res_path(os.path.join("ui", "assets", "mic_logo.png"))
+                except ImportError:
+                    logo_path = os.path.join(os.path.dirname(__file__), "assets", "mic_logo.png")
+                
+                if os.path.exists(logo_path):
+                    pil_img = Image.open(logo_path).convert("RGBA")
+                    # Resize proportionally to fit well in the title bar (approx 24x24)
+                    pil_img.thumbnail((32, 32), Image.Resampling.LANCZOS)
+                    self._logo_photo = ImageTk.PhotoImage(pil_img) # Keep a persistent reference
+                    logo = tk.Label(
+                        self.title_bar,
+                        image=self._logo_photo,
+                        bg=Theme.BG_ELEVATED
+                    )
+                    logo.pack(side="left", padx=(Theme.PAD_LG - 1, Theme.PAD_SM))
+                    logo_handled = True
+            except Exception as e:
+                print(f"Failed to load wizard mic logo: {e}")
+        
+        # Fallback to text logo if image failed or PIL missing
+        if not logo_handled:
+            logo = tk.Label(
+                self.title_bar,
+                text="ılıılı",  # Waveform logo fallback
+                font=(Theme.FONT_FAMILY, 24, "bold"),
+                bg=Theme.BG_ELEVATED,
+                fg=Theme.PINK_PRIMARY
+            )
+            logo.pack(side="left", padx=(Theme.PAD_LG - 1, Theme.PAD_SM))
         
         # Title
         title = tk.Label(
