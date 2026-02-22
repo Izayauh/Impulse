@@ -94,8 +94,8 @@ class TestRestorePunctuation(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         """Try to load the model once; skip all tests if it fails or if in CI."""
-        if os.environ.get("CI") == "true":
-            raise unittest.SkipTest("Skipping punctuation model tests in CI environment")
+        if os.environ.get("GITHUB_ACTIONS") == "true":
+            raise unittest.SkipTest("Skipping punctuation model tests in GitHub Actions environment")
             
         from whisper_local.processing.punctuation_restorer import _get_model
         if _get_model() is None:
