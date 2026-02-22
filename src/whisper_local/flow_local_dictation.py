@@ -4061,7 +4061,19 @@ def _transcribe_and_paste(wav_path):
 
         # Store last transcription for manual copy access
         last_transcription = text
-        
+
+        # Background auto-learning — extract new vocab without blocking the paste.
+        _text_for_learning = text
+        def _run_context_learning():
+            try:
+                from whisper_local.continual_context import extract_and_learn
+                added = extract_and_learn(_text_for_learning, OLLAMA_MODEL, OLLAMA_ENDPOINT)
+                if added:
+                    log_line(f"[CONTEXT] Learned: {', '.join(added)}", "info")
+            except Exception:
+                pass
+        threading.Thread(target=_run_context_learning, daemon=True).start()
+
         # Check if our pill had focus when recording STARTED
         # Using captured focus state to avoid issues with UI updates changing focus
         # NOTE: Dashboard focus check removed - new pywebview dashboard is separate window
