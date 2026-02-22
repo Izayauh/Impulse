@@ -38,7 +38,9 @@ class AppSettings(BaseModel):
     launch_behavior: Literal["start_minimized", "open_dashboard"] = "start_minimized"
     command_mode: bool = True
     auto_copy: bool = True
-    markdown_mode: bool = False
+    stylization_profile: Literal["off", "clean", "casual", "formal", "technical"] = "off"
+    ollama_model: str = "llama3.2:3b"
+    ollama_endpoint: str = "http://127.0.0.1:11434"
     vad_sensitivity: int = Field(65, ge=1, le=100)
     vad_silence_ms: int = Field(700, ge=250, le=2000)
     context_sandwich: bool = False
@@ -82,7 +84,9 @@ class SettingsManager:
                 raw = json.load(f)
             if not isinstance(raw, dict):
                 return AppSettings()
-            return AppSettings(**raw)
+            known_keys = set(AppSettings.model_fields.keys())
+            filtered = {k: v for k, v in raw.items() if k in known_keys}
+            return AppSettings(**filtered)
         except (json.JSONDecodeError, OSError, IOError):
             return AppSettings()
         except ValidationError as exc:

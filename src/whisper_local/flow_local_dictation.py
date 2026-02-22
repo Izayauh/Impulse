@@ -1075,24 +1075,25 @@ try:
     ROUTER_TIMEOUT_SEC = max(3, int(os.environ.get("WHISPER_ROUTER_TIMEOUT_SEC", "12")))
 except ValueError:
     ROUTER_TIMEOUT_SEC = 12
-MODE_MARKDOWN = os.environ.get("WHISPER_MARKDOWN_MODE", "0").strip().lower() in ("1", "true", "yes", "on")
-MARKDOWN_MODEL = os.environ.get("WHISPER_MARKDOWN_MODEL", "llama3.2:3b")
+STYLIZATION_PROFILE = os.environ.get("WHISPER_STYLIZE_PROFILE", "off").strip().lower()
+OLLAMA_MODEL = os.environ.get("WHISPER_OLLAMA_MODEL", "llama3.2:3b")
+OLLAMA_ENDPOINT = os.environ.get("WHISPER_OLLAMA_ENDPOINT", "http://127.0.0.1:11434")
 _flow_settings_mgr = None  # lazy SettingsManager for runtime setting reads
 
 
-def _is_markdown_enabled() -> bool:
-    """Check if markdown mode is on via persisted settings or env var."""
+def _get_stylization_profile() -> str:
+    """Return the active stylization profile from settings or env var."""
     global _flow_settings_mgr
-    if MODE_MARKDOWN:
-        return True
+    if STYLIZATION_PROFILE != "off":
+        return STYLIZATION_PROFILE
     try:
         if _flow_settings_mgr is None:
             from whisper_local.settings_manager import SettingsManager
             _flow_settings_mgr = SettingsManager()
         _flow_settings_mgr.reload()
-        return bool(_flow_settings_mgr.get_setting("markdown_mode"))
+        return str(_flow_settings_mgr.get_setting("stylization_profile") or "off")
     except Exception:
-        return False
+        return "off"
 
 # --- Vocabulary Biasing (Section 3) ---
 # The hardcoded dictionary was migrated to continual_context.json
@@ -1680,6 +1681,14 @@ class FloatingPill:
         if self._is_visible:
             self._is_visible = False
             self.root.withdraw()
+
+    def show_for_active(self) -> None:
+        """Show the pill when the user presses the record hotkey."""
+        self.show()
+
+    def hide_when_idle(self) -> None:
+        """Hide the pill once it has returned to idle/armed state."""
+        self.hide()
 
     def _on_click(self, event):
         """Handle left click - open dashboard."""
@@ -3392,6 +3401,12 @@ def start_recording():
     log_line("[rec] hotkey hold detected - starting recording")
     duck_applied = audio_ducking_manager.activate(reason="recording_start")
     log_line(f"DUCK_APPLY requested_by=recording_start applied={duck_applied}")
+    # Show the ambient pill now that recording is active
+    try:
+        if gui is not None:
+            ui_queue.put((gui.show_for_active, ()))
+    except Exception:
+        pass
     set_status_safe("recording", Theme.PINK_DARK, Theme.TEXT_PRIMARY, Theme.PINK_PRIMARY)
     try:
         rec_thread = threading.Thread(target=record_loop, daemon=True)
@@ -4031,16 +4046,18 @@ def _transcribe_and_paste(wav_path):
         if text != before_snippets:
             log_line("[snippets] applied trigger replacement", "info")
 
-        # Optional LLM-powered markdown formatting (runs on full text).
-        if _is_markdown_enabled():
-            from whisper_local.processing.markdown_formatter import MarkdownFormatter
-            if not hasattr(_transcribe_and_paste, '_md_fmt'):
-                _transcribe_and_paste._md_fmt = MarkdownFormatter(model=MARKDOWN_MODEL)
-                _transcribe_and_paste._md_fmt.set_enabled(True)
-            before_md = text
-            text = _transcribe_and_paste._md_fmt.format(text)
-            if text != before_md:
-                log_line("[markdown] formatter applied", "info")
+        # Optional LLM-powered stylization (runs on full text).
+        _style_profile = _get_stylization_profile()
+        if _style_profile != "off":
+            from whisper_local.processing.text_stylizer import TextStylizer
+            if not hasattr(_transcribe_and_paste, '_stylizer'):
+                _transcribe_and_paste._stylizer = TextStylizer(
+                    model=OLLAMA_MODEL, endpoint=OLLAMA_ENDPOINT,
+                )
+            before_style = text
+            text = _transcribe_and_paste._stylizer.stylize(text, _style_profile)
+            if text != before_style:
+                log_line(f"[STYLE] {_style_profile} profile applied", "info")
 
         # Store last transcription for manual copy access
         last_transcription = text
@@ -4329,6 +4346,8 @@ def run_debug_probe():
 
 tray_icon = None
 listening_enabled = True
+# When True the recording is kept alive without holding the hotkey (toggle mode).
+latch_recording = False
 
 def _tray_update(title="Whisper Local", text="Idle"):
     try:
@@ -4692,7 +4711,7 @@ def run_whisper_main_loop():
 
     def poll_hotkey():
         nonlocal was_down
-        global last_edge_ts
+        global last_edge_ts, latch_recording
 
         try:
             refresh_runtime_hotkey_binding()
@@ -4720,14 +4739,73 @@ def run_whisper_main_loop():
                 _launch_dashboard_from_ui_trigger()
         except Exception:
             pass
-        
+
+        # ------------------------------------------------------------------
+        # Ctrl+Win+Alt  → latch toggle (hold-free recording)
+        # ------------------------------------------------------------------
+        latch_keys = ["ctrl", "windows", "alt"]
+        try:
+            latch_chord_down = _are_all_keys_pressed(latch_keys)
+        except Exception:
+            latch_chord_down = False
+
+        if latch_chord_down and not getattr(poll_hotkey, "_latch_chord_was_down", False):
+            # Rising edge of latch chord – toggle latch mode
+            now = time.time()
+            if (now - last_edge_ts) * 1000 > EDGE_COOLDOWN_MS:
+                last_edge_ts = now
+                if not latch_recording:
+                    # Turn latch ON: start recording hands-free
+                    log_line("[LATCH] Ctrl+Win+Alt pressed – enabling latch recording")
+                    latch_recording = True
+                    on_hotkey_press(None)
+                else:
+                    # Turn latch OFF: stop recording and transcribe
+                    log_line("[LATCH] Ctrl+Win+Alt pressed – disabling latch recording")
+                    latch_recording = False
+                    threading.Thread(target=stop_recording_and_transcribe, daemon=True).start()
+        poll_hotkey._latch_chord_was_down = latch_chord_down
+
+        # ------------------------------------------------------------------
+        # Ctrl+Win+Shift  → cycle stylization profile
+        # ------------------------------------------------------------------
+        style_keys = ["ctrl", "windows", "shift"]
+        try:
+            style_chord_down = _are_all_keys_pressed(style_keys)
+        except Exception:
+            style_chord_down = False
+
+        if style_chord_down and not getattr(poll_hotkey, "_style_chord_was_down", False):
+            now_style = time.time()
+            if (now_style - last_edge_ts) * 1000 > EDGE_COOLDOWN_MS:
+                last_edge_ts = now_style
+                from whisper_local.processing.text_stylizer import next_profile, PROFILES
+                global _flow_settings_mgr
+                cur = _get_stylization_profile()
+                nxt = next_profile(cur)
+                # Persist so dashboard and next transcription pick it up
+                try:
+                    if _flow_settings_mgr is None:
+                        from whisper_local.settings_manager import SettingsManager
+                        _flow_settings_mgr = SettingsManager()
+                    _flow_settings_mgr.update_setting("stylization_profile", nxt)
+                except Exception:
+                    pass
+                label = PROFILES.get(nxt, {}).get("label", nxt)
+                log_line(f"[STYLE] Cycled to: {label}")
+        poll_hotkey._style_chord_was_down = style_chord_down
+
+        # ------------------------------------------------------------------
+        # Normal hold-to-record (only when not in latch mode)
+        # ------------------------------------------------------------------
         now = time.time()
-        if down and not was_down and (now - last_edge_ts) * 1000 > EDGE_COOLDOWN_MS:
-            last_edge_ts = now
-            on_hotkey_press(None)
-        if (not down) and was_down and (now - last_edge_ts) * 1000 > EDGE_COOLDOWN_MS:
-            last_edge_ts = now
-            threading.Thread(target=stop_recording_and_transcribe, daemon=True).start()
+        if not latch_recording:
+            if down and not was_down and (now - last_edge_ts) * 1000 > EDGE_COOLDOWN_MS:
+                last_edge_ts = now
+                on_hotkey_press(None)
+            if (not down) and was_down and (now - last_edge_ts) * 1000 > EDGE_COOLDOWN_MS:
+                last_edge_ts = now
+                threading.Thread(target=stop_recording_and_transcribe, daemon=True).start()
         was_down = down
         
         # Debounced ESC detection - require 500ms hold to prevent accidental exit

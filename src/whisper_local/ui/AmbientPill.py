@@ -227,7 +227,8 @@ if is_qt_available():
             self.resize(self._base_size)
             self._position_docked()
             self.setWindowOpacity(IDLE_OPACITY)
-            self.show()
+            # Start hidden – the main loop calls show_for_active() on hotkey press
+            self.hide()
             self.raise_()
 
         # ------------------------------------------------------------------
@@ -253,6 +254,15 @@ if is_qt_available():
             super().show()
 
         def hide(self):
+            super().hide()
+
+        def show_for_active(self) -> None:
+            """Show the pill when the user presses the record hotkey."""
+            super().show()
+            self.raise_()
+
+        def hide_when_idle(self) -> None:
+            """Hide the pill once it has returned to idle/armed state."""
             super().hide()
 
         def pump_queue(self):
@@ -309,12 +319,15 @@ if is_qt_available():
                 self._audio_level_target = 0.0
                 self._audio_level_display = 0.0
                 self._glow = 0.0
+                # Animate size/opacity briefly then hide the pill
                 self._animate_size(*IDLE_DIMENSIONS, duration_ms=ANIMATION_SPEED_MS)
                 self._animate_opacity(IDLE_OPACITY)
                 if target == PillState.ARMED:
                     self._animate_color(QtGui.QColor("#8FB2C7"))
                 else:
                     self._animate_color(QtGui.QColor("#7D93A8"))
+                # Hide after the shrink animation completes
+                QtCore.QTimer.singleShot(ANIMATION_SPEED_MS + 50, self.hide_when_idle)
                 return
 
             if target == PillState.RECORDING:

@@ -181,7 +181,9 @@
       activeModel: 'base',
       vramTotalGb: 0,
       hotkey: 'ctrl+windows',
-      markdownMode: false
+      stylizationProfile: 'off',
+      ollamaModel: 'llama3.2:3b',
+      ollamaEndpoint: 'http://127.0.0.1:11434'
     };
     const microphones = ['Default System Microphone', 'USB Audio Interface', 'Headset Microphone', 'Webcam Microphone'];
 
@@ -638,8 +640,18 @@
         <label class="switch"><input type="checkbox" ${settingsState.contextSandwich ? 'checked' : ''} onchange="toggleSetting('contextSandwich')"><span></span></label>
       </div>
       <div class="settings-row">
-        <div><h4>Markdown Mode</h4><p>Format transcripts as structured Markdown via local LLM.</p></div>
-        <label class="switch"><input type="checkbox" ${settingsState.markdownMode ? 'checked' : ''} onchange="toggleSetting('markdownMode')"><span></span></label>
+        <div><h4>Stylization Profile</h4><p>Adjust transcription tone via local LLM (Ctrl+Win+Shift to cycle).</p></div>
+        <select onchange="updateSetting('stylizationProfile', this.value)">
+          ${['off','clean','casual','formal','technical'].map(p => '<option value="' + p + '"' + (settingsState.stylizationProfile === p ? ' selected' : '') + '>' + p.charAt(0).toUpperCase() + p.slice(1) + '</option>').join('')}
+        </select>
+      </div>
+      <div class="settings-row">
+        <div><h4>Ollama Model</h4><p>Model used for stylization.</p></div>
+        <input type="text" value="${esc(settingsState.ollamaModel)}" onchange="updateSetting('ollamaModel', this.value)" style="width:160px;background:var(--bg-secondary);color:var(--text-primary);border:1px solid var(--border);border-radius:6px;padding:4px 8px;">
+      </div>
+      <div class="settings-row">
+        <div><h4>Ollama Endpoint</h4><p>Base URL for Ollama API.</p></div>
+        <input type="text" value="${esc(settingsState.ollamaEndpoint)}" onchange="updateSetting('ollamaEndpoint', this.value)" style="width:220px;background:var(--bg-secondary);color:var(--text-primary);border:1px solid var(--border);border-radius:6px;padding:4px 8px;">
       </div>`;
         return;
       }
@@ -690,7 +702,9 @@
         launchBehavior: 'launch_behavior', theme: 'theme',
         commandMode: 'command_mode', autoCopy: 'auto_copy',
         contextSandwich: 'context_sandwich',
-        markdownMode: 'markdown_mode',
+        stylizationProfile: 'stylization_profile',
+        ollamaModel: 'ollama_model',
+        ollamaEndpoint: 'ollama_endpoint',
         microphone: 'input_device', vadSensitivity: 'vad_sensitivity',
         vadSilenceMs: 'vad_silence_ms',
       };
@@ -1108,7 +1122,9 @@
       if (s.input_device) settingsState.microphone = s.input_device;
       if (typeof s.vad_sensitivity === 'number') settingsState.vadSensitivity = s.vad_sensitivity;
       if (typeof s.vad_silence_ms === 'number') settingsState.vadSilenceMs = s.vad_silence_ms;
-      if (typeof s.markdown_mode === 'boolean') settingsState.markdownMode = s.markdown_mode;
+      if (s.stylization_profile) settingsState.stylizationProfile = s.stylization_profile;
+      if (s.ollama_model) settingsState.ollamaModel = s.ollama_model;
+      if (s.ollama_endpoint) settingsState.ollamaEndpoint = s.ollama_endpoint;
     }
 
     // ================================================================

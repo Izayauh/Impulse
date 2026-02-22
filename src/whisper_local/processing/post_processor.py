@@ -8,7 +8,7 @@ Pipeline order:
 4) code_mode (optional)
 5) homophone_corrector (optional, slowest)
 6) final_sanitizer (regex guardrail)
-7) markdown_formatter (optional, LLM-powered, full-text)
+7) text_stylizer (optional, LLM-powered, full-text)
 """
 
 from __future__ import annotations
@@ -23,7 +23,7 @@ from dataclasses import dataclass, field
 from whisper_local.processing.code_mode import CodeModeCorrector
 from whisper_local.processing.domain_corrections import DomainCorrector
 from whisper_local.processing.homophone_corrector import HomophoneCorrector
-from whisper_local.processing.markdown_formatter import MarkdownFormatter
+from whisper_local.processing.text_stylizer import TextStylizer
 from whisper_local.processing.numeric_formatter import format_numbers
 from whisper_local.processing.final_sanitizer import sanitize_final_glitches
 from whisper_local.processing.punctuation_restorer import restore_punctuation
@@ -46,10 +46,11 @@ class PipelineConfig:
     enable_code_mode: bool = False
     enable_homophone: bool = True
     enable_final_sanitizer: bool = True
-    enable_markdown: bool = False
     domains: list[str] = field(default_factory=list)
     homophone_model: str = "llama3.2:3b"
-    markdown_model: str = "llama3.2:3b"
+    stylization_profile: str = "off"
+    ollama_model: str = "llama3.2:3b"
+    ollama_endpoint: str = "http://127.0.0.1:11434"
     max_chunk_chars: int = 6000
 
 
@@ -85,8 +86,10 @@ class PostProcessingPipeline:
         self.code_corrector = CodeModeCorrector(enabled=self.config.enable_code_mode)
         self.homophone_corrector = HomophoneCorrector(model=self.config.homophone_model)
         self.homophone_corrector.set_enabled(self.config.enable_homophone)
-        self.markdown_formatter = MarkdownFormatter(model=self.config.markdown_model)
-        self.markdown_formatter.set_enabled(self.config.enable_markdown)
+        self.text_stylizer = TextStylizer(
+            model=self.config.ollama_model,
+            endpoint=self.config.ollama_endpoint,
+        )
 
     def process(self, text: str) -> tuple[str, str]:
         """
@@ -109,7 +112,7 @@ class PostProcessingPipeline:
                 "code_mode": 0.0,
                 "homophone_corrector": 0.0,
                 "final_sanitizer": 0.0,
-                "markdown_formatter": 0.0,
+                "text_stylizer": 0.0,
             }
             return PipelineResult(text="", diff="", step_times_ms=empty_timings)
 
@@ -123,7 +126,7 @@ class PostProcessingPipeline:
             "code_mode": 0.0,
             "homophone_corrector": 0.0,
             "final_sanitizer": 0.0,
-            "markdown_formatter": 0.0,
+            "text_stylizer": 0.0,
         }
 
         steps: list[tuple[str, bool, callable]] = [
@@ -156,17 +159,16 @@ class PostProcessingPipeline:
 
         final_text = "".join(processed_chunks)
 
-        # Full-text markdown formatting (runs on joined output, not per-chunk,
-        # because topic detection requires the complete transcript).
-        if self.config.enable_markdown:
+        # Full-text stylization (runs on joined output, not per-chunk).
+        if self.config.stylization_profile != "off":
             start = time.perf_counter()
             try:
-                formatted = self.markdown_formatter.format(final_text)
-                if formatted:
-                    final_text = formatted
+                styled = self.text_stylizer.stylize(final_text, self.config.stylization_profile)
+                if styled:
+                    final_text = styled
             except Exception as exc:
-                logger.warning("Markdown formatting failed; keeping plain text: %s", exc)
-            step_times["markdown_formatter"] = (time.perf_counter() - start) * 1000.0
+                logger.warning("Text stylization failed; keeping plain text: %s", exc)
+            step_times["text_stylizer"] = (time.perf_counter() - start) * 1000.0
 
         diff = self._make_diff(original, final_text)
 
@@ -269,9 +271,10 @@ def _build_cli_parser() -> argparse.ArgumentParser:
     parser.add_argument("--no-domain", action="store_true", help="Disable domain corrections")
     parser.add_argument("--no-numeric", action="store_true", help="Disable numeric formatting")
     parser.add_argument("--no-final-sanitizer", action="store_true", help="Disable final regex sanitizer")
-    parser.add_argument("--markdown", action="store_true", help="Enable LLM-powered markdown formatting")
+    parser.add_argument("--stylize", choices=["off", "clean", "casual", "formal", "technical"], default="off", help="Stylization profile")
     parser.add_argument("--homophone-model", default="llama3.2:3b", help="Ollama model for homophone correction")
-    parser.add_argument("--markdown-model", default="llama3:8b", help="Ollama model for markdown formatting")
+    parser.add_argument("--ollama-model", default="llama3.2:3b", help="Ollama model for stylization")
+    parser.add_argument("--ollama-endpoint", default="http://127.0.0.1:11434", help="Ollama API endpoint")
     parser.add_argument("--max-chunk-chars", type=int, default=6000, help="Chunk size for long transcripts")
     return parser
 
@@ -287,10 +290,11 @@ def main() -> int:
         enable_code_mode=args.code_mode,
         enable_homophone=not args.no_homophone,
         enable_final_sanitizer=not args.no_final_sanitizer,
-        enable_markdown=args.markdown,
         domains=list(args.domains),
         homophone_model=args.homophone_model,
-        markdown_model=args.markdown_model,
+        stylization_profile=args.stylize,
+        ollama_model=args.ollama_model,
+        ollama_endpoint=args.ollama_endpoint,
         max_chunk_chars=max(500, args.max_chunk_chars),
     )
 
