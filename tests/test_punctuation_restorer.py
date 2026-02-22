@@ -84,6 +84,10 @@ class TestTokenizePreservingPunct(unittest.TestCase):
         ])
 
 
+@unittest.skipIf(
+    os.environ.get("GITHUB_ACTIONS") == "true",
+    "Skipping: HuggingFace model download not allowed in GitHub Actions",
+)
 class TestRestorePunctuation(unittest.TestCase):
     """Integration tests for restore_punctuation (requires model).
 
@@ -93,10 +97,7 @@ class TestRestorePunctuation(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        """Try to load the model once; skip all tests if it fails or if in CI."""
-        if os.environ.get("GITHUB_ACTIONS") == "true":
-            raise unittest.SkipTest("Skipping punctuation model tests in GitHub Actions environment")
-            
+        """Try to load the model once; skip all tests if it fails."""
         from whisper_local.processing.punctuation_restorer import _get_model
         if _get_model() is None:
             raise unittest.SkipTest("Punctuation model not available")
