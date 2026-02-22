@@ -17,8 +17,8 @@ mypy==1.7.1
 pylint==3.0.3
 
 # Security
-pip-audit==2.6.1
-safety==2.3.5
+pip-audit
+safety
 
 # Type stubs
 types-Pillow==10.1.0.2
