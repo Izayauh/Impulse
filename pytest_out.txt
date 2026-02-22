@@ -1,0 +1,289 @@
+============================= test session starts =============================
+platform win32 -- Python 3.12.10, pytest-7.4.3, pluggy-1.6.0 -- C:\Users\isaia\AppData\Local\Programs\Python\Python312\python.exe
+cachedir: .pytest_cache
+rootdir: C:\Users\isaia\Desktop\Orojects\Projects\Whisper
+configfile: pytest.ini
+plugins: anyio-4.12.1, langsmith-0.4.56, asyncio-0.21.1
+asyncio: mode=Mode.STRICT
+collecting ... [DEBUG] get_user_data_dir (flow_local_dictation.py): C:\Users\isaia\Desktop\Orojects\Projects\Whisper\output
+[DEBUG] get_user_data_dir (flow_local_dictation.py): C:\Users\isaia\Desktop\Orojects\Projects\Whisper\output
+[DEBUG] Stats tracker initialized with file: C:\Users\isaia\Desktop\Orojects\Projects\Whisper\output\state\whisper_stats.json
+[SESSION] App started with 89425 total words
+[DEBUG] Achievement tracker initialized
+[DEBUG] get_user_data_dir (flow_local_dictation.py): C:\Users\isaia\Desktop\Orojects\Projects\Whisper\output
+[DEBUG] get_user_data_dir (flow_local_dictation.py): C:\Users\isaia\Desktop\Orojects\Projects\Whisper\output
+collected 333 items
+
+tests/test_audio.py::TestAudioConfiguration::test_channels_defined PASSED
+tests/test_audio.py::TestAudioConfiguration::test_channels_valid PASSED
+tests/test_audio.py::TestAudioConfiguration::test_sample_rate_defined PASSED
+tests/test_audio.py::TestAudioConfiguration::test_sample_rate_valid PASSED
+tests/test_audio.py::TestVoiceActivityDetection::test_rms_calculation_loud_audio PASSED
+tests/test_audio.py::TestVoiceActivityDetection::test_rms_calculation_silent_audio PASSED
+tests/test_audio.py::TestVoiceActivityDetection::test_rms_calculation_variable_audio PASSED
+tests/test_audio.py::TestVoiceActivityDetection::test_rms_threshold_defined PASSED
+tests/test_audio.py::TestVoiceActivityDetection::test_silence_threshold_defined PASSED
+tests/test_audio.py::TestVoiceActivityDetection::test_voice_threshold_reasonable PASSED
+tests/test_audio.py::TestAudioTiming::test_audio_block_duration PASSED
+tests/test_audio.py::TestAudioTiming::test_min_speech_duration PASSED
+tests/test_audio.py::TestAudioTiming::test_postroll_duration PASSED
+tests/test_audio.py::TestAudioPathResolution::test_wav_path_in_user_directory [DEBUG] get_user_data_dir (flow_local_dictation.py): C:\Users\isaia\Desktop\Orojects\Projects\Whisper\output
+PASSED
+tests/test_audio.py::TestAudioPathResolution::test_wav_tmp_path_defined PASSED
+tests/test_audio.py::TestAudioDeviceSelection::test_audio_device_query PASSED
+tests/test_audio.py::TestAudioDeviceSelection::test_input_device_configuration PASSED
+tests/test_audio.py::TestAudioRecordingState::test_recording_flag_exists PASSED
+tests/test_audio.py::TestAudioRecordingState::test_state_lock_exists PASSED
+tests/test_audio_ducking.py::TestAudioDuckingSessionManager::test_activate_release_restores_original_volume PASSED
+tests/test_audio_ducking.py::TestAudioDuckingSessionManager::test_force_restore_clears_duck_state PASSED
+tests/test_audio_ducking.py::TestAudioDuckingSessionManager::test_nested_holds_do_not_restore_early PASSED
+tests/test_audio_ducking.py::TestAudioDuckingSessionManager::test_repeated_cycles_do_not_drift_volume PASSED
+tests/test_audio_ducking.py::TestAudioDuckingSessionManager::test_restore_stale_state_from_previous_run PASSED
+tests/test_brain.py::TestContextRouter::test_empty_input_returns_default PASSED
+tests/test_brain.py::TestContextRouter::test_invalid_schema_falls_back PASSED
+tests/test_brain.py::TestContextRouter::test_non_json_falls_back PASSED
+tests/test_brain.py::TestContextRouter::test_ollama_offline_falls_back PASSED
+tests/test_brain.py::TestContextRouter::test_prompt_uses_structural_delimiters PASSED
+tests/test_brain.py::TestContextRouter::test_valid_json_is_parsed PASSED
+tests/test_brain.py::TestContextRouter::test_wrapped_json_is_extracted PASSED
+tests/test_code_mode.py::TestCodeModeExamples::test_camel_and_snake PASSED
+tests/test_code_mode.py::TestCodeModeExamples::test_def_init_signature PASSED
+tests/test_code_mode.py::TestCodeModeExamples::test_library_alias_normalization PASSED
+tests/test_code_mode.py::TestCodeModeToggle::test_disabled_passthrough PASSED
+tests/test_code_mode.py::TestCodeModeToggle::test_enable_after_init PASSED
+tests/test_code_mode.py::TestCodeModeIntelligence::test_auto_detect_handles_code_context PASSED
+tests/test_code_mode.py::TestCodeModeIntelligence::test_auto_detect_skips_prose PASSED
+tests/test_code_mode.py::TestCodeModeIntelligence::test_intent_scoring_prefers_code PASSED
+tests/test_code_mode.py::TestCodeModeIntelligence::test_operator_mapping_for_code_blocks PASSED
+tests/test_core.py::TestSanitizeTranscript::test_basic_text PASSED
+tests/test_core.py::TestSanitizeTranscript::test_collapse_repetition_artifacts_preserves_short_repeats PASSED
+tests/test_core.py::TestSanitizeTranscript::test_collapse_repetition_artifacts_removes_duplicate_sentences PASSED
+tests/test_core.py::TestSanitizeTranscript::test_empty_input PASSED
+tests/test_core.py::TestSanitizeTranscript::test_handles_large_input WARNING: Transcript too large (1049576 bytes), truncating to 1048576
+PASSED
+tests/test_core.py::TestSanitizeTranscript::test_handles_many_lines WARNING: Transcript has too many lines (10001+), truncating
+PASSED
+tests/test_core.py::TestSanitizeTranscript::test_preserves_multiline_content PASSED
+tests/test_core.py::TestSanitizeTranscript::test_removes_blank_audio PASSED
+tests/test_core.py::TestSanitizeTranscript::test_removes_deprecation_notices PASSED
+tests/test_core.py::TestSanitizeTranscript::test_removes_github_notices PASSED
+tests/test_core.py::TestSanitizeTranscript::test_removes_please_use_notices PASSED
+tests/test_core.py::TestSanitizeTranscript::test_removes_warning_lines PASSED
+tests/test_core.py::TestSanitizeTranscript::test_strips_whitespace PASSED
+tests/test_core.py::TestStatsTracker::test_get_today_words PASSED
+tests/test_core.py::TestStatsTracker::test_get_week_words PASSED
+tests/test_core.py::TestStatsTracker::test_initial_stats PASSED
+tests/test_core.py::TestStatsTracker::test_load_sanitizes_implausible_wpm_history PASSED
+tests/test_core.py::TestStatsTracker::test_milestones Milestone achieved: 1K Words!
+PASSED
+tests/test_core.py::TestStatsTracker::test_model_usage_tracking PASSED
+tests/test_core.py::TestStatsTracker::test_persistence PASSED
+tests/test_core.py::TestStatsTracker::test_recent_transcripts PASSED
+tests/test_core.py::TestStatsTracker::test_recent_transcripts_limit PASSED
+tests/test_core.py::TestStatsTracker::test_record_empty_transcription PASSED
+tests/test_core.py::TestStatsTracker::test_record_transcription PASSED
+tests/test_core.py::TestStatsTracker::test_record_transcription_with_wpm WPM Milestone achieved: First Steps (50 WPM)!
+PASSED
+tests/test_core.py::TestStatsTracker::test_streak_calculation PASSED
+tests/test_core.py::TestModelSelection::test_model_paths_defined PASSED
+tests/test_core.py::TestModelSelection::test_word_thresholds_defined PASSED
+tests/test_core.py::TestPathResolution::test_get_app_dir PASSED
+tests/test_core.py::TestPathResolution::test_get_bundle_dir PASSED
+tests/test_core.py::TestPathResolution::test_get_user_data_dir [DEBUG] get_user_data_dir (flow_local_dictation.py): C:\Users\isaia\Desktop\Orojects\Projects\Whisper\output
+PASSED
+tests/test_core.py::TestPathResolution::test_is_frozen PASSED
+tests/test_core.py::TestTextPostProcessing::test_apply_commands PASSED
+tests/test_core.py::TestTextPostProcessing::test_scrub_fillers PASSED
+tests/test_core.py::TestTextPostProcessing::test_to_bullets FAILED
+tests/test_core.py::TestVocabularyPostProcessing::test_apply_vocabulary_corrections_handles_punctuation_terms PASSED
+tests/test_core.py::TestVocabularyPostProcessing::test_apply_vocabulary_corrections_preserves_case_style PASSED
+tests/test_core.py::TestVocabularyPostProcessing::test_postprocess_runs_vocabulary_stage_before_domain_passes [Context] Preserving casing for unit-test
+PASSED
+tests/test_core.py::TestFuzzyVocabularyMatching::test_full_pipeline_with_fuzzy [vocab-fuzzy] 'able ton live' -> 'ableton live' (score=1.00)
+PASSED
+tests/test_core.py::TestFuzzyVocabularyMatching::test_fuzzy_catches_minor_misspelling [vocab-fuzzy] 'Isaih' -> 'Isaiah' (score=0.91)
+PASSED
+tests/test_core.py::TestFuzzyVocabularyMatching::test_fuzzy_catches_split_compound [vocab-fuzzy] 'bid fta' -> 'bidfta' (score=1.00)
+PASSED
+tests/test_core.py::TestFuzzyVocabularyMatching::test_fuzzy_catches_word_splitting [vocab-fuzzy] 'able ton live' -> 'ableton live' (score=1.00)
+PASSED
+tests/test_core.py::TestFuzzyVocabularyMatching::test_fuzzy_does_not_false_positive PASSED
+tests/test_core.py::TestFuzzyVocabularyMatching::test_fuzzy_multiword_priority [vocab-fuzzy] 'whisper locale directory' -> 'whisper local directory' (score=0.98)
+PASSED
+tests/test_core.py::TestFuzzyVocabularyMatching::test_fuzzy_skips_exact_matches PASSED
+tests/test_core.py::TestFuzzySnippetMatching::test_full_apply_snippets_with_fuzzy PASSED
+tests/test_core.py::TestFuzzySnippetMatching::test_fuzzy_catches_near_miss_trigger PASSED
+tests/test_core.py::TestFuzzySnippetMatching::test_fuzzy_does_not_false_positive PASSED
+tests/test_core.py::TestFuzzySnippetMatching::test_fuzzy_skips_exact_match PASSED
+tests/test_core.py::TestConfigValidation::test_channels_valid PASSED
+tests/test_core.py::TestConfigValidation::test_sample_rate_valid PASSED
+tests/test_core.py::TestConfigValidation::test_timeout_reasonable PASSED
+tests/test_core.py::TestInputValidationConstants::test_max_line_length PASSED
+tests/test_core.py::TestInputValidationConstants::test_max_transcript_bytes PASSED
+tests/test_core.py::TestInputValidationConstants::test_max_transcript_lines PASSED
+tests/test_dashboard_wiring.py::TestDashboardOpenWiring::test_pill_dashboard_action_routes_through_shared_launcher PASSED
+tests/test_dashboard_wiring.py::TestDashboardOpenWiring::test_shared_launcher_spawns_thread_with_gui_host_open_dashboard PASSED
+tests/test_dashboard_wiring.py::TestDashboardOpenWiring::test_tray_dashboard_action_routes_through_shared_launcher PASSED
+tests/test_dashboard_wiring.py::TestDashboardSpawnProcess::test_spawn_falls_back_to_module_and_sets_src_pythonpath PASSED
+tests/test_dashboard_wiring.py::TestDashboardSpawnProcess::test_spawn_uses_bootstrap_script_when_available PASSED
+tests/test_dashboard_wiring.py::TestDashboardRealtimeRefreshPath::test_dashboard_api_migrates_legacy_achievements_into_state_file [StatsController] Migrated 1 days from JSON to SQLite
+[AppApi] Migrated achievements from C:\Users\isaia\AppData\Local\Temp\tmp2h2y29s2\whisper_achievements.json -> C:\Users\isaia\AppData\Local\Temp\tmp2h2y29s2\state\whisper_achievements.json
+PASSED
+tests/test_dashboard_wiring.py::TestDashboardRealtimeRefreshPath::test_dashboard_api_migrates_legacy_stats_into_canonical_state_file [AppApi] Migrated stats from C:\Users\isaia\AppData\Local\Temp\tmpwtcpwonz\whisper_stats.json -> C:\Users\isaia\AppData\Local\Temp\tmpwtcpwonz\state\whisper_stats.json
+DEBUG: Loaded 1 days of history and 321 XP from C:\Users\isaia\AppData\Local\Temp\tmpwtcpwonz\state\whisper_stats.json
+PASSED
+tests/test_dashboard_wiring.py::TestDashboardRealtimeRefreshPath::test_dashboard_api_reflects_stats_tracker_updates_between_polls DEBUG: Loaded 0 days of history and 0 XP from C:\Users\isaia\AppData\Local\Temp\tmpa419i7dw\whisper_stats.json
+DEBUG: Loaded 1 days of history and 3 XP from C:\Users\isaia\AppData\Local\Temp\tmpa419i7dw\whisper_stats.json
+DEBUG: Loaded 1 days of history and 5 XP from C:\Users\isaia\AppData\Local\Temp\tmpa419i7dw\whisper_stats.json
+PASSED
+tests/test_dashboard_wiring.py::TestDashboardRealtimeRefreshPath::test_dashboard_hotkey_set_and_get_persists [StatsController] Migrated 1 days from JSON to SQLite
+PASSED
+tests/test_dashboard_wiring.py::TestDashboardRealtimeRefreshPath::test_dashboard_model_mode_manual_and_auto_switch [StatsController] Migrated 1 days from JSON to SQLite
+PASSED
+tests/test_dashboard_wiring.py::TestDashboardRealtimeRefreshPath::test_dashboard_vocabulary_add_word_persists [StatsController] Migrated 1 days from JSON to SQLite
+PASSED
+tests/test_domain_corrections.py::TestAudioEngineeringWhisperOutputs::test_case1_voltage_phantom_power PASSED
+tests/test_domain_corrections.py::TestAudioEngineeringWhisperOutputs::test_case2_gear_names PASSED
+tests/test_domain_corrections.py::TestAudioEngineeringWhisperOutputs::test_case3_file_format_bit_depth_sample_rate PASSED
+tests/test_domain_corrections.py::TestAudioEngineeringWhisperOutputs::test_case4_thdn_signal_to_noise PASSED
+tests/test_domain_corrections.py::TestAudioEngineeringWhisperOutputs::test_case5_hpf_hertz_q_factor PASSED
+tests/test_domain_corrections.py::TestUnitFormatting::test_db_with_space PASSED
+tests/test_domain_corrections.py::TestUnitFormatting::test_hertz_spelled_out PASSED
+tests/test_domain_corrections.py::TestUnitFormatting::test_hz_abbreviated_with_space PASSED
+tests/test_domain_corrections.py::TestUnitFormatting::test_khz_abbreviated_with_space PASSED
+tests/test_domain_corrections.py::TestUnitFormatting::test_kilohertz_spelled_out PASSED
+tests/test_domain_corrections.py::TestUnitFormatting::test_standalone_db_casing PASSED
+tests/test_domain_corrections.py::TestUnitFormatting::test_standalone_hz_casing PASSED
+tests/test_domain_corrections.py::TestUnitFormatting::test_standalone_khz_casing PASSED
+tests/test_domain_corrections.py::TestUnitFormatting::test_voltage_already_correct PASSED
+tests/test_domain_corrections.py::TestUnitFormatting::test_voltage_collapse PASSED
+tests/test_domain_corrections.py::TestTechnicalTerms::test_bit_depth_hyphen_removed PASSED
+tests/test_domain_corrections.py::TestTechnicalTerms::test_bit_depth_space PASSED
+tests/test_domain_corrections.py::TestTechnicalTerms::test_high_pass_filter PASSED
+tests/test_domain_corrections.py::TestTechnicalTerms::test_low_pass_filter PASSED
+tests/test_domain_corrections.py::TestTechnicalTerms::test_phantom_power_with_voltage PASSED
+tests/test_domain_corrections.py::TestTechnicalTerms::test_phantom_power_without_voltage PASSED
+tests/test_domain_corrections.py::TestTechnicalTerms::test_q_factor PASSED
+tests/test_domain_corrections.py::TestTechnicalTerms::test_signal_to_noise PASSED
+tests/test_domain_corrections.py::TestTechnicalTerms::test_thdn_no_spaces PASSED
+tests/test_domain_corrections.py::TestTechnicalTerms::test_thdn_with_spaces PASSED
+tests/test_domain_corrections.py::TestFileFormats::test_flac PASSED
+tests/test_domain_corrections.py::TestFileFormats::test_mp3_no_space PASSED
+tests/test_domain_corrections.py::TestFileFormats::test_mp3_with_space PASSED
+tests/test_domain_corrections.py::TestFileFormats::test_wave_file PASSED
+tests/test_domain_corrections.py::TestFileFormats::test_wave_format PASSED
+tests/test_domain_corrections.py::TestGearBrandNames::test_already_correct_casing PASSED
+tests/test_domain_corrections.py::TestGearBrandNames::test_shure PASSED
+tests/test_domain_corrections.py::TestGearBrandNames::test_sm7b PASSED
+tests/test_domain_corrections.py::TestGearBrandNames::test_xlr PASSED
+tests/test_domain_corrections.py::TestProtectedRegions::test_double_quoted_string PASSED
+tests/test_domain_corrections.py::TestProtectedRegions::test_fenced_code_block PASSED
+tests/test_domain_corrections.py::TestProtectedRegions::test_inline_code PASSED
+tests/test_domain_corrections.py::TestProtectedRegions::test_text_outside_quotes_still_corrected PASSED
+tests/test_domain_corrections.py::TestEdgeCases::test_case_insensitive_input PASSED
+tests/test_domain_corrections.py::TestEdgeCases::test_empty_string PASSED
+tests/test_domain_corrections.py::TestEdgeCases::test_multiple_corrections_one_sentence PASSED
+tests/test_domain_corrections.py::TestEdgeCases::test_no_corrections_needed PASSED
+tests/test_domain_corrections.py::TestEdgeCases::test_none_passthrough PASSED
+tests/test_domain_corrections.py::TestProfileManagement::test_duplicate_profile_applies_twice_harmlessly PASSED
+tests/test_domain_corrections.py::TestProfileManagement::test_empty_profiles_list PASSED
+tests/test_domain_corrections.py::TestProfileManagement::test_unknown_profile_raises PASSED
+tests/test_final_sanitizer.py::TestFinalSanitizer::test_audio_queue_glitch_to_q_factor PASSED
+tests/test_final_sanitizer.py::TestFinalSanitizer::test_death_metal_not_modified PASSED
+tests/test_final_sanitizer.py::TestFinalSanitizer::test_endpoint_colon_to_symbol PASSED
+tests/test_final_sanitizer.py::TestFinalSanitizer::test_grandma_vocative_comma PASSED
+tests/test_final_sanitizer.py::TestFinalSanitizer::test_maker_wright_name_patch PASSED
+tests/test_final_sanitizer.py::TestFinalSanitizer::test_plain_colon_word_not_forced PASSED
+tests/test_final_sanitizer.py::TestFinalSanitizer::test_python_accent_and_init_signature PASSED
+tests/test_flow_code_mode_integration.py::TestFlowCodeModeIntegration::test_detect_code_formatting_applies_code_transforms PASSED
+tests/test_flow_code_mode_integration.py::TestFlowCodeModeIntegration::test_detect_code_formatting_preserves_prose PASSED
+tests/test_homophone_corrector.py::TestHomophoneCorrectorExamples::test_case_no_know_your_youre_to_too PASSED
+tests/test_homophone_corrector.py::TestHomophoneCorrectorExamples::test_case_there_their_theyre PASSED
+tests/test_homophone_corrector.py::TestHomophoneCorrectorExamples::test_case_write_right_wright PASSED
+tests/test_homophone_corrector.py::TestHomophoneCorrectorFallback::test_disabled_passthrough PASSED
+tests/test_homophone_corrector.py::TestHomophoneCorrectorFallback::test_llm_failure_returns_unchanged PASSED
+tests/test_homophone_corrector.py::TestHomophoneCorrectorFallback::test_ollama_unavailable_returns_unchanged PASSED
+tests/test_homophone_corrector.py::TestHomophoneGroups::test_has_minimum_group_count PASSED
+tests/test_homophone_corrector.py::TestHomophonePromptHardening::test_query_prompt_uses_structural_delimiters PASSED
+tests/test_hotkey_settings.py::TestHotkeySettings::test_load_hotkey_defaults_when_file_missing PASSED
+tests/test_hotkey_settings.py::TestHotkeySettings::test_set_and_load_hotkey_round_trip PASSED
+tests/test_hotkey_settings.py::TestHotkeySettings::test_set_hotkey_raises_for_invalid_combo PASSED
+tests/test_hotkey_settings.py::TestHotkeySettings::test_try_normalize_hotkey_accepts_modifier_combo PASSED
+tests/test_hotkey_settings.py::TestHotkeySettings::test_try_normalize_hotkey_rejects_single_key PASSED
+tests/test_main_wiring.py::TestContextAwareAgent::test_command_intent_reads_file_and_answers_with_llm PASSED
+tests/test_main_wiring.py::TestContextAwareAgent::test_command_missing_filename_falls_back PASSED
+tests/test_main_wiring.py::TestContextAwareAgent::test_command_ollama_failure_falls_back_to_raw_transcription PASSED
+tests/test_main_wiring.py::TestContextAwareAgent::test_correction_intent_uses_grammar_tool PASSED
+tests/test_main_wiring.py::TestContextAwareAgent::test_transcribe_intent_passthrough PASSED
+tests/test_markdown_formatter.py::TestMarkdownFormatterDisabled::test_disabled_returns_text_unchanged PASSED
+tests/test_markdown_formatter.py::TestMarkdownFormatterDisabled::test_empty_input_returns_empty PASSED
+tests/test_markdown_formatter.py::TestMarkdownFormatterDisabled::test_whitespace_only_returns_unchanged PASSED
+tests/test_markdown_formatter.py::TestMarkdownFormatterPrompt::test_prompt_contains_all_nine_examples PASSED
+tests/test_markdown_formatter.py::TestMarkdownFormatterPrompt::test_prompt_contains_catch_all_rule PASSED
+tests/test_markdown_formatter.py::TestMarkdownFormatterPrompt::test_prompt_contains_core_rules PASSED
+tests/test_markdown_formatter.py::TestCodeFenceStripping::test_fence_with_trailing_whitespace PASSED
+tests/test_markdown_formatter.py::TestCodeFenceStripping::test_no_fence_unchanged PASSED
+tests/test_markdown_formatter.py::TestCodeFenceStripping::test_strip_markdown_fence PASSED
+tests/test_markdown_formatter.py::TestCodeFenceStripping::test_strip_plain_fence PASSED
+tests/test_markdown_formatter.py::TestOllamaUnavailable::test_ollama_unavailable_returns_original PASSED
+tests/test_markdown_formatter.py::TestSuccessfulFormatting::test_formats_text_via_ollama PASSED
+tests/test_markdown_formatter.py::TestSuccessfulFormatting::test_strips_code_fence_from_response PASSED
+tests/test_markdown_formatter.py::TestErrorFallback::test_empty_response_returns_original PASSED
+tests/test_markdown_formatter.py::TestErrorFallback::test_timeout_returns_original PASSED
+tests/test_markdown_formatter.py::TestPipelineIntegration::test_pipeline_config_has_markdown_fields PASSED
+tests/test_markdown_formatter.py::TestPipelineIntegration::test_pipeline_disabled_markdown_passthrough PASSED
+tests/test_markdown_formatter.py::TestPipelineIntegration::test_pipeline_step_times_include_markdown PASSED
+tests/test_model_selection.py::TestModelSelectionHelpers::test_apply_auto_mode_switches_to_large_when_vram_above_8gb PASSED
+tests/test_model_selection.py::TestModelSelectionHelpers::test_apply_manual_mode_sets_active_model PASSED
+tests/test_model_selection.py::TestModelSelectionHelpers::test_load_missing_state_returns_defaults PASSED
+tests/test_model_selection.py::TestModelSelectionHelpers::test_refresh_auto_state_updates_active_model PASSED
+tests/test_model_selection.py::TestModelSelectionHelpers::test_save_and_load_round_trip PASSED
+tests/test_numeric_formatter.py::TestWhisperOutputCases::test_decimal PASSED
+tests/test_numeric_formatter.py::TestWhisperOutputCases::test_ip_with_port PASSED
+tests/test_numeric_formatter.py::TestWhisperOutputCases::test_sentence_boundary_preserved PASSED
+tests/test_numeric_formatter.py::TestIPAddresses::test_already_correct PASSED
+tests/test_numeric_formatter.py::TestIPAddresses::test_fully_spaced PASSED
+tests/test_numeric_formatter.py::TestIPAddresses::test_ip_in_sentence PASSED
+tests/test_numeric_formatter.py::TestIPAddresses::test_ip_no_port PASSED
+tests/test_numeric_formatter.py::TestIPAddresses::test_mixed_spacing PASSED
+tests/test_numeric_formatter.py::TestIPAddresses::test_with_spaced_port PASSED
+tests/test_numeric_formatter.py::TestPortNumbers::test_port_after_ip_no_space PASSED
+tests/test_numeric_formatter.py::TestPortNumbers::test_port_after_ip_with_space PASSED
+tests/test_numeric_formatter.py::TestPortNumbers::test_port_both_spaces PASSED
+tests/test_numeric_formatter.py::TestPortNumbers::test_standalone_colon_number_untouched PASSED
+tests/test_numeric_formatter.py::TestPortNumbers::test_time_format_untouched PASSED
+tests/test_numeric_formatter.py::TestDecimalNumbers::test_already_correct PASSED
+tests/test_numeric_formatter.py::TestDecimalNumbers::test_decimal_in_sentence PASSED
+tests/test_numeric_formatter.py::TestDecimalNumbers::test_multiple_decimals PASSED
+tests/test_numeric_formatter.py::TestDecimalNumbers::test_pi PASSED
+tests/test_numeric_formatter.py::TestDecimalNumbers::test_space_after_dot PASSED
+tests/test_numeric_formatter.py::TestDecimalNumbers::test_space_before_dot PASSED
+tests/test_numeric_formatter.py::TestDecimalNumbers::test_space_both_sides PASSED
+tests/test_numeric_formatter.py::TestVersionNumbers::test_already_correct PASSED
+tests/test_numeric_formatter.py::TestVersionNumbers::test_three_part PASSED
+tests/test_numeric_formatter.py::TestVersionNumbers::test_two_part_version PASSED
+tests/test_numeric_formatter.py::TestSentenceBoundaries::test_digit_then_lowercase_collapses PASSED
+tests/test_numeric_formatter.py::TestSentenceBoundaries::test_digit_then_uppercase_word PASSED
+tests/test_numeric_formatter.py::TestSentenceBoundaries::test_next_word_capitalized PASSED
+tests/test_numeric_formatter.py::TestSentenceBoundaries::test_no_digit_after_period PASSED
+tests/test_numeric_formatter.py::TestEdgeCases::test_does_not_extend_collapsed_ip PASSED
+tests/test_numeric_formatter.py::TestEdgeCases::test_empty PASSED
+tests/test_numeric_formatter.py::TestEdgeCases::test_ip_then_sentence PASSED
+tests/test_numeric_formatter.py::TestEdgeCases::test_no_numbers PASSED
+tests/test_post_processor.py::TestPostProcessorBasics::test_chunking_for_long_input PASSED
+tests/test_post_processor.py::TestPostProcessorBasics::test_empty_input PASSED
+tests/test_post_processor.py::TestPostProcessorBasics::test_final_sanitizer_glitch_cleanup PASSED
+tests/test_post_processor.py::TestPostProcessorBasics::test_unknown_domain_does_not_crash PASSED
+tests/test_post_processor.py::TestPostProcessorResilience::test_step_failure_does_not_kill_pipeline PASSED
+tests/test_post_processor.py::TestPostProcessorIntegration::test_real_whisper_sample_pipeline PASSED
+tests/test_punctuation_restorer.py::TestCapitalizeSentences::test_capitalize_after_exclamation PASSED
+tests/test_punctuation_restorer.py::TestCapitalizeSentences::test_capitalize_after_period PASSED
+tests/test_punctuation_restorer.py::TestCapitalizeSentences::test_capitalize_after_question_mark PASSED
+tests/test_punctuation_restorer.py::TestCapitalizeSentences::test_capitalize_first_word PASSED
+tests/test_punctuation_restorer.py::TestCapitalizeSentences::test_capitalize_pronoun_i PASSED
+tests/test_punctuation_restorer.py::TestCapitalizeSentences::test_empty_string PASSED
+tests/test_punctuation_restorer.py::TestCapitalizeSentences::test_preserves_existing_caps PASSED
+tests/test_punctuation_restorer.py::TestTokenizePreservingPunct::test_multiple_punct_marks PASSED
+tests/test_punctuation_restorer.py::TestTokenizePreservingPunct::test_no_punctuation PASSED
+tests/test_punctuation_restorer.py::TestTokenizePreservingPunct::test_trailing_comma PASSED
+tests/test_punctuation_restorer.py::TestTokenizePreservingPunct::test_trailing_period PASSED
