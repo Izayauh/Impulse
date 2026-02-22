@@ -24,7 +24,7 @@ jobs:
         python-version: ${{ matrix.python-version }}
     
     - name: Cache pip packages
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         path: ~\AppData\Local\pip\Cache
         key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements*.txt') }}
@@ -51,7 +51,7 @@ jobs:
         fail_ci_if_error: false
     
     - name: Archive coverage reports
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: coverage-report-${{ matrix.python-version }}
         path: htmlcov/
@@ -148,4 +148,3 @@ jobs:
         python -c "import sounddevice; print('sounddevice:', sounddevice.__version__)"
         python -c "import numpy; print('numpy:', numpy.__version__)"
         python -c "import tkinter; print('tkinter available')"
-
