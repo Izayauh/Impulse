@@ -345,13 +345,24 @@ class TestTextPostProcessing(unittest.TestCase):
         self.assertIn("\n", result)
     
     def test_to_bullets(self):
-        """Text is converted to bullet list."""
+        """Text with a bullet trigger is converted to bullet list."""
         from whisper_local.flow_local_dictation import to_bullets
-        
+
+        # to_bullets only activates when a trigger word is present
+        text = "make a list apples and oranges and bananas"
+        result = to_bullets(text)
+
+        self.assertIn("\u2022", result)
+        self.assertIn("apples", result.lower())
+
+    def test_to_bullets_no_trigger(self):
+        """Text WITHOUT a trigger keyword is returned unchanged."""
+        from whisper_local.flow_local_dictation import to_bullets
+
         text = "apples and oranges and bananas"
         result = to_bullets(text)
-        
-        self.assertIn("-", result)
+
+        self.assertEqual(result, text)
 
 
 class TestVocabularyPostProcessing(unittest.TestCase):
@@ -565,5 +576,3 @@ class TestInputValidationConstants(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-
-
