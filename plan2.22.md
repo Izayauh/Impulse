@@ -9,7 +9,7 @@
 
 ### Core Dictation & LLM Features (Next Priorities)
 - [ ] Refine Stylization profiles & Ollama integration strategy
-- [ ] Implement Continual Context memorization
+- [x] **Implement Continual Context memorization**: After each transcription a daemon thread calls `extract_and_learn()` (Ollama `/api/generate`, non-blocking) to extract proper nouns/technical terms and add genuinely new ones to `continual_context.json`. Ollama offline → silent no-op. Capped at 10 words per transcription. Fixed `load_context()` mutable-default-list bug. Added `tests/test_continual_context.py` (8 tests, 336 total pass).
 
 ### Quality of Life
 - [ ] Improve dictionary feature
