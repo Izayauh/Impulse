@@ -35,12 +35,12 @@
     <aside class="sidebar">
       <div class="sidebar-brand">
         <div class="brand-logo"
-          style="display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; margin-right: 8px;">
-          <img src="assets/mic_logo.png" alt="Impulse Logo" style="width: 100%; height: auto; object-fit: contain;">
+          style="display: flex; align-items: center; justify-content: center; width: 36px; height: 36px; margin-right: 4px; border-radius: 12px; background: linear-gradient(135deg, var(--bg) 0%, rgba(20, 20, 26, 0.8) 100%); border: 1px solid var(--accent-border); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1), 0 0 15px var(--accent-glow);">
+          <img src="assets/mic_logo.png" alt="Impulse Logo"
+            style="width: 20px; height: 20px; object-fit: contain; filter: drop-shadow(0 0 4px var(--accent));">
         </div>
         <div>
           <h1 style="margin: 0; line-height: 1;">Impulse</h1>
-          <p id="sidebar-level" data-bind="stats.level" style="margin: 0; line-height: 1;">Lvl 9</p>
         </div>
       </div>
 
@@ -453,25 +453,34 @@
     // renderHome() composes them into the full home layout.
     // ================================================================
 
-    /**
-     * Renders the welcome banner with user greeting, metric chips, and XP progress bar.
-     * Data source: Bridge.stats.get() → stats.userName, stats.level, stats.xp, stats.dayStreak
-     */
     function renderWelcomeHeader() {
       const weeklyTotal = weekWords();
       return `
-    <header class="card home-header WelcomeHeader" data-source="Bridge.stats.get" data-update-fn="renderWelcomeHeader">
+    <header class="card home-header WelcomeHeader" data-source="Bridge.stats.get" data-update-fn="renderWelcomeHeader" style="position:relative;">
+      <div style="position:absolute; top:-50px; right:-50px; width:150px; height:150px; background:var(--accent-glow); filter:blur(40px); border-radius:50%; pointer-events:none; animation:pulse-glow 4s infinite;"></div>
       <div class="welcome-row WelcomeHeader__row">
-        <div><h2>Welcome back, ${esc(stats.userName || 'Writer')}</h2><p>Voice performance at a glance.</p></div>
+        <div>
+          <h2 style="display:flex; align-items:center; gap:12px;">
+            <div style="width:48px; height:48px; border-radius:12px; background:linear-gradient(135deg, var(--bg) 0%, #1a1a20 100%); display:flex; align-items:center; justify-content:center; border:1px solid var(--accent-border); box-shadow:0 0 15px var(--accent-glow); position:relative;">
+              <span style="font-size:18px; color:var(--text);">WL</span>
+              <span style="position:absolute; bottom:-6px; right:-6px; background:linear-gradient(90deg, var(--accent), var(--accent-light)); font-size:9px; padding:2px 6px; border-radius:99px; box-shadow:0 0 10px var(--accent);">PRO</span>
+            </div>
+            Welcome back, ${esc(stats.userName || 'Writer')}
+          </h2>
+          <p>Voice performance at a glance.</p>
+        </div>
         <div class="header-metrics WelcomeHeader__metrics">
           <span class="metric-chip WelcomeHeader__chip" data-bind="stats.level">Lvl ${Number(stats.level) || 9}</span>
           <span class="metric-chip metric-chip-xp WelcomeHeader__chip" data-bind="stats.xp">${Number(stats.xp || 0).toLocaleString()} XP</span>
-          <span class="metric-chip metric-chip-streak WelcomeHeader__chip" data-bind="stats.dayStreak">${Number(stats.dayStreak || 0)} Day Streak</span>
+          <span class="metric-chip metric-chip-streak WelcomeHeader__chip" data-bind="stats.dayStreak" style="position:relative; overflow:hidden;">
+            <div style="position:absolute; inset:0; background:linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent); animation: shimmer 3s infinite;"></div>
+            🔥 ${Number(stats.dayStreak || 0)} Day Streak
+          </span>
           <span class="metric-chip metric-chip-week WelcomeHeader__chip" data-bind="stats.thisWeek">${Number(weeklyTotal || 0).toLocaleString()} Weekly Words</span>
         </div>
       </div>
       <div class="xp-block XpProgress">
-        <div class="xp-meta"><span>XP Progress</span><span>${Number(stats.xp || 0).toLocaleString()} / ${Number(stats.xpToNextLevel || 0).toLocaleString()}</span></div>
+        <div class="xp-meta"><span style="text-transform:uppercase; letter-spacing:0.1em; font-weight:700; color:var(--text);">Current Rank Progress</span><span style="color:var(--accent-light); font-weight:bold; drop-shadow:0 0 5px var(--accent-glow);">${Number(stats.xp || 0).toLocaleString()} / ${Number(stats.xpToNextLevel || 0).toLocaleString()}</span></div>
         <div class="xp-track XpProgress__track"><div class="xp-fill XpProgress__fill" data-bind="stats.xp / stats.xpToNextLevel" style="width:${xpPct()}%"></div></div>
       </div>
     </header>`;
@@ -489,12 +498,23 @@
       const bars = series.map((s, i) => {
         const words = Number(s.words) || 0;
         const heightPx = words === 0 ? 2 : Math.max(4, Math.round((words / m) * barMaxPx));
-        return `<div class="mini-bar-col ActivityGraph__bar ${i === series.length - 1 ? 'is-today ActivityGraph__bar--today' : ''}" data-bind="stats.last7Days[${i}].words" title="${esc(s.day)}: ${words.toLocaleString()} words"><div class="mini-bar-value ActivityGraph__value">${words.toLocaleString()}</div><div class="mini-bar" style="height:${heightPx}px"></div><span class="mini-day ActivityGraph__label">${esc(s.day)}</span></div>`;
+        return `<div class="mini-bar-col ActivityGraph__bar ${i === series.length - 1 ? 'is-today ActivityGraph__bar--today' : ''}" data-bind="stats.last7Days[${i}].words" title="${esc(s.day)}: ${words.toLocaleString()} words">
+          <div class="mini-bar-value ActivityGraph__value" style="font-weight:600; text-shadow:0 0 4px var(--accent-glow);">${words > 0 ? words.toLocaleString() : ''}</div>
+          <div class="mini-bar" style="height:${heightPx}px; border-radius:4px; box-shadow:0 0 10px ${i === series.length - 1 ? 'rgba(3,218,198,0.5)' : 'var(--accent-glow)'}; background:${i === series.length - 1 ? 'linear-gradient(180deg, rgba(3,218,198,0.9), rgba(3,218,198,0.2))' : 'linear-gradient(180deg, var(--accent), var(--accent-bg-strong))'}; transition:all 0.4s ease;"></div>
+          <span class="mini-day ActivityGraph__label" style="font-weight:500;">${esc(s.day)}</span>
+        </div>`;
       }).join('');
       return `
-    <section class="card mini-activity ActivityGraph" data-source="Bridge.stats.getChartData" data-update-fn="renderActivityGraph">
-      <div class="mini-activity-head"><h3>Weekly activity</h3><strong>${Number(weeklyTotal || 0).toLocaleString()} words</strong></div>
-      <div class="mini-bars">${bars}</div>
+    <section class="card home-right-chart ActivityGraph" data-source="Bridge.stats.get" data-update-fn="renderActivityGraph" style="position:relative; overflow:hidden;">
+      <div style="position:absolute; bottom:-50px; left:-50px; width:150px; height:150px; background:var(--accent-glow); filter:blur(40px); border-radius:50%; pointer-events:none;"></div>
+      <div class="hero-card" style="position:relative; z-index:2; margin-bottom:16px;">
+        <div>
+          <h3 style="font-weight:800; font-size:22px;">Velocity</h3>
+          <p style="color:var(--muted); font-size:13px;">Words transcribed last 7 days</p>
+        </div>
+        <div style="font-size:28px; filter:drop-shadow(0 0 10px var(--accent-glow));">📈</div>
+      </div>
+      <div class="mini-bars" style="position:relative; z-index:2; height:140px; align-items:flex-end;">${bars}</div>
     </section>`;
     }
 
@@ -504,11 +524,31 @@
      * @param {Array} transcripts - array of {text, fullText, words, time}
      */
     function renderRecentTimeline(transcripts) {
-      const cards = (transcripts || []).map((t, i) => `<article class="timeline-card RecentTimeline__card"><div class="timeline-time RecentTimeline__time">${esc(actTime(t.time, i))}</div><div class="timeline-body RecentTimeline__body"><p>${esc(t.fullText || t.text || 'No transcript')}</p><div class="timeline-meta RecentTimeline__meta">${Number(t.words || 0)} words</div></div><button class="copy-btn" onclick="copyTranscriptItem(${i})">Copy</button></article>`).join('');
+      const cards = (transcripts || []).map((t, i) => `<article class="timeline-card RecentTimeline__card" style="position:relative; overflow:hidden; transition:all 0.3s ease; cursor:pointer;" onmouseenter="this.style.borderColor='var(--accent-hover)'" onmouseleave="this.style.borderColor='transparent'">
+        <div style="position:absolute; inset:0; background:linear-gradient(90deg, transparent, rgba(255,255,255,0.03)); pointer-events:none;"></div>
+        <div class="timeline-time RecentTimeline__time" style="font-weight:600; color:var(--muted);">${esc(actTime(t.time, i))}</div>
+        <div class="timeline-body RecentTimeline__body">
+          <p style="color:var(--text);">${esc(t.fullText || t.text || 'No transcript')}</p>
+          <div class="timeline-meta RecentTimeline__meta" style="color:var(--accent); font-weight:bold; display:flex; align-items:center; gap:4px;">
+            <span style="font-size:16px;">+</span>${Number(t.words || 0)} words
+          </div>
+        </div>
+        <button class="copy-btn" onclick="copyTranscriptItem(${i})">Copy</button>
+      </article>`).join('');
       return `
-    <section class="activity-section RecentTimeline" data-source="Bridge.stats.getHistory" data-update-fn="renderRecentTimeline">
-      <div class="section-head"><h3>Recent Activity</h3><span>${new Date().toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' }).toUpperCase()}</span></div>
-      <div class="timeline-list RecentTimeline__list">${cards || '<div class="card empty-card">No transcripts yet.</div>'}</div>
+    <section class="activity-section RecentTimeline" data-source="Bridge.stats.getHistory" data-update-fn="renderRecentTimeline" style="position:relative; overflow:hidden;">
+      <div style="position:absolute; top:-20px; right:-20px; width:100px; height:100px; background:var(--accent-bg-strong); filter:blur(30px); border-radius:50%; pointer-events:none;"></div>
+      <div class="section-head" style="position:relative; z-index:2; margin-bottom:16px;">
+        <div style="display:flex; flex-direction:column;">
+          <h3 style="font-size:20px; font-weight:800; color:var(--text);">Live Feed</h3>
+          <span style="font-size:12px;">Recent Dictations</span>
+        </div>
+        <div style="display:flex; align-items:center; gap:6px; background:rgba(255,255,255,0.05); padding:4px 8px; border-radius:99px; border:1px solid rgba(255,255,255,0.1);">
+          <div style="width:8px; height:8px; background:var(--accent); border-radius:50%; animation:ping-soft 2s cubic-bezier(0, 0, 0.2, 1) infinite;"></div>
+          <span style="color:var(--accent); font-weight:bold; font-size:10px; letter-spacing:1px; text-transform:uppercase;">Live</span>
+        </div>
+      </div>
+      <div class="timeline-list RecentTimeline__list" style="position:relative; z-index:2;">${cards || '<div class="card empty-card" style="text-align:center;">No recent activity yet. Start speaking!</div>'}</div>
     </section>`;
     }
 
@@ -583,9 +623,56 @@
     }
 
     function renderChallenges() {
-      const daily = dailyChallenges.map((c) => { const p = challengeProgress(c, 'daily'); const pct = Math.max(0, Math.min(100, (p / c.target) * 100)); const ok = p >= c.target; return `<article class="challenge-card ${ok ? 'complete' : ''}"><div class="challenge-head"><h4>${esc(c.name)}</h4><span>+${c.xp} XP ${ok ? 'OK' : ''}</span></div><div class="challenge-bar"><span style="width:${pct}%"></span></div><p>${Number(p).toLocaleString()} / ${c.target.toLocaleString()} ${esc(c.unit)}</p></article>`; }).join('');
-      const weekly = weeklyChallenges.map((c) => { const p = challengeProgress(c, 'weekly'); const pct = Math.max(0, Math.min(100, (p / c.target) * 100)); const ok = p >= c.target; return `<article class="challenge-card ${ok ? 'complete' : ''}"><div class="challenge-head"><h4>${esc(c.name)}</h4><span>+${c.xp} XP ${ok ? 'OK' : ''}</span></div><div class="challenge-bar"><span style="width:${pct}%"></span></div><p>${Number(p).toLocaleString()} / ${c.target.toLocaleString()} ${esc(c.unit)}</p></article>`; }).join('');
-      return `<section class="challenges-view"><header class="view-header card"><div><h2>Challenges</h2><p>Daily and weekly targets with XP rewards.</p></div></header><section class="challenge-section"><div class="section-head"><h3>Daily Challenges</h3><span>Resets in 5h 23m</span></div><div class="challenge-stack">${daily}</div></section><section class="challenge-section"><div class="section-head"><h3>Weekly Challenges</h3><span>Resets in 3d 5h</span></div><div class="challenge-stack">${weekly}</div></section><section class="records-grid"><article class="record-card"><h4>Most Words (Day)</h4><strong>${Number(stats.records.mostWordsDay.value || 0).toLocaleString()}</strong><span>${esc(stats.records.mostWordsDay.date || 'N/A')}</span></article><article class="record-card"><h4>Fastest WPM</h4><strong>${esc(stats.records.fastestWpm.value || '0')}</strong><span>${esc(stats.records.fastestWpm.date || 'N/A')}</span></article><article class="record-card"><h4>Longest Session</h4><strong>${esc(stats.records.longestSession.value || 'N/A')}</strong><span>${esc(stats.records.longestSession.date || 'N/A')}</span></article><article class="record-card"><h4>Best Streak</h4><strong>${esc(stats.records.longestStreak.value || '0')} days</strong><span>${esc(stats.records.longestStreak.date || 'N/A')}</span></article></section></section>`;
+      const daily = dailyChallenges.map((c) => { const p = challengeProgress(c, 'daily'); const pct = Math.max(0, Math.min(100, (p / c.target) * 100)); const ok = p >= c.target; return `<article class="challenge-card ${ok ? 'complete' : ''}" style="background:linear-gradient(135deg, rgba(255,255,255,0.02), transparent); border:1px solid rgba(255,255,255,0.05); padding:16px; border-radius:12px; position:relative; overflow:hidden;"><div style="position:absolute; inset:0; background:linear-gradient(90deg, transparent, rgba(255,255,255,0.02)); pointer-events:none;"></div><div class="challenge-head" style="position:relative; z-index:2;"><h4 style="color:var(--text); font-weight:700;">${esc(c.name)}</h4><span style="color:var(--accent); font-weight:bold; drop-shadow:0 0 4px var(--accent-glow);">+${c.xp} XP ${ok ? '✅' : ''}</span></div><div class="challenge-bar" style="background:rgba(0,0,0,0.5); border:1px solid rgba(255,255,255,0.05); box-shadow:inset 0 1px 3px rgba(0,0,0,0.5); border-radius:99px; height:8px; margin:10px 0; overflow:hidden;"><span style="width:${pct}%; background:linear-gradient(90deg, var(--accent), var(--accent-light)); box-shadow:0 0 10px var(--accent-glow); position:relative;"><div style="position:absolute; inset:0; background:linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent); animation:shimmer 2s infinite;"></div></span></div><p style="color:var(--muted); font-size:12px; position:relative; z-index:2;">${Number(p).toLocaleString()} / ${c.target.toLocaleString()} ${esc(c.unit)}</p></article>`; }).join('');
+      const weekly = weeklyChallenges.map((c) => { const p = challengeProgress(c, 'weekly'); const pct = Math.max(0, Math.min(100, (p / c.target) * 100)); const ok = p >= c.target; return `<article class="challenge-card ${ok ? 'complete' : ''}" style="background:linear-gradient(135deg, rgba(255,255,255,0.02), transparent); border:1px solid rgba(255,255,255,0.05); padding:16px; border-radius:12px; position:relative; overflow:hidden;"><div style="position:absolute; inset:0; background:linear-gradient(90deg, transparent, rgba(255,255,255,0.02)); pointer-events:none;"></div><div class="challenge-head" style="position:relative; z-index:2;"><h4 style="color:var(--text); font-weight:700;">${esc(c.name)}</h4><span style="color:var(--accent); font-weight:bold; drop-shadow:0 0 4px var(--accent-glow);">+${c.xp} XP ${ok ? '✅' : ''}</span></div><div class="challenge-bar" style="background:rgba(0,0,0,0.5); border:1px solid rgba(255,255,255,0.05); box-shadow:inset 0 1px 3px rgba(0,0,0,0.5); border-radius:99px; height:8px; margin:10px 0; overflow:hidden;"><span style="width:${pct}%; background:linear-gradient(90deg, var(--accent), var(--accent-light)); box-shadow:0 0 10px var(--accent-glow); position:relative;"><div style="position:absolute; inset:0; background:linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent); animation:shimmer 2s infinite;"></div></span></div><p style="color:var(--muted); font-size:12px; position:relative; z-index:2;">${Number(p).toLocaleString()} / ${c.target.toLocaleString()} ${esc(c.unit)}</p></article>`; }).join('');
+      return `<section class="challenges-view">
+        <header class="view-header card" style="position:relative; overflow:hidden;">
+          <div style="position:absolute; right:-50px; bottom:-50px; width:200px; height:200px; background:var(--accent-glow); filter:blur(40px); border-radius:50%; pointer-events:none;"></div>
+          <div style="position:relative; z-index:2;"><h2>Active Challenges</h2><p>Daily and weekly targets with gamified XP rewards.</p></div>
+        </header>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+          <section class="challenge-section card" style="padding:20px;">
+            <div class="section-head" style="margin-bottom:16px;">
+              <h3 style="font-size:18px; font-weight:700;">Daily Missions</h3>
+              <span style="color:var(--accent); font-weight:600;">Resets in 5h</span>
+            </div>
+            <div class="challenge-stack" style="display:grid; gap:12px;">${daily}</div>
+          </section>
+          <section class="challenge-section card" style="padding:20px;">
+            <div class="section-head" style="margin-bottom:16px;">
+              <h3 style="font-size:18px; font-weight:700;">Weekly Operations</h3>
+              <span style="color:var(--green); font-weight:600;">Resets in 3d</span>
+            </div>
+            <div class="challenge-stack" style="display:grid; gap:12px;">${weekly}</div>
+          </section>
+        </div>
+        <section class="records-grid" style="display:grid; grid-template-columns:repeat(4, 1fr); gap:16px; margin-top:8px;">
+          <article class="record-card card" style="text-align:center; padding:24px 16px;">
+             <div style="width:40px; height:40px; margin:0 auto 12px; border-radius:12px; background:var(--accent-bg-strong); display:flex; align-items:center; justify-content:center; border:1px solid var(--accent-border);">🌟</div>
+             <h4 style="color:var(--muted); font-size:13px; margin-bottom:8px;">Most Words (Day)</h4>
+             <strong style="color:var(--text); font-size:24px; display:block; margin-bottom:4px;">${Number(stats.records.mostWordsDay.value || 0).toLocaleString()}</strong>
+             <span style="font-size:11px; color:var(--muted);">${esc(stats.records.mostWordsDay.date || 'N/A')}</span>
+          </article>
+          <article class="record-card card" style="text-align:center; padding:24px 16px;">
+             <div style="width:40px; height:40px; margin:0 auto 12px; border-radius:12px; background:rgba(3,218,198,0.15); display:flex; align-items:center; justify-content:center; border:1px solid rgba(3,218,198,0.3);">⚡</div>
+             <h4 style="color:var(--muted); font-size:13px; margin-bottom:8px;">Fastest WPM</h4>
+             <strong style="color:var(--text); font-size:24px; display:block; margin-bottom:4px;">${esc(stats.records.fastestWpm.value || '0')}</strong>
+             <span style="font-size:11px; color:var(--muted);">${esc(stats.records.fastestWpm.date || 'N/A')}</span>
+          </article>
+          <article class="record-card card" style="text-align:center; padding:24px 16px;">
+             <div style="width:40px; height:40px; margin:0 auto 12px; border-radius:12px; background:rgba(255,171,0,0.15); display:flex; align-items:center; justify-content:center; border:1px solid rgba(255,171,0,0.3);">⏳</div>
+             <h4 style="color:var(--muted); font-size:13px; margin-bottom:8px;">Longest Session</h4>
+             <strong style="color:var(--text); font-size:24px; display:block; margin-bottom:4px;">${esc(stats.records.longestSession.value || 'N/A')}</strong>
+             <span style="font-size:11px; color:var(--muted);">${esc(stats.records.longestSession.date || 'N/A')}</span>
+          </article>
+          <article class="record-card card" style="text-align:center; padding:24px 16px;">
+             <div style="width:40px; height:40px; margin:0 auto 12px; border-radius:12px; background:rgba(255,107,107,0.15); display:flex; align-items:center; justify-content:center; border:1px solid rgba(255,107,107,0.3);">🔥</div>
+             <h4 style="color:var(--muted); font-size:13px; margin-bottom:8px;">Best Streak</h4>
+             <strong style="color:var(--text); font-size:24px; display:block; margin-bottom:4px;">${esc(stats.records.longestStreak.value || '0')} days</strong>
+             <span style="font-size:11px; color:var(--muted);">${esc(stats.records.longestStreak.date || 'N/A')}</span>
+          </article>
+        </section>
+      </section>`;
     }
 
     function renderContent() {
@@ -642,7 +729,7 @@
       <div class="settings-row">
         <div><h4>Stylization Profile</h4><p>Adjust transcription tone via local LLM (Ctrl+Win+Shift to cycle).</p></div>
         <select onchange="updateSetting('stylizationProfile', this.value)">
-          ${['off','clean','casual','formal','technical'].map(p => '<option value="' + p + '"' + (settingsState.stylizationProfile === p ? ' selected' : '') + '>' + p.charAt(0).toUpperCase() + p.slice(1) + '</option>').join('')}
+          ${['off', 'clean', 'casual', 'formal', 'technical'].map(p => '<option value="' + p + '"' + (settingsState.stylizationProfile === p ? ' selected' : '') + '>' + p.charAt(0).toUpperCase() + p.slice(1) + '</option>').join('')}
         </select>
       </div>
       <div class="settings-row">
