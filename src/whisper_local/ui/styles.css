@@ -543,7 +543,6 @@ body.modal-open {
 }
 
 .hero-card h3,
-.mini-activity h3,
 .section-head h3,
 .view-header h2 {
   margin: 0;
@@ -582,18 +581,6 @@ body.modal-open {
   gap: 6px;
   height: 150px;
   margin-top: 10px;
-}
-
-.mini-activity-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 8px;
-}
-
-.mini-activity-head strong {
-  color: var(--green);
-  font-size: 13px;
 }
 
 .mini-bar-col,
@@ -949,99 +936,7 @@ body.modal-open {
   background: linear-gradient(90deg, var(--accent), var(--red));
 }
 
-.challenge-stack {
-  display: grid;
-  gap: 10px;
-}
 
-.challenge-card {
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  background: rgba(37, 37, 46, 0.8);
-  padding: 12px;
-  transition: border-color 120ms ease, background-color 120ms ease;
-}
-
-.challenge-card.complete {
-  border-color: rgba(3, 218, 198, 0.45);
-  background: rgba(31, 44, 46, 0.72);
-}
-
-.challenge-card:hover {
-  border-color: var(--accent-hover);
-  background: rgba(43, 43, 55, 0.86);
-}
-
-.challenge-card.complete:hover {
-  border-color: rgba(3, 218, 198, 0.62);
-  background: rgba(33, 50, 53, 0.84);
-}
-
-.challenge-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 10px;
-}
-
-.challenge-head h4 {
-  margin: 0;
-}
-
-.challenge-head span {
-  color: var(--green);
-  font-size: 12px;
-}
-
-.challenge-bar {
-  margin-top: 9px;
-  height: 8px;
-  border-radius: 999px;
-  background: #1a1b24;
-  overflow: hidden;
-}
-
-.challenge-bar span {
-  display: block;
-  height: 100%;
-  background: linear-gradient(90deg, var(--accent), var(--green));
-}
-
-.challenge-card p {
-  margin: 8px 0 0;
-  color: var(--muted);
-  font-size: 12px;
-}
-
-.records-grid {
-  display: grid;
-  gap: 10px;
-  grid-template-columns: repeat(2, 1fr);
-}
-
-.record-card {
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  background: rgba(37, 37, 46, 0.78);
-  padding: 12px;
-}
-
-.record-card h4 {
-  margin: 0 0 8px;
-  font-size: 12px;
-  color: var(--muted);
-}
-
-.record-card strong {
-  display: block;
-  font-size: 22px;
-  color: var(--accent);
-}
-
-.record-card span {
-  color: var(--muted);
-  font-size: 12px;
-}
 
 .settings-modal {
   position: fixed;
