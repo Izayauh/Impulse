@@ -1,0 +1,7 @@
+{
+  "name": "Impulse",
+  "description": "Premium AI-powered voice dictation with gamified productivity and seamless application integration.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
