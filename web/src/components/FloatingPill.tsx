@@ -1,5 +1,5 @@
 import { motion } from 'motion/react';
-import { Mic, Sparkles, Loader2 } from 'lucide-react';
+import { Brain, Sparkles, Loader2 } from 'lucide-react';
 import { cn } from '@/src/lib/utils';
 
 interface FloatingPillProps {
@@ -25,7 +25,7 @@ export function FloatingPill({ className, isProcessing = false }: FloatingPillPr
         {isProcessing ? (
           <Loader2 className="w-5 h-5 text-brand animate-spin relative z-10" />
         ) : (
-          <Mic className="w-5 h-5 text-brand relative z-10" />
+          <Brain className="w-5 h-5 text-brand relative z-10" />
         )}
       </div>
 

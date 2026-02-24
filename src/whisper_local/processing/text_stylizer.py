@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 # Profile definitions (ordered for hotkey cycling)
 # ---------------------------------------------------------------------------
 
-PROFILE_ORDER: list[str] = ["off", "clean", "casual", "formal", "technical"]
+PROFILE_ORDER: list[str] = ["off", "clean", "polished"]
 
 PROFILES: Dict[str, Dict[str, str]] = {
     "off": {
@@ -34,37 +34,17 @@ PROFILES: Dict[str, Dict[str, str]] = {
     },
     "clean": {
         "label": "Clean",
-        "description": "Grammar & spelling fixes, filler removal.",
-        "prompt": (
-            "Fix grammar, spelling, and remove filler words (um, uh, like, you know). "
-            "Keep the original tone, vocabulary, and sentence structure. "
-            "Don't rephrase or add words. Output only the corrected text."
-        ),
+        "description": "Fillers removed, punctuation restored. No LLM needed.",
+        "prompt": "",  # Empty = skip Ollama, rely on existing pipeline
     },
-    "casual": {
-        "label": "Casual",
-        "description": "Relaxed, conversational tone.",
+    "polished": {
+        "label": "Polished",
+        "description": "Light grammar & punctuation polish via local LLM.",
         "prompt": (
-            "Rewrite in a relaxed, conversational tone. Use contractions. "
-            "Keep the meaning and all details. Output only the rewritten text."
-        ),
-    },
-    "formal": {
-        "label": "Formal",
-        "description": "Professional, formal tone.",
-        "prompt": (
-            "Rewrite in a professional, formal tone. Use complete sentences. "
-            "No slang or contractions. Keep the meaning and all details. "
-            "Output only the rewritten text."
-        ),
-    },
-    "technical": {
-        "label": "Technical",
-        "description": "Technical clarity, jargon preserved.",
-        "prompt": (
-            "Clean up for technical clarity. Preserve jargon, version numbers, "
-            "and variable names exactly. Fix grammar and remove filler words. "
-            "Output only the cleaned text."
+            "Fix only grammar, capitalization, and punctuation. "
+            "Do not rephrase, reorder, or add any words. "
+            "Keep contractions, slang, and the speaker's original vocabulary exactly as-is. "
+            "Output only the corrected text, nothing else."
         ),
     },
 }
@@ -135,7 +115,7 @@ class TextStylizer:
             "prompt": prompt,
             "stream": False,
             "options": {
-                "temperature": 0.3,
+                "temperature": 0.15,
                 "num_ctx": 4096,
             },
         }

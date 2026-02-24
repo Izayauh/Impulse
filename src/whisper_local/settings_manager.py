@@ -38,7 +38,7 @@ class AppSettings(BaseModel):
     launch_behavior: Literal["start_minimized", "open_dashboard"] = "start_minimized"
     command_mode: bool = True
     auto_copy: bool = True
-    stylization_profile: Literal["off", "clean", "casual", "formal", "technical"] = "off"
+    stylization_profile: Literal["off", "clean", "polished"] = "clean"
     ollama_model: str = "llama3.2:3b"
     ollama_endpoint: str = "http://127.0.0.1:11434"
     vad_sensitivity: int = Field(65, ge=1, le=100)
@@ -86,6 +86,11 @@ class SettingsManager:
                 return AppSettings()
             known_keys = set(AppSettings.model_fields.keys())
             filtered = {k: v for k, v in raw.items() if k in known_keys}
+            # Migrate old stylization profiles to simplified set
+            _profile_migration = {"casual": "clean", "formal": "polished", "technical": "polished"}
+            old_profile = filtered.get("stylization_profile")
+            if old_profile in _profile_migration:
+                filtered["stylization_profile"] = _profile_migration[old_profile]
             return AppSettings(**filtered)
         except (json.JSONDecodeError, OSError, IOError):
             return AppSettings()

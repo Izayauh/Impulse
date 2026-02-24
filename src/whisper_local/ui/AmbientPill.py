@@ -11,23 +11,23 @@ from whisper_local.settings_manager import SettingsManager
 # ============================================================================
 # CONFIGURATION
 # ============================================================================
-IDLE_DIMENSIONS = (44, 10)
-ACTIVE_DIMENSIONS = (96, 24)
-ANIMATION_SPEED_MS = 135
+IDLE_DIMENSIONS = (10, 10)
+ACTIVE_DIMENSIONS = (150, 48) # Sleek dynamic sizing will adjust this if text is present
+ANIMATION_SPEED_MS = 250
 SENSITIVITY = 14.0
 SMOOTHING_FACTOR = 0.20
-IDLE_OPACITY = 0.40
+IDLE_OPACITY = 0.0
 
-_AUDIO_WIDTH_DELTA = 22
+_AUDIO_WIDTH_DELTA = 12
 _AUDIO_HEIGHT_DELTA = 4
 _GLOW_BASE = 6
 _GLOW_DELTA = 12
-_DOCK_MARGIN_BOTTOM = 12
+_DOCK_MARGIN_BOTTOM = 16
 _AUDIO_FPS = 30
 _AUDIO_RESPONSE_ALPHA = 0.35
 _AUDIO_MAX_STEP = 0.22
 _PROCESSING_TIMEOUT_MS = 1200
-_WAVE_BARS = 11
+_WAVE_BARS = 12
 
 
 class PillState(str, Enum):
@@ -37,6 +37,7 @@ class PillState(str, Enum):
     PROCESSING = "PROCESSING"
     SUCCESS = "SUCCESS"
     ERROR = "ERROR"
+    HINT = "HINT"
 
 
 QtCore = None
@@ -235,8 +236,8 @@ if is_qt_available():
         # External integration API
         # ------------------------------------------------------------------
         def set_hotkey_hint(self, hotkey_value: str) -> None:
-            # Non-verbal UI intentionally ignores textual hotkey labels.
-            _ = hotkey_value
+            self._hotkey_text = f"Hold {hotkey_value} to record"
+            self._set_state(PillState.HINT)
 
         def set_audio_level(self, rms: float) -> None:
             if self._state != PillState.RECORDING:
@@ -306,7 +307,7 @@ if is_qt_available():
             return mapped.get(token, PillState.ARMED if self._is_armed_fn() else PillState.IDLE)
 
         def _set_state(self, target: PillState) -> None:
-            if self._state == target and target not in (PillState.SUCCESS, PillState.ERROR):
+            if self._state == target:
                 return
 
             self._state = target
@@ -314,21 +315,19 @@ if is_qt_available():
             self._flash_timer.stop()
             self._processing_timer.stop()
 
-            if target in (PillState.IDLE, PillState.ARMED):
+            # Completely hide the pill when it isn't actively recording or processing
+            if target not in (PillState.RECORDING, PillState.PROCESSING):
                 self._audio_ema = 0.0
                 self._audio_level_target = 0.0
                 self._audio_level_display = 0.0
                 self._glow = 0.0
-                # Animate size/opacity briefly then hide the pill
-                self._animate_size(*IDLE_DIMENSIONS, duration_ms=ANIMATION_SPEED_MS)
-                self._animate_opacity(IDLE_OPACITY)
-                if target == PillState.ARMED:
-                    self._animate_color(QtGui.QColor("#8FB2C7"))
-                else:
-                    self._animate_color(QtGui.QColor("#7D93A8"))
-                # Hide after the shrink animation completes
-                QtCore.QTimer.singleShot(ANIMATION_SPEED_MS + 50, self.hide_when_idle)
+                self.hide()
                 return
+
+            # Prepare for active states
+            if not self.isVisible():
+                self.setWindowOpacity(0.0)
+                self.show()
 
             if target == PillState.RECORDING:
                 self._audio_ema = 0.0
@@ -344,21 +343,6 @@ if is_qt_available():
                 self._animate_size(*ACTIVE_DIMENSIONS, duration_ms=ANIMATION_SPEED_MS)
                 self._animate_color(QtGui.QColor(self._base_hover))
                 self._start_processing_breathing()
-                self._processing_timer.start(_PROCESSING_TIMEOUT_MS)
-                return
-
-            if target == PillState.SUCCESS:
-                self._glow = 1.0
-                self._animate_color(QtGui.QColor("#86FFCC"), duration_ms=90)
-                self._animate_opacity(1.0, duration_ms=90)
-                self._flash_timer.start(200)
-                return
-
-            if target == PillState.ERROR:
-                self._glow = 1.0
-                self._animate_color(QtGui.QColor("#FF5A66"), duration_ms=90)
-                self._animate_opacity(1.0, duration_ms=90)
-                self._flash_timer.start(240)
                 return
 
         def _transition_to_base_state(self):
@@ -523,12 +507,15 @@ if is_qt_available():
 
         def paintEvent(self, event):
             _ = event
+            if self._state not in (PillState.RECORDING, PillState.PROCESSING):
+                return
+            
             painter = QtGui.QPainter(self)
             painter.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing, True)
             painter.setPen(QtCore.Qt.PenStyle.NoPen)
 
             bounds = self.rect().adjusted(1, 1, -1, -1)
-            radius = max(4.0, bounds.height() / 2.0)
+            radius = bounds.height() / 2.0
 
             if self._glow > 0.01:
                 glow_rect = bounds.adjusted(
@@ -538,62 +525,97 @@ if is_qt_available():
                     int(_GLOW_BASE + self._glow * (_GLOW_DELTA * 0.55)),
                 )
                 glow_color = QtGui.QColor(self._pill_color)
-                glow_color.setAlpha(int(28 + (self._glow * 65)))
+                glow_color.setAlpha(int(10 + (self._glow * 50)))
                 painter.setBrush(glow_color)
                 painter.drawRoundedRect(glow_rect, glow_rect.height() / 2.0, glow_rect.height() / 2.0)
 
-            base = QtGui.QColor("#0D1220")
-            base.setAlpha(235)
+            base = QtGui.QColor("#040608")
+            base.setAlpha(220)
             painter.setBrush(base)
             painter.drawRoundedRect(bounds, radius, radius)
 
             border = QtGui.QColor(self._pill_color)
-            border.setAlpha(140)
+            border.setAlpha(80) 
+            if self._state == PillState.PROCESSING:
+                 border.setAlpha(120)
             pen = QtGui.QPen(border)
             pen.setWidthF(1.0)
             painter.setPen(pen)
             painter.setBrush(QtCore.Qt.BrushStyle.NoBrush)
             painter.drawRoundedRect(bounds, radius, radius)
 
-            # Recording: tiny waveform bars.
+            center_y = bounds.center().y()
+            start_x = bounds.left() + 24
+            
+            # --- Mic Icon / Loader Area ---
+            icon_size = 18
+            icon_rect = QtCore.QRectF(start_x, center_y - icon_size / 2.0, icon_size, icon_size)
+            
+            accent_color = QtGui.QColor(self._base_accent) if self._state == PillState.RECORDING else QtGui.QColor(self._pill_color)
+            
+            painter.save()
+            if self._state == PillState.PROCESSING:
+                painter.translate(icon_rect.center())
+                painter.rotate((self._wave_phase * 15) % 360)
+                painter.translate(-icon_rect.center())
+                painter.setPen(QtGui.QPen(QtGui.QColor("#E2E8F0"), 2.0, QtCore.Qt.PenStyle.SolidLine, QtCore.Qt.PenCapStyle.RoundCap))
+                loader_rect = icon_rect.adjusted(2, 2, -2, -2)
+                painter.drawArc(loader_rect, 0 * 16, 270 * 16)
+            else:
+                painter.setPen(QtGui.QPen(accent_color, 1.8, QtCore.Qt.PenStyle.SolidLine, QtCore.Qt.PenCapStyle.RoundCap, QtCore.Qt.PenJoinStyle.RoundJoin))
+                cx, cy = icon_rect.center().x(), icon_rect.center().y()
+                # Mic body
+                painter.drawRoundedRect(QtCore.QRectF(cx - 3, cy - 6, 6, 10), 3, 3)
+                # U-arc
+                p = QtGui.QPainterPath()
+                p.moveTo(cx - 5, cy - 2)
+                p.arcTo(QtCore.QRectF(cx - 5, cy - 4, 10, 8), 180, 180)
+                painter.drawPath(p)
+                # Stem and Base
+                painter.drawLine(QtCore.QPointF(cx, cy + 4), QtCore.QPointF(cx, cy + 7))
+                painter.drawLine(QtCore.QPointF(cx - 3, cy + 7), QtCore.QPointF(cx + 3, cy + 7))
+                
+                # Pulse glow when recording
+                if self._state == PillState.RECORDING:
+                    pulse_color = QtGui.QColor(accent_color)
+                    pulse_color.setAlpha(int(15 + 15 * math.sin(self._wave_phase)))
+                    painter.setBrush(pulse_color)
+                    painter.setPen(QtCore.Qt.PenStyle.NoPen)
+                    painter.drawEllipse(icon_rect.center(), icon_size * 1.5, icon_size * 1.5)
+            painter.restore()
+
+            start_x += 24 + 14
+            
+            # --- Waveform / Text Area ---
+            middle_width = 54
             if self._state == PillState.RECORDING:
-                center_y = bounds.center().y()
                 bars = _WAVE_BARS
-                spacing = max(2.2, bounds.width() / (bars + 3))
-                start_x = bounds.center().x() - ((bars - 1) * spacing) / 2.0
-                bar_color = QtGui.QColor("#DDF8FF")
+                spacing = middle_width / (bars + 1)
+                bar_color = QtGui.QColor(accent_color)
+                bar_color.setAlpha(160)
                 bar_pen = QtGui.QPen(bar_color)
-                bar_pen.setWidthF(2.0)
+                bar_pen.setWidthF(3.0)
                 bar_pen.setCapStyle(QtCore.Qt.PenCapStyle.RoundCap)
                 painter.setPen(bar_pen)
-                max_h = max(3.0, bounds.height() * 0.62)
+                max_h = bounds.height() * 0.45
                 for i in range(bars):
                     level = self._wave_levels[i] if i < len(self._wave_levels) else 0.15
-                    h = max(2.0, max_h * level)
+                    h = max(3.0, max_h * level)
                     x = start_x + i * spacing
                     painter.drawLine(QtCore.QPointF(x, center_y - h / 2.0), QtCore.QPointF(x, center_y + h / 2.0))
-
-            # Processing: dotted line pulse.
-            elif self._state == PillState.PROCESSING:
-                dots = 12
-                spacing = max(2.0, bounds.width() / (dots + 3))
-                start_x = bounds.center().x() - ((dots - 1) * spacing) / 2.0
-                pulse = 0.4 + 0.6 * abs(self.windowOpacity() - 0.8)
-                dot_color = QtGui.QColor("#CFE8FF")
-                dot_color.setAlpha(int(130 + (pulse * 110)))
-                painter.setBrush(dot_color)
-                painter.setPen(QtCore.Qt.PenStyle.NoPen)
-                r = 1.4
-                y = bounds.center().y()
-                for i in range(dots):
-                    painter.drawEllipse(QtCore.QPointF(start_x + i * spacing, y), r, r)
-
-            # Idle/armed: subtle center dot.
             else:
-                dot = QtGui.QColor(self._pill_color)
-                dot.setAlpha(170)
-                painter.setBrush(dot)
-                painter.drawEllipse(QtCore.QPointF(bounds.center().x(), bounds.center().y()), 1.8, 1.8)
+                painter.setPen(QtGui.QColor(255, 255, 255, 140))
+                font = painter.font()
+                font.setPixelSize(13)
+                font.setWeight(QtGui.QFont.Weight.Medium)
+                painter.setFont(font)
+                rect = QtCore.QRectF(start_x, center_y - 10, middle_width + 50, 20)
+                painter.drawText(rect, QtCore.Qt.AlignmentFlag.AlignLeft | QtCore.Qt.AlignmentFlag.AlignVCenter, "Stylizing...")
+
+            start_x += middle_width + 8
+            
+            # The dynamic sizing logic means the pill automatically fits this core component
+            # If we wanted to add text, we'd add it here, but removing it ensures a sleek, perfect look!
 
         # ------------------------------------------------------------------
         # Input and queue handling
