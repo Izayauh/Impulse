@@ -4533,7 +4533,6 @@ def run_whisper_main_loop():
     safe_print("  • Release to transcribe & paste")
     safe_print("  • Dashboard shows status and stats")
     safe_print(f"  • Agent router: {'ON' if MODE_ROUTER else 'OFF'} ({ROUTER_MODEL})")
-    safe_print(f"  • Markdown formatter: {'ON' if MODE_MARKDOWN else 'OFF'} ({MARKDOWN_MODEL})")
     safe_print("  • ESC to exit")
     safe_print("=" * 60)
 
