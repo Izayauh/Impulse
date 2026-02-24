@@ -271,7 +271,7 @@ def _build_cli_parser() -> argparse.ArgumentParser:
     parser.add_argument("--no-domain", action="store_true", help="Disable domain corrections")
     parser.add_argument("--no-numeric", action="store_true", help="Disable numeric formatting")
     parser.add_argument("--no-final-sanitizer", action="store_true", help="Disable final regex sanitizer")
-    parser.add_argument("--stylize", choices=["off", "clean", "casual", "formal", "technical"], default="off", help="Stylization profile")
+    parser.add_argument("--stylize", choices=["off", "clean", "polished"], default="clean", help="Stylization profile")
     parser.add_argument("--homophone-model", default="llama3.2:3b", help="Ollama model for homophone correction")
     parser.add_argument("--ollama-model", default="llama3.2:3b", help="Ollama model for stylization")
     parser.add_argument("--ollama-endpoint", default="http://127.0.0.1:11434", help="Ollama API endpoint")

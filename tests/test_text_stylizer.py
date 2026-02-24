@@ -34,7 +34,7 @@ class TestNextProfile:
         assert visited == PROFILE_ORDER
 
     def test_wraps_around(self):
-        assert next_profile("technical") == "off"
+        assert next_profile("polished") == "off"
 
     def test_unknown_defaults_to_first(self):
         assert next_profile("nonexistent") == "off"
@@ -83,7 +83,7 @@ class TestStylize:
     def test_ollama_unavailable_returns_unchanged(self, mock_urlopen):
         mock_urlopen.side_effect = Exception("connection refused")
         s = TextStylizer()
-        result = s.stylize("um yeah so it works", "clean")
+        result = s.stylize("um yeah so it works", "polished")
         assert result == "um yeah so it works"
 
     @patch("whisper_local.processing.text_stylizer.request.urlopen")
@@ -104,7 +104,7 @@ class TestStylize:
         mock_urlopen.side_effect = [tags_resp, gen_resp]
 
         s = TextStylizer()
-        result = s.stylize("um yeah so it works", "clean")
+        result = s.stylize("um yeah so it works", "polished")
         assert result == "It works."
 
     @patch("whisper_local.processing.text_stylizer.request.urlopen")
@@ -121,8 +121,17 @@ class TestStylize:
         mock_urlopen.side_effect = [tags_resp, gen_resp]
 
         s = TextStylizer()
-        result = s.stylize("hello world", "formal")
+        result = s.stylize("hello world", "polished")
         assert result == "hello world"
+
+
+    def test_clean_skips_ollama(self):
+        """Clean profile has empty prompt — returns text unchanged without HTTP call."""
+        s = TextStylizer()
+        result = s.stylize("hello world this is a test", "clean")
+        assert result == "hello world this is a test"
+        # Verify no Ollama check was triggered
+        assert s._ollama_available_checked is False
 
 
 # ---------------------------------------------------------------------------

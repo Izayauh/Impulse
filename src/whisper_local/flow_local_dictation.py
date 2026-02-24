@@ -1075,7 +1075,7 @@ try:
     ROUTER_TIMEOUT_SEC = max(3, int(os.environ.get("WHISPER_ROUTER_TIMEOUT_SEC", "12")))
 except ValueError:
     ROUTER_TIMEOUT_SEC = 12
-STYLIZATION_PROFILE = os.environ.get("WHISPER_STYLIZE_PROFILE", "off").strip().lower()
+STYLIZATION_PROFILE = os.environ.get("WHISPER_STYLIZE_PROFILE", "clean").strip().lower()
 OLLAMA_MODEL = os.environ.get("WHISPER_OLLAMA_MODEL", "llama3.2:3b")
 OLLAMA_ENDPOINT = os.environ.get("WHISPER_OLLAMA_ENDPOINT", "http://127.0.0.1:11434")
 _flow_settings_mgr = None  # lazy SettingsManager for runtime setting reads
@@ -1084,7 +1084,7 @@ _flow_settings_mgr = None  # lazy SettingsManager for runtime setting reads
 def _get_stylization_profile() -> str:
     """Return the active stylization profile from settings or env var."""
     global _flow_settings_mgr
-    if STYLIZATION_PROFILE != "off":
+    if STYLIZATION_PROFILE not in ("off", "clean"):
         return STYLIZATION_PROFILE
     try:
         if _flow_settings_mgr is None:
@@ -4048,7 +4048,7 @@ def _transcribe_and_paste(wav_path):
 
         # Optional LLM-powered stylization (runs on full text).
         _style_profile = _get_stylization_profile()
-        if _style_profile != "off":
+        if _style_profile not in ("off", "clean"):
             from whisper_local.processing.text_stylizer import TextStylizer
             if not hasattr(_transcribe_and_paste, '_stylizer'):
                 _transcribe_and_paste._stylizer = TextStylizer(

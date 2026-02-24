@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Mic, Loader2, Play, CheckCircle2 } from 'lucide-react';
+import { Brain, Loader2, Play, CheckCircle2 } from 'lucide-react';
 import { cn } from '@/src/lib/utils';
 import { FloatingPill } from './FloatingPill';
 
@@ -12,31 +12,39 @@ export function InteractiveDemo() {
     // Auto-progress demo
     useEffect(() => {
         if (state === 'listening') {
-            const typeText = "This is a quick demo of how I can speak to quickly generate code and styled text without tying my hands to the keyboard.";
+            const chunks = [
+                "This is a quick demo of how",
+                " I can speak to quickly generate",
+                " perfectly formatted text",
+                " without tying my hands",
+                " to the keyboard."
+            ];
             let i = 0;
+            let currentText = "";
             const interval = setInterval(() => {
-                setInputText(typeText.slice(0, i));
-                i++;
-                if (i > typeText.length) {
+                if (i < chunks.length) {
+                    currentText += chunks[i];
+                    setInputText(currentText);
+                    i++;
+                } else {
                     clearInterval(interval);
                     setTimeout(() => setState('processing'), 500);
                 }
-            }, 30);
+            }, 600); // Wait 600ms between spoken chunks
             return () => clearInterval(interval);
         }
 
         if (state === 'processing') {
             const timer = setTimeout(() => {
                 setOutputHtml(`
-<p><span class="text-brand">const</span> demo = <span class="text-blue-400">new</span> <span class="text-yellow-400">Demo</span>({
-  <span class="text-emerald-400">speed</span>: <span class="text-orange-400">"blazing"</span>,
-  <span class="text-emerald-400">friction</span>: <span class="text-orange-400">0</span>
-});</p>
+<div class="text-white/90 leading-relaxed font-sans text-lg">
+  <p>This is a quick demo of how I can speak to quickly generate <strong class="text-brand">perfectly formatted text</strong> without tying my hands to the keyboard.</p>
+</div>
 <p>&nbsp;</p>
-<p class="text-white/80">// It instantly formats thoughts into perfect code structure.</p>
+<p class="text-white/40 text-sm font-sans italic">✨ Formatted and stylized by Impulse AI.</p>
         `);
                 setState('done');
-            }, 1500);
+            }, 1200);
             return () => clearTimeout(timer);
         }
     }, [state]);
@@ -63,13 +71,15 @@ export function InteractiveDemo() {
                     <AnimatePresence mode="popLayout">
                         {state === 'idle' && (
                             <motion.div
-                                initial={{ opacity: 0 }}
-                                animate={{ opacity: 1 }}
-                                exit={{ opacity: 0 }}
-                                className="absolute inset-0 flex items-center justify-center"
+                                initial={{ opacity: 0, y: 10, scale: 0.98 }}
+                                animate={{ opacity: 1, y: 0, scale: 1 }}
+                                exit={{ opacity: 0, scale: 0.95 }}
+                                className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-20 pointer-events-none"
                             >
-                                <div className="text-center text-white/40 max-w-sm">
-                                    <p className="mb-4">Click below to see Impulse in action.</p>
+                                <div className="glass-dark rounded-full px-6 py-3 text-sm text-white/80 border border-white/10 shadow-2xl flex items-center gap-2">
+                                    <span className="text-white/50">Hold</span>
+                                    <kbd className="bg-white/10 px-2 py-0.5 rounded-md font-mono text-xs text-white border border-white/10">Ctrl+Win</kbd>
+                                    <span className="text-white/50">to dictate, or try the interactive demo below.</span>
                                 </div>
                             </motion.div>
                         )}
@@ -124,7 +134,7 @@ export function InteractiveDemo() {
                             onClick={() => setState('listening')}
                             className="bg-brand hover:bg-brand-dark text-white rounded-full pl-5 pr-6 py-3 flex items-center gap-3 font-semibold shadow-[0_0_30px_rgba(233,30,99,0.4)] transition-all active:scale-95"
                         >
-                            <Mic className="w-5 h-5" />
+                            <Brain className="w-5 h-5" />
                             Try Interactive Demo
                         </button>
                     </motion.div>

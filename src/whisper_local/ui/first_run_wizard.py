@@ -160,8 +160,12 @@ class FirstRunWizard:
         self.nav_frame = tk.Frame(self.root, bg=Theme.BG_DARK)
         self.nav_frame.pack(fill="x", padx=Theme.PAD_XXL, pady=(0, Theme.PAD_XL))
         
+        # Ollama detection state
+        self._ollama_available = False
+        self._ollama_models = []
+
         # Step indicators
-        self.steps = ["Welcome", "Microphone", "Tutorial", "Finish"]
+        self.steps = ["Welcome", "Microphone", "Ollama", "Tutorial", "Finish"]
         self._create_step_indicators()
         
         # Start with welcome step
@@ -304,8 +308,10 @@ class FirstRunWizard:
         elif step == 1:
             self._show_microphone()
         elif step == 2:
-            self._show_tutorial()
+            self._show_ollama()
         elif step == 3:
+            self._show_tutorial()
+        elif step == 4:
             self._show_finish()
     
     def _show_welcome(self):
@@ -542,6 +548,184 @@ Your voice never leaves your machine."""
         
         self._next_step()
     
+    # ------------------------------------------------------------------
+    # Step 3: Ollama (optional text refinement)
+    # ------------------------------------------------------------------
+
+    def _show_ollama(self):
+        """Show Ollama setup screen."""
+        header = tk.Label(
+            self.content_frame,
+            text="Text Refinement (Optional)",
+            font=(Theme.FONT_FAMILY, Theme.FONT_SIZE_HEADER, "bold"),
+            fg=Theme.TEXT_PRIMARY,
+            bg=Theme.BG_DARK
+        )
+        header.pack(pady=(Theme.PAD_SM + 2, scaled(5)))
+
+        subtitle = tk.Label(
+            self.content_frame,
+            text="Ollama adds light grammar polish to your dictation",
+            font=(Theme.FONT_FAMILY, Theme.FONT_SIZE_SM),
+            fg=Theme.TEXT_SECONDARY,
+            bg=Theme.BG_DARK
+        )
+        subtitle.pack(pady=(0, Theme.PAD_LG - 1))
+
+        # Info card
+        info_frame = tk.Frame(
+            self.content_frame, bg=Theme.BG_CARD,
+            highlightthickness=1, highlightbackground=Theme.BORDER_SUBTLE
+        )
+        info_frame.pack(fill="x", pady=Theme.PAD_SM)
+
+        info_text = (
+            "WhisperLocal works great without Ollama.\n"
+            "Core transcription runs entirely offline via whisper.cpp.\n"
+            "\n"
+            "With Ollama you unlock:\n"
+            "  \u2022 Polished mode \u2013 light grammar & punctuation fixes\n"
+            "  \u2022 Homophone correction \u2013 their/there/they're\n"
+            "\n"
+            "Without Ollama you get Clean mode:\n"
+            "filler words removed, punctuation restored, no AI rewrites."
+        )
+
+        tk.Label(
+            info_frame, text=info_text,
+            font=(Theme.FONT_FAMILY, Theme.FONT_SIZE_SM),
+            fg=Theme.TEXT_SECONDARY, bg=Theme.BG_CARD,
+            justify="left", padx=Theme.PAD_XL, pady=Theme.PAD_LG
+        ).pack()
+
+        # Status indicator
+        self.ollama_status_label = tk.Label(
+            self.content_frame, text="Checking...",
+            font=(Theme.FONT_FAMILY, Theme.FONT_SIZE_MD),
+            fg=Theme.INFO, bg=Theme.BG_DARK
+        )
+        self.ollama_status_label.pack(pady=Theme.PAD_SM)
+
+        # Action buttons row
+        btn_frame = tk.Frame(self.content_frame, bg=Theme.BG_DARK)
+        btn_frame.pack(fill="x", pady=Theme.PAD_SM)
+
+        # Center the buttons
+        btn_inner = tk.Frame(btn_frame, bg=Theme.BG_DARK)
+        btn_inner.pack()
+
+        self._create_button(btn_inner, "Download Ollama", self._open_ollama_download, side="left")
+        self._create_button(btn_inner, "Re-check", self._check_ollama, side="left")
+
+        # Model status area (populated after check)
+        self.model_status_frame = tk.Frame(self.content_frame, bg=Theme.BG_DARK)
+        self.model_status_frame.pack(fill="x", pady=Theme.PAD_SM)
+
+        # Navigation
+        self._create_nav_button("\u2190 Back", self._prev_step)
+        self._create_nav_button("Next \u2192", self._next_step, accent=True)
+
+        # Auto-check on step load
+        self._check_ollama()
+
+    def _check_ollama(self):
+        """Check if Ollama is running and update status."""
+        self.ollama_status_label.config(text="Checking...", fg=Theme.INFO)
+
+        def do_check():
+            try:
+                from urllib import request as _req
+                import json as _json
+                req = _req.Request("http://127.0.0.1:11434/api/tags", method="GET")
+                with _req.urlopen(req, timeout=3) as resp:
+                    data = _json.loads(resp.read().decode("utf-8"))
+                    models = [m.get("name", "") for m in data.get("models", [])]
+                    return True, models
+            except Exception:
+                return False, []
+
+        def on_result(available, models):
+            self._ollama_available = available
+            self._ollama_models = models
+            if available:
+                self.ollama_status_label.config(
+                    text="\u2713  Ollama is running", fg=Theme.SUCCESS
+                )
+                self._update_model_status(models)
+            else:
+                self.ollama_status_label.config(
+                    text="Ollama not detected \u2013 you can install it now or skip",
+                    fg=Theme.WARNING
+                )
+                # Clear model status
+                for w in self.model_status_frame.winfo_children():
+                    w.destroy()
+
+        def run_check():
+            available, models = do_check()
+            self.root.after(0, lambda: on_result(available, models))
+
+        threading.Thread(target=run_check, daemon=True).start()
+
+    def _open_ollama_download(self):
+        """Open Ollama download page in browser."""
+        import webbrowser
+        webbrowser.open("https://ollama.com/download")
+
+    def _update_model_status(self, models):
+        """Show which models are available."""
+        for w in self.model_status_frame.winfo_children():
+            w.destroy()
+
+        target_model = "llama3.2:3b"
+        has_model = any(target_model in m for m in models)
+
+        if has_model:
+            tk.Label(
+                self.model_status_frame,
+                text=f"\u2713  Model {target_model} ready",
+                font=(Theme.FONT_FAMILY, Theme.FONT_SIZE_SM),
+                fg=Theme.SUCCESS, bg=Theme.BG_DARK
+            ).pack()
+        else:
+            tk.Label(
+                self.model_status_frame,
+                text=f"Model {target_model} not yet downloaded (~2 GB)",
+                font=(Theme.FONT_FAMILY, Theme.FONT_SIZE_SM),
+                fg=Theme.WARNING, bg=Theme.BG_DARK
+            ).pack()
+            self._create_button(
+                self.model_status_frame, "Pull Model",
+                self._pull_ollama_model, side="top"
+            )
+
+    def _pull_ollama_model(self):
+        """Pull the recommended Ollama model."""
+        self.ollama_status_label.config(
+            text="Pulling model... this may take a few minutes",
+            fg=Theme.INFO
+        )
+
+        def do_pull():
+            import subprocess
+            try:
+                creation_flags = 0x08000000 if sys.platform == "win32" else 0
+                subprocess.run(
+                    ["ollama", "pull", "llama3.2:3b"],
+                    timeout=600, check=True,
+                    creationflags=creation_flags
+                )
+                self.root.after(0, self._check_ollama)
+            except Exception as e:
+                self.root.after(
+                    0,
+                    lambda: self.ollama_status_label.config(
+                        text=f"Pull failed: {str(e)[:50]}", fg=Theme.ERROR
+                    ),
+                )
+
+        threading.Thread(target=do_pull, daemon=True).start()
+
     def _show_tutorial(self):
         """Show tutorial screen."""
         header = tk.Label(
@@ -753,11 +937,26 @@ Your voice never leaves your machine."""
         # Create desktop shortcut if requested
         if self.create_shortcut.get():
             self._create_desktop_shortcut()
-        
+
         # Set up auto-start if requested
         if self.auto_start.get():
             self._setup_auto_start()
-        
+
+        # Save Ollama availability and default stylization profile
+        try:
+            from whisper_local.settings_manager import SettingsManager
+            sm = SettingsManager()
+            if self._ollama_available:
+                sm.update_many({
+                    "stylization_profile": "polished",
+                })
+            else:
+                sm.update_many({
+                    "stylization_profile": "clean",
+                })
+        except Exception:
+            pass
+
         # Mark first run complete
         try:
             mark_first_run_complete()

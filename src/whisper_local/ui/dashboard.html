@@ -36,8 +36,19 @@
       <div class="sidebar-brand">
         <div class="brand-logo"
           style="display: flex; align-items: center; justify-content: center; width: 36px; height: 36px; margin-right: 4px; border-radius: 12px; background: linear-gradient(135deg, var(--bg) 0%, rgba(20, 20, 26, 0.8) 100%); border: 1px solid var(--accent-border); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1), 0 0 15px var(--accent-glow);">
-          <img src="assets/mic_logo.png" alt="Impulse Logo"
-            style="width: 20px; height: 20px; object-fit: contain; filter: drop-shadow(0 0 4px var(--accent));">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+            style="color: var(--accent); filter: drop-shadow(0 0 4px var(--accent));">
+            <path d="M12 5a3 3 0 1 0-5.997.125 4 4 0 0 0-2.526 5.77 4 4 0 0 0 .556 6.588A4 4 0 1 0 12 18Z" />
+            <path d="M12 5a3 3 0 1 1 5.997.125 4 4 0 0 1 2.526 5.77 4 4 0 0 1-.556 6.588A4 4 0 1 1 12 18Z" />
+            <path d="M15 13a4.5 4.5 0 0 1-3-4 4.5 4.5 0 0 1-3 4" />
+            <path d="M17.599 6.5a3 3 0 0 0 .399-1.375" />
+            <path d="M6.003 5.125A3 3 0 0 0 6.401 6.5" />
+            <path d="M3.477 10.896a4 4 0 0 1 .585-.396" />
+            <path d="M19.938 10.5a4 4 0 0 1 .585.396" />
+            <path d="M6 18a4 4 0 0 1-1.967-.516" />
+            <path d="M19.967 17.484A4 4 0 0 1 18 18" />
+          </svg>
         </div>
         <div>
           <h1 style="margin: 0; line-height: 1;">Impulse</h1>
@@ -181,7 +192,7 @@
       activeModel: 'base',
       vramTotalGb: 0,
       hotkey: 'ctrl+windows',
-      stylizationProfile: 'off',
+      stylizationProfile: 'clean',
       ollamaModel: 'llama3.2:3b',
       ollamaEndpoint: 'http://127.0.0.1:11434'
     };
@@ -727,9 +738,9 @@
         <label class="switch"><input type="checkbox" ${settingsState.contextSandwich ? 'checked' : ''} onchange="toggleSetting('contextSandwich')"><span></span></label>
       </div>
       <div class="settings-row">
-        <div><h4>Stylization Profile</h4><p>Adjust transcription tone via local LLM (Ctrl+Win+Shift to cycle).</p></div>
+        <div><h4>Stylization Profile</h4><p>Clean: fillers removed, human text. Polished: light grammar fix via Ollama. (Ctrl+Win+Shift to cycle)</p></div>
         <select onchange="updateSetting('stylizationProfile', this.value)">
-          ${['off', 'clean', 'casual', 'formal', 'technical'].map(p => '<option value="' + p + '"' + (settingsState.stylizationProfile === p ? ' selected' : '') + '>' + p.charAt(0).toUpperCase() + p.slice(1) + '</option>').join('')}
+          ${['off', 'clean', 'polished'].map(p => '<option value="' + p + '"' + (settingsState.stylizationProfile === p ? ' selected' : '') + '>' + p.charAt(0).toUpperCase() + p.slice(1) + '</option>').join('')}
         </select>
       </div>
       <div class="settings-row">
