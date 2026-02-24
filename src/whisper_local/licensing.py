@@ -134,6 +134,10 @@ class LicensingManager:
         Check if the application is currently licensed.
         Uses offline cache if online check fails or offline_fallback is True.
         """
+        # --- DEVELOPMENT BYPASS ---
+        # Unconditionally return True so the developer is not locked out
+        return True
+        
         state = self.load_license_state()
         if not state.get("active") or not state.get("key"):
             return False
