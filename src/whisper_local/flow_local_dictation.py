@@ -96,9 +96,13 @@ def debug_print(*args, **kwargs):
     """
     if DEBUG_MODE:
         try:
-            print(*args, **kwargs)
-            sys.stdout.flush()  # Force immediate output
-        except (OSError, AttributeError):
+            msg = " ".join(str(a) for a in args)
+            # Encode safely for Windows consoles (cp1252 can't handle emoji)
+            enc = getattr(sys.stdout, "encoding", None) or "utf-8"
+            safe_msg = msg.encode(enc, errors="replace").decode(enc, errors="replace")
+            print(safe_msg, **{k: v for k, v in kwargs.items() if k != "sep"})
+            sys.stdout.flush()
+        except (OSError, AttributeError, UnicodeError):
             pass  # Silently fail if no console
 
 # ============================================================================
@@ -404,8 +408,16 @@ def _setup_logging():
     except (IOError, OSError) as e:
         print(f"Warning: Could not create log file: {e}")
     
-    # Console handler - INFO level
-    console_handler = logging.StreamHandler(sys.stdout)
+    # Console handler - INFO level (encoding-safe for Windows cp1252)
+    try:
+        import io
+        safe_stream = io.TextIOWrapper(
+            sys.stdout.buffer, encoding=sys.stdout.encoding or "utf-8",
+            errors="replace", line_buffering=True,
+        )
+    except (AttributeError, TypeError):
+        safe_stream = sys.stdout  # pythonw has no buffer — fallback
+    console_handler = logging.StreamHandler(safe_stream)
     console_handler.setLevel(logging.INFO)
     console_formatter = logging.Formatter('%(message)s')
     console_handler.setFormatter(console_formatter)
@@ -1179,8 +1191,72 @@ pending_status_timer = None
 
 
 def _are_all_keys_pressed(keys) -> bool:
-    """Return True only when every key in the sequence is currently pressed."""
-    return all(keyboard.is_pressed(k) for k in keys)
+    """Return True only when every key in the sequence is currently pressed.
+
+    Uses Win32 GetAsyncKeyState directly for reliability on Windows 11.
+    The ``keyboard`` library's hook-based is_pressed() can silently fail
+    when hooks aren't receiving events; GetAsyncKeyState bypasses that.
+    """
+    return all(_win32_is_pressed(k) for k in keys)
+
+
+# ---------------------------------------------------------------------------
+# Win32 virtual-key map for GetAsyncKeyState fallback
+# ---------------------------------------------------------------------------
+import ctypes as _ctypes
+
+_user32 = _ctypes.windll.user32
+
+_VK_MAP: dict[str, list[int]] = {
+    "ctrl":     [0x11],          # VK_CONTROL  (left or right)
+    "alt":      [0x12],          # VK_MENU
+    "shift":    [0x10],          # VK_SHIFT
+    "windows":  [0x5B, 0x5C],   # VK_LWIN | VK_RWIN
+    "win":      [0x5B, 0x5C],
+    "esc":      [0x1B],          # VK_ESCAPE
+    "space":    [0x20],
+    "enter":    [0x0D],
+    "tab":      [0x09],
+}
+# Single-character keys: 'a'-'z' → 0x41-0x5A, '0'-'9' → 0x30-0x39
+# F-keys: 'f1'-'f24' → 0x70-0x87
+
+
+def _vk_codes(key_name: str) -> list[int]:
+    """Resolve a human-readable key name to one or more Win32 VK codes."""
+    low = key_name.lower().strip()
+    if low in _VK_MAP:
+        return _VK_MAP[low]
+    # Single character
+    if len(low) == 1:
+        ch = low.upper()
+        if 'A' <= ch <= 'Z':
+            return [ord(ch)]
+        if '0' <= ch <= '9':
+            return [ord(ch)]
+    # F-keys (f1 … f24)
+    if low.startswith("f") and low[1:].isdigit():
+        n = int(low[1:])
+        if 1 <= n <= 24:
+            return [0x70 + n - 1]
+    # Fallback: let keyboard library try (may not work but won't crash)
+    return []
+
+
+def _win32_is_pressed(key_name: str) -> bool:
+    """Check if *key_name* is currently pressed via GetAsyncKeyState.
+
+    For keys that map to multiple VK codes (e.g. windows → left|right),
+    returns True if *any* of them is down.
+    """
+    codes = _vk_codes(key_name)
+    if not codes:
+        # Unknown key — fall back to keyboard library
+        try:
+            return keyboard.is_pressed(key_name)
+        except Exception:
+            return False
+    return any(_user32.GetAsyncKeyState(vk) & 0x8000 for vk in codes)
 
 
 def _settings_mtime(path: str) -> float:
@@ -4379,13 +4455,7 @@ def _tray_toggle(_=None):
         pass
 
 
-def _tray_toggle_router(_=None):
-    global MODE_ROUTER, voice_router
-    MODE_ROUTER = not MODE_ROUTER
-    if not MODE_ROUTER:
-        voice_router = None
-    state = "enabled" if MODE_ROUTER else "disabled"
-    notify(f"Voice agent router {state}")
+
 
 
 def _tray_selftest(_=None):
@@ -4494,7 +4564,6 @@ def start_tray():
         menu=pystray.Menu(
             pystray.MenuItem("Open Dashboard", _tray_open_dashboard, default=True),
             pystray.MenuItem("Toggle Listening", _tray_toggle),
-            pystray.MenuItem("Toggle Agent Router", _tray_toggle_router),
             pystray.Menu.SEPARATOR,
             pystray.MenuItem("Restart GUI", _tray_restart_gui),
             pystray.Menu.SEPARATOR,
@@ -4532,7 +4601,6 @@ def run_whisper_main_loop():
     safe_print(f"  • Hold {_hotkey_display_text(HOTKEY_HOLD)} to record")
     safe_print("  • Release to transcribe & paste")
     safe_print("  • Dashboard shows status and stats")
-    safe_print(f"  • Agent router: {'ON' if MODE_ROUTER else 'OFF'} ({ROUTER_MODEL})")
     safe_print("  • ESC to exit")
     safe_print("=" * 60)
 
@@ -4618,14 +4686,13 @@ def run_whisper_main_loop():
         health_check_count[0] += 1
         issues = []
         
-        # Check keyboard library health
+        # Check keyboard detection health (Win32 GetAsyncKeyState)
         try:
-            # Try to query keyboard state - this will fail if library is in bad state
-            _ = keyboard.is_pressed("shift")
+            _ = _win32_is_pressed("shift")
             keyboard_health_failures[0] = 0
         except Exception as e:
             keyboard_health_failures[0] += 1
-            issues.append(f"keyboard library error: {e}")
+            issues.append(f"keyboard detection error: {e}")
         
         # Check if GUI is responsive (root window exists and is mapped)
         try:
@@ -4719,128 +4786,156 @@ def run_whisper_main_loop():
     esc_pressed_start = [None]  # Use list for nonlocal mutation
     last_keyboard_check_error = [0]  # Track keyboard library errors
     keyboard_error_count = [0]  # Count consecutive errors
+    poll_hotkey_alive_count = [0]  # Heartbeat counter for poll_hotkey
+    poll_hotkey_last_heartbeat = [time.time()]  # Last heartbeat log time
 
     def poll_hotkey():
         nonlocal was_down
         global last_edge_ts, latch_recording
 
+        # Top-level try/except: poll_hotkey must NEVER die silently.
+        # If the re-schedule at the end is skipped, the entire hotkey
+        # system goes permanently offline while health checks still pass.
         try:
-            refresh_runtime_hotkey_binding()
-        except Exception as e:
-            now = time.time()
-            if now - last_keyboard_check_error[0] > 30:
-                log_line(f"[HOTKEY_WARNING] Hotkey refresh failed: {e}", "warning")
-                last_keyboard_check_error[0] = now
-        
-        # Check for keyboard library issues
-        try:
-            down = listening_enabled and _are_all_keys_pressed(active_hotkey_keys)
-            keyboard_error_count[0] = 0  # Reset error count on success
-        except Exception as e:
-            down = False
-            keyboard_error_count[0] += 1
-            now = time.time()
-            # Log keyboard errors, but rate-limit to avoid spam
-            if now - last_keyboard_check_error[0] > 30:  # Log at most every 30 seconds
-                log_line(f"[KEYBOARD_ERROR] is_pressed failed (count={keyboard_error_count[0]}): {e}", "warning")
-                last_keyboard_check_error[0] = now
-        
-        try:
-            if _are_all_keys_pressed(settings_shortcut_keys):
-                _launch_dashboard_from_ui_trigger()
-        except Exception:
-            pass
+            poll_hotkey_alive_count[0] += 1
 
-        # ------------------------------------------------------------------
-        # Ctrl+Win+Alt  → latch toggle (hold-free recording)
-        # ------------------------------------------------------------------
-        latch_keys = ["ctrl", "windows", "alt"]
-        try:
-            latch_chord_down = _are_all_keys_pressed(latch_keys)
-        except Exception:
-            latch_chord_down = False
+            # Periodic heartbeat: prove poll_hotkey is alive (every 60s)
+            now_hb = time.time()
+            if now_hb - poll_hotkey_last_heartbeat[0] >= 60.0:
+                poll_hotkey_last_heartbeat[0] = now_hb
+                log_line(
+                    f"[POLL_HEARTBEAT] alive polls={poll_hotkey_alive_count[0]} "
+                    f"keys={active_hotkey_keys} listening={listening_enabled} "
+                    f"was_down={was_down} latch={latch_recording}"
+                )
 
-        if latch_chord_down and not getattr(poll_hotkey, "_latch_chord_was_down", False):
-            # Rising edge of latch chord – toggle latch mode
+            try:
+                refresh_runtime_hotkey_binding()
+            except Exception as e:
+                now = time.time()
+                if now - last_keyboard_check_error[0] > 30:
+                    log_line(f"[HOTKEY_WARNING] Hotkey refresh failed: {e}", "warning")
+                    last_keyboard_check_error[0] = now
+
+            # Check for keyboard library issues
+            try:
+                down = listening_enabled and _are_all_keys_pressed(active_hotkey_keys)
+                keyboard_error_count[0] = 0  # Reset error count on success
+            except Exception as e:
+                down = False
+                keyboard_error_count[0] += 1
+                now = time.time()
+                # Log keyboard errors, but rate-limit to avoid spam
+                if now - last_keyboard_check_error[0] > 30:  # Log at most every 30 seconds
+                    log_line(f"[KEYBOARD_ERROR] is_pressed failed (count={keyboard_error_count[0]}): {e}", "warning")
+                    last_keyboard_check_error[0] = now
+
+            try:
+                if _are_all_keys_pressed(settings_shortcut_keys):
+                    _launch_dashboard_from_ui_trigger()
+            except Exception:
+                pass
+
+            # ------------------------------------------------------------------
+            # Ctrl+Win+Alt  → latch toggle (hold-free recording)
+            # ------------------------------------------------------------------
+            latch_keys = ["ctrl", "windows", "alt"]
+            try:
+                latch_chord_down = _are_all_keys_pressed(latch_keys)
+            except Exception:
+                latch_chord_down = False
+
+            if latch_chord_down and not getattr(poll_hotkey, "_latch_chord_was_down", False):
+                # Rising edge of latch chord – toggle latch mode
+                now = time.time()
+                if (now - last_edge_ts) * 1000 > EDGE_COOLDOWN_MS:
+                    last_edge_ts = now
+                    if not latch_recording:
+                        # Turn latch ON: start recording hands-free
+                        log_line("[LATCH] Ctrl+Win+Alt pressed – enabling latch recording")
+                        latch_recording = True
+                        on_hotkey_press(None)
+                    else:
+                        # Turn latch OFF: stop recording and transcribe
+                        log_line("[LATCH] Ctrl+Win+Alt pressed – disabling latch recording")
+                        latch_recording = False
+                        threading.Thread(target=stop_recording_and_transcribe, daemon=True).start()
+            poll_hotkey._latch_chord_was_down = latch_chord_down
+
+            # ------------------------------------------------------------------
+            # Ctrl+Win+Shift  → cycle stylization profile
+            # ------------------------------------------------------------------
+            style_keys = ["ctrl", "windows", "shift"]
+            try:
+                style_chord_down = _are_all_keys_pressed(style_keys)
+            except Exception:
+                style_chord_down = False
+
+            if style_chord_down and not getattr(poll_hotkey, "_style_chord_was_down", False):
+                now_style = time.time()
+                if (now_style - last_edge_ts) * 1000 > EDGE_COOLDOWN_MS:
+                    last_edge_ts = now_style
+                    from whisper_local.processing.text_stylizer import next_profile, PROFILES
+                    global _flow_settings_mgr
+                    cur = _get_stylization_profile()
+                    nxt = next_profile(cur)
+                    # Persist so dashboard and next transcription pick it up
+                    try:
+                        if _flow_settings_mgr is None:
+                            from whisper_local.settings_manager import SettingsManager
+                            _flow_settings_mgr = SettingsManager()
+                        _flow_settings_mgr.update_setting("stylization_profile", nxt)
+                    except Exception:
+                        pass
+                    label = PROFILES.get(nxt, {}).get("label", nxt)
+                    log_line(f"[STYLE] Cycled to: {label}")
+            poll_hotkey._style_chord_was_down = style_chord_down
+
+            # ------------------------------------------------------------------
+            # Normal hold-to-record (only when not in latch mode)
+            # ------------------------------------------------------------------
             now = time.time()
-            if (now - last_edge_ts) * 1000 > EDGE_COOLDOWN_MS:
-                last_edge_ts = now
-                if not latch_recording:
-                    # Turn latch ON: start recording hands-free
-                    log_line("[LATCH] Ctrl+Win+Alt pressed – enabling latch recording")
-                    latch_recording = True
+            if not latch_recording:
+                if down and not was_down and (now - last_edge_ts) * 1000 > EDGE_COOLDOWN_MS:
+                    last_edge_ts = now
+                    log_line(f"[HOTKEY] Press detected — starting recording (keys={active_hotkey_keys})")
                     on_hotkey_press(None)
-                else:
-                    # Turn latch OFF: stop recording and transcribe
-                    log_line("[LATCH] Ctrl+Win+Alt pressed – disabling latch recording")
-                    latch_recording = False
+                if (not down) and was_down and (now - last_edge_ts) * 1000 > EDGE_COOLDOWN_MS:
+                    last_edge_ts = now
+                    log_line("[HOTKEY] Release detected — stopping recording")
                     threading.Thread(target=stop_recording_and_transcribe, daemon=True).start()
-        poll_hotkey._latch_chord_was_down = latch_chord_down
+            was_down = down
 
-        # ------------------------------------------------------------------
-        # Ctrl+Win+Shift  → cycle stylization profile
-        # ------------------------------------------------------------------
-        style_keys = ["ctrl", "windows", "shift"]
-        try:
-            style_chord_down = _are_all_keys_pressed(style_keys)
-        except Exception:
-            style_chord_down = False
+            # Debounced ESC detection - require 500ms hold to prevent accidental exit
+            try:
+                esc_is_pressed = _win32_is_pressed("esc")
+                if esc_is_pressed:
+                    if esc_pressed_start[0] is None:
+                        esc_pressed_start[0] = time.time()
+                        log_line("[ESC] ESC key pressed - waiting for 500ms hold confirmation")
+                    elif time.time() - esc_pressed_start[0] >= 0.5:
+                        log_line("[ESC] ESC held for 500ms - user confirmed exit")
+                        gui.root.destroy()
+                        return
+                else:
+                    if esc_pressed_start[0] is not None:
+                        hold_duration = time.time() - esc_pressed_start[0]
+                        if hold_duration > 0.1:  # Only log if it was a real press, not a glitch
+                            log_line(f"[ESC] ESC released after {hold_duration:.2f}s (not long enough to exit)")
+                    esc_pressed_start[0] = None
+            except Exception as e:
+                log_line(f"[KEYBOARD_ERROR] ESC check failed: {e}", "warning")
+                esc_pressed_start[0] = None  # Reset on error to prevent false exits
 
-        if style_chord_down and not getattr(poll_hotkey, "_style_chord_was_down", False):
-            now_style = time.time()
-            if (now_style - last_edge_ts) * 1000 > EDGE_COOLDOWN_MS:
-                last_edge_ts = now_style
-                from whisper_local.processing.text_stylizer import next_profile, PROFILES
-                global _flow_settings_mgr
-                cur = _get_stylization_profile()
-                nxt = next_profile(cur)
-                # Persist so dashboard and next transcription pick it up
-                try:
-                    if _flow_settings_mgr is None:
-                        from whisper_local.settings_manager import SettingsManager
-                        _flow_settings_mgr = SettingsManager()
-                    _flow_settings_mgr.update_setting("stylization_profile", nxt)
-                except Exception:
-                    pass
-                label = PROFILES.get(nxt, {}).get("label", nxt)
-                log_line(f"[STYLE] Cycled to: {label}")
-        poll_hotkey._style_chord_was_down = style_chord_down
-
-        # ------------------------------------------------------------------
-        # Normal hold-to-record (only when not in latch mode)
-        # ------------------------------------------------------------------
-        now = time.time()
-        if not latch_recording:
-            if down and not was_down and (now - last_edge_ts) * 1000 > EDGE_COOLDOWN_MS:
-                last_edge_ts = now
-                on_hotkey_press(None)
-            if (not down) and was_down and (now - last_edge_ts) * 1000 > EDGE_COOLDOWN_MS:
-                last_edge_ts = now
-                threading.Thread(target=stop_recording_and_transcribe, daemon=True).start()
-        was_down = down
-        
-        # Debounced ESC detection - require 500ms hold to prevent accidental exit
-        try:
-            esc_is_pressed = keyboard.is_pressed("esc")
-            if esc_is_pressed:
-                if esc_pressed_start[0] is None:
-                    esc_pressed_start[0] = time.time()
-                    log_line("[ESC] ESC key pressed - waiting for 500ms hold confirmation")
-                elif time.time() - esc_pressed_start[0] >= 0.5:
-                    log_line("[ESC] ESC held for 500ms - user confirmed exit")
-                    gui.root.destroy()
-                    return
-            else:
-                if esc_pressed_start[0] is not None:
-                    hold_duration = time.time() - esc_pressed_start[0]
-                    if hold_duration > 0.1:  # Only log if it was a real press, not a glitch
-                        log_line(f"[ESC] ESC released after {hold_duration:.2f}s (not long enough to exit)")
-                esc_pressed_start[0] = None
         except Exception as e:
-            log_line(f"[KEYBOARD_ERROR] ESC check failed: {e}", "warning")
-            esc_pressed_start[0] = None  # Reset on error to prevent false exits
-        
-        gui.root.after(HOTKEY_POLL_MS, poll_hotkey)
+            # Critical: catch ANY unhandled exception so we can re-schedule
+            log_line(f"[POLL_HOTKEY_CRASH] Unhandled exception in poll_hotkey: {e}\n{traceback.format_exc()}", "error")
+
+        # ALWAYS re-schedule — this line must execute no matter what
+        try:
+            gui.root.after(HOTKEY_POLL_MS, poll_hotkey)
+        except Exception:
+            pass  # GUI destroyed — exit gracefully
 
     refresh_runtime_hotkey_binding(force=True)
     gui.pump_queue()
@@ -4861,7 +4956,7 @@ def run_whisper_main_loop():
     finally:
         # Log diagnostic info on exit
         try:
-            esc_state = keyboard.is_pressed("esc")
+            esc_state = _win32_is_pressed("esc")
         except:
             esc_state = "error"
         log_line(f"[MAINLOOP_EXIT] Reason: {mainloop_exit_reason}, ESC state: {esc_state}, keyboard_errors: {keyboard_error_count[0]}")
