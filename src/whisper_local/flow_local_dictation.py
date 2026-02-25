@@ -289,7 +289,7 @@ HUD_BACKEND_REQUESTED = os.environ.get("WHISPER_HUD_BACKEND", "ambient").strip()
 # Animation timing
 UI_ANIMATION_FPS = 15  # Frame rate for pulse animations (reduced for CPU efficiency)
 UI_QUEUE_POLL_MS = 50  # How often to check UI update queue
-HOTKEY_POLL_MS = 10  # How often to check hotkey state
+HOTKEY_POLL_MS = 50  # How often to check hotkey state (20 Hz, still responsive)
 
 # Status message display duration
 STATUS_SUCCESS_DISPLAY_SEC = 1.5  # How long to show success messages
@@ -1094,18 +1094,12 @@ _flow_settings_mgr = None  # lazy SettingsManager for runtime setting reads
 
 
 def _get_stylization_profile() -> str:
-    """Return the active stylization profile from settings or env var."""
-    global _flow_settings_mgr
-    if STYLIZATION_PROFILE not in ("off", "clean"):
-        return STYLIZATION_PROFILE
-    try:
-        if _flow_settings_mgr is None:
-            from whisper_local.settings_manager import SettingsManager
-            _flow_settings_mgr = SettingsManager()
-        _flow_settings_mgr.reload()
-        return str(_flow_settings_mgr.get_setting("stylization_profile") or "off")
-    except Exception:
-        return "off"
+    """Return the active stylization profile.
+
+    Stylization requires Ollama which is not available, so always return
+    ``"off"`` to skip the LLM-powered stylization step.
+    """
+    return "off"
 
 # --- Vocabulary Biasing (Section 3) ---
 # The hardcoded dictionary was migrated to continual_context.json
@@ -1257,6 +1251,143 @@ def _win32_is_pressed(key_name: str) -> bool:
         except Exception:
             return False
     return any(_user32.GetAsyncKeyState(vk) & 0x8000 for vk in codes)
+
+
+# ---------------------------------------------------------------------------
+# Win32 RegisterHotKey — true global hotkey that works even in terminals
+# ---------------------------------------------------------------------------
+# GetAsyncKeyState polling can miss keypresses when certain apps (CLI terminals,
+# elevated windows) consume modifier keys.  RegisterHotKey asks the OS to
+# deliver a WM_HOTKEY message regardless of which window has focus.
+
+_MOD_ALT   = 0x0001
+_MOD_CTRL  = 0x0002
+_MOD_SHIFT = 0x0004
+_MOD_WIN   = 0x0008
+_MOD_NOREPEAT = 0x4000
+_WM_HOTKEY = 0x0312
+
+_MODIFIER_TO_MOD_FLAG: dict[str, int] = {
+    "ctrl": _MOD_CTRL,
+    "alt": _MOD_ALT,
+    "shift": _MOD_SHIFT,
+    "windows": _MOD_WIN,
+    "win": _MOD_WIN,
+}
+
+
+class _GlobalHotkeyListener:
+    """Register a system-wide hotkey via Win32 RegisterHotKey.
+
+    Runs its own message loop on a daemon thread.  Sets an Event when the
+    hotkey is pressed so the main poll_hotkey loop can detect it.
+    """
+
+    _HOTKEY_ID = 0xBFFF  # arbitrary unique id
+
+    def __init__(self):
+        self.pressed = threading.Event()
+        self._thread: threading.Thread | None = None
+        self._registered = False
+        self._thread_id: int | None = None
+
+    # ---- public API -------------------------------------------------------
+    def start(self, key_tokens: list[str]) -> bool:
+        """Parse *key_tokens* and register the hotkey.  Returns True on success."""
+        self.stop()  # clean up any previous registration
+
+        mod_flags, vk = self._parse_tokens(key_tokens)
+        if vk is None:
+            return False
+
+        self._thread = threading.Thread(
+            target=self._run, args=(mod_flags, vk), daemon=True
+        )
+        self._thread.start()
+        # Give the thread a moment to register
+        time.sleep(0.05)
+        return self._registered
+
+    def stop(self):
+        if self._thread_id is not None:
+            # Post WM_QUIT to break the message loop
+            _user32.PostThreadMessageW(self._thread_id, 0x0012, 0, 0)  # WM_QUIT
+            self._thread_id = None
+        self._thread = None
+        self._registered = False
+
+    def update_keys(self, key_tokens: list[str]) -> bool:
+        """Re-register with new key combination."""
+        return self.start(key_tokens)
+
+    # ---- internal ---------------------------------------------------------
+    @staticmethod
+    def _parse_tokens(tokens: list[str]) -> tuple[int, int | None]:
+        """Split tokens into (modifier_flags, vk_code).
+
+        For modifier-only combos like ``['ctrl', 'windows']`` we pick the
+        last modifier as the "main" virtual key so RegisterHotKey has
+        something to trigger on.
+        """
+        mod_flags = _MOD_NOREPEAT
+        non_mod_vk = None
+
+        mod_tokens = []
+        non_mod_tokens = []
+        for t in tokens:
+            low = t.lower().strip()
+            if low in _MODIFIER_TO_MOD_FLAG:
+                mod_tokens.append(low)
+            else:
+                non_mod_tokens.append(low)
+
+        # Build modifier bitmask from all modifier tokens
+        for mt in mod_tokens:
+            mod_flags |= _MODIFIER_TO_MOD_FLAG[mt]
+
+        if non_mod_tokens:
+            # Use the first non-modifier key as the trigger
+            codes = _vk_codes(non_mod_tokens[0])
+            if codes:
+                non_mod_vk = codes[0]
+        else:
+            # Modifier-only combo (e.g. ctrl+win): use last modifier as VK
+            # and remove it from the mod_flags bitmask.
+            if mod_tokens:
+                trigger = mod_tokens[-1]
+                codes = _vk_codes(trigger)
+                if codes:
+                    non_mod_vk = codes[0]
+                    mod_flags &= ~_MODIFIER_TO_MOD_FLAG.get(trigger, 0)
+
+        return mod_flags, non_mod_vk
+
+    def _run(self, mod_flags: int, vk: int):
+        """Thread entry: register hotkey, pump messages, unregister on exit."""
+        import ctypes
+        self._thread_id = ctypes.windll.kernel32.GetCurrentThreadId()
+
+        ok = _user32.RegisterHotKey(None, self._HOTKEY_ID, mod_flags, vk)
+        self._registered = bool(ok)
+        if not ok:
+            log_line(
+                f"[HOTKEY] RegisterHotKey failed (mod=0x{mod_flags:04X} vk=0x{vk:02X}) — "
+                "another app may own this combo; falling back to GetAsyncKeyState only",
+                "warning",
+            )
+            return
+
+        log_line(f"[HOTKEY] RegisterHotKey OK (mod=0x{mod_flags:04X} vk=0x{vk:02X})")
+
+        msg = ctypes.wintypes.MSG()
+        while _user32.GetMessageW(ctypes.byref(msg), None, 0, 0) > 0:
+            if msg.message == _WM_HOTKEY and msg.wParam == self._HOTKEY_ID:
+                self.pressed.set()
+
+        _user32.UnregisterHotKey(None, self._HOTKEY_ID)
+        self._registered = False
+
+_global_hotkey = _GlobalHotkeyListener()
 
 
 def _settings_mtime(path: str) -> float:
@@ -3497,16 +3628,19 @@ def start_recording():
         return False
 
 def _select_whisper_params(duration_sec):
-    """Aggressive GPU-optimized parameters for maximum speed with large model."""
-    # Use higher batch size for modern GPUs - RTX 3000+ can handle 12-16
+    """Select whisper beam/best-of params based on audio length.
+
+    whisper.cpp caps decoders at 8 (beam_size + best_of combined),
+    so keep beam_size <= 8 to avoid 'too many decoders' failures.
+    """
     if duration_sec is None or duration_sec < 15:
-        return 12, None, "fast-gpu"  # Higher batch size + no best-of = maximum speed
+        return 8, None, "fast"        # Max beams, no best-of = speed
     elif duration_sec < 30:
-        return 10, 2, "balanced-gpu"  # Slightly higher batch size
+        return 6, 2, "balanced"       # 6 beams + best-of 2
     elif duration_sec < 60:
-        return 8, 3, "quality-gpu"  # Max best-of capped at 3
+        return 5, 3, "quality"        # 5 beams + best-of 3
     else:
-        return 6, 2, "long-audio"  # Slightly lower for very long audio
+        return 5, 2, "long-audio"     # Conservative for long audio
 
 
 def _parse_cuda_error(stderr_text):
@@ -3580,9 +3714,13 @@ def _verify_binary_hash(exe_path: str) -> None:
         raise RuntimeError("Security Error: Could not verify speech engine binary.")
 
 
+_gpu_consecutive_failures = 0
+_GPU_FAILURE_THRESHOLD = 3  # After this many consecutive GPU failures, skip GPU entirely
+_gpu_skip_flash_attention = False  # Set True if GPU works without -fa but fails with it
+
 def run_whisper(filename, bin_path, model_path=None):
     """Run whisper transcription with specified model.
-    
+
     Args:
         filename: Path to audio file
         bin_path: Path to whisper binary
@@ -3591,9 +3729,11 @@ def run_whisper(filename, bin_path, model_path=None):
     Returns:
         Tuple of (return_code, transcription_text, stderr)
     """
+    global _gpu_consecutive_failures, _gpu_skip_flash_attention
+
     if model_path is None:
         model_path = MODEL_PATH_LARGE
-    
+
     exe = os.path.abspath(_resolve_whisper_exe(bin_path))
     _verify_binary_hash(exe)
     
@@ -3647,8 +3787,9 @@ def run_whisper(filename, bin_path, model_path=None):
     if not is_whisper_cli:
         # Legacy main.exe builds support explicit GPU-layer control.
         whisper_args.extend(["-ngl", "999"])
+    if not _gpu_skip_flash_attention:
+        whisper_args.append("-fa")  # Flash Attention (needs CUDA >= 7.0 / Volta+)
     whisper_args.extend([
-        "-fa",  # Enable Flash Attention for faster GPU inference
         "-otxt", "-of", out_txt[:-4],
         "--prompt", initial_prompt,
     ])
@@ -3668,85 +3809,138 @@ def run_whisper(filename, bin_path, model_path=None):
         safe_print(f"[whisper] {duration_sec:.1f}s audio: {mode_desc} mode ({params_info})")
 
     env = os.environ.copy()
-    env["GGML_CUDA_FORCE_CUBLAS"] = "1"
-    env["CUDA_LAUNCH_BLOCKING"] = "0"  # Async GPU operations for better throughput
     log_line(f"DEBUG exe = {exe}")
     log_line(f"DEBUG wav_path = {filename}")
-    log_line(f"DEBUG cmd = {cmd}")
 
-    try:
-        res = subprocess.run(
-            cmd,
-            cwd=workdir,
-            env=env,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=WHISPER_TIMEOUT_SEC,
-            creationflags=CREATE_NO_WINDOW,  # Prevent console window popup
-        )
-    except subprocess.TimeoutExpired:
-        log_line(f"[whisper] Process timed out after {WHISPER_TIMEOUT_SEC}s")
-        return 1, "", "Transcription timed out"
+    def _run_cpu_only():
+        """Run transcription in CPU-only mode."""
+        cpu_batch_size = min(batch_size, 5)
+        cpu_best_of = min(best_of, 3) if best_of else None
+        cpu_threads = str(os.cpu_count() or 4)
+        cpu_args = [
+            "-l", "en", "-nt", "-mc", "0",
+            "-bs", str(cpu_batch_size), "-t", cpu_threads,
+            "-otxt", "-of", out_txt[:-4],
+            "--no-gpu", "--prompt", initial_prompt,
+        ]
+        if cpu_best_of:
+            cpu_args.extend(["-bo", str(cpu_best_of)])
+        cmd_cpu = build_whisper_cmd(exe, model_path, filename, base_args=cpu_args)
+        safe_print(f"[whisper] CPU mode: bs={cpu_batch_size}" + (f", bo={cpu_best_of}" if cpu_best_of else "") + f", threads={cpu_threads}")
+        try:
+            return subprocess.run(
+                cmd_cpu, cwd=workdir, capture_output=True, text=True,
+                encoding="utf-8", errors="replace", timeout=WHISPER_TIMEOUT_SEC,
+                creationflags=CREATE_NO_WINDOW,
+            )
+        except subprocess.TimeoutExpired:
+            log_line(f"[whisper] CPU timed out after {WHISPER_TIMEOUT_SEC}s")
+            return None
 
-    stderr_lower = (res.stderr or "").lower()
-    if "cuda" in stderr_lower and "found" in stderr_lower and res.returncode == 0:
-        log_line(f"CUDA_INIT: Detected CUDA initialization in stderr")
-    
+    def _run_gpu_no_fa():
+        """Retry GPU without Flash Attention (requires newer GPU arch)."""
+        safe_print("[whisper] Retrying GPU without Flash Attention (-fa)...")
+        nofa_args = [
+            "-l", "en", "-nt", "-mc", "0",
+            "-bs", str(batch_size), "-t", num_threads,
+            "-otxt", "-of", out_txt[:-4],
+            "--prompt", initial_prompt,
+        ]
+        if not is_whisper_cli:
+            nofa_args.extend(["-ngl", "999"])
+        if best_of is not None:
+            nofa_args.extend(["-bo", str(best_of)])
+        cmd_nofa = build_whisper_cmd(exe, model_path, filename, base_args=nofa_args)
+        nofa_env = os.environ.copy()
+        nofa_env["GGML_CUDA_FORCE_CUBLAS"] = "1"
+        nofa_env["CUDA_LAUNCH_BLOCKING"] = "0"
+        try:
+            return subprocess.run(
+                cmd_nofa, cwd=workdir, env=nofa_env, capture_output=True, text=True,
+                encoding="utf-8", errors="replace", timeout=WHISPER_TIMEOUT_SEC,
+                creationflags=CREATE_NO_WINDOW,
+            )
+        except subprocess.TimeoutExpired:
+            log_line("[whisper] GPU (no -fa) timed out")
+            return None
+
+    def _log_gpu_stderr(stderr_text):
+        """Log stderr from GPU failure for diagnosis."""
+        if not stderr_text:
+            return
+        # Log last 500 chars of stderr to avoid flooding
+        snippet = stderr_text.strip()[-500:]
+        log_line(f"[whisper] GPU stderr (last 500 chars): {snippet}")
+
     def _looks_cuda_assert(s: str) -> bool:
         return ("GGML_ASSERT" in (s or "")) or ("Incorrect KV cache padding" in (s or ""))
 
-    cuda_error_type, cuda_error_msg, cuda_snippet = _parse_cuda_error(res.stderr)
-    
-    if res.returncode != 0 or _looks_cuda_assert(res.stderr) or cuda_error_type:
-        if cuda_error_type:
-            safe_print(f"[whisper] CUDA error ({cuda_error_type}): {cuda_error_msg}")
-            log_line(f"CUDA_ERROR type={cuda_error_type} msg={cuda_error_msg}")
-            if cuda_snippet:
-                log_line(f"CUDA_ERROR snippet: {cuda_snippet}")
-        elif res.returncode != 0:
-            safe_print(f"[whisper] Process failed (exit code {res.returncode}); retrying on CPU")
-            log_line(f"PROCESS_ERROR exit_code={res.returncode}")
-        else:
-            safe_print("[whisper] CUDA failed; retrying on CPU")
-        
-        cpu_batch_size = min(batch_size, 5)
-        cpu_best_of = min(best_of, 3) if best_of else None
-        cpu_threads = str(os.cpu_count() or 4)  # Use all cores for CPU mode
-        
-        cpu_args = [
-            "-l", "en",
-            "-nt",
-            "-mc", "0",
-            "-bs", str(cpu_batch_size),
-            "-t", cpu_threads,
-            "-otxt", "-of", out_txt[:-4],
-            "--no-gpu",
-            "--prompt", initial_prompt,
-        ]
-        
-        if cpu_best_of:
-            cpu_args.extend(["-bo", str(cpu_best_of)])
-        
-        cmd_cpu = build_whisper_cmd(exe, model_path, filename, base_args=cpu_args)
-        
-        safe_print(f"[whisper] CPU fallback: bs={cpu_batch_size}" + (f", bo={cpu_best_of}" if cpu_best_of else "") + f", threads={cpu_threads}")
-        
+    def _gpu_failed(res_obj):
+        return res_obj.returncode != 0 or _looks_cuda_assert(res_obj.stderr) or _parse_cuda_error(res_obj.stderr)[0]
+
+    # Skip GPU entirely after repeated failures
+    if _gpu_consecutive_failures >= _GPU_FAILURE_THRESHOLD:
+        log_line(f"[whisper] GPU disabled after {_gpu_consecutive_failures} consecutive failures, using CPU only")
+        res = _run_cpu_only()
+        if res is None:
+            return 1, "", "Transcription timed out (CPU)"
+    else:
+        env["GGML_CUDA_FORCE_CUBLAS"] = "1"
+        env["CUDA_LAUNCH_BLOCKING"] = "0"
+        log_line(f"DEBUG cmd = {cmd}")
+
         try:
             res = subprocess.run(
-                cmd_cpu,
-                cwd=workdir,
-                capture_output=True,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-                timeout=WHISPER_TIMEOUT_SEC,
-                creationflags=CREATE_NO_WINDOW,  # Prevent console window popup
+                cmd, cwd=workdir, env=env, capture_output=True, text=True,
+                encoding="utf-8", errors="replace", timeout=WHISPER_TIMEOUT_SEC,
+                creationflags=CREATE_NO_WINDOW,
             )
         except subprocess.TimeoutExpired:
-            log_line(f"[whisper] CPU fallback timed out after {WHISPER_TIMEOUT_SEC}s")
-            return 1, "", "Transcription timed out (CPU fallback)"
+            log_line(f"[whisper] Process timed out after {WHISPER_TIMEOUT_SEC}s")
+            return 1, "", "Transcription timed out"
+
+        stderr_lower = (res.stderr or "").lower()
+        if "cuda" in stderr_lower and "found" in stderr_lower and res.returncode == 0:
+            log_line(f"CUDA_INIT: Detected CUDA initialization in stderr")
+
+        cuda_error_type, cuda_error_msg, cuda_snippet = _parse_cuda_error(res.stderr)
+
+        if _gpu_failed(res):
+            # Log the actual stderr so we can diagnose GPU issues
+            _log_gpu_stderr(res.stderr)
+
+            if cuda_error_type:
+                safe_print(f"[whisper] CUDA error ({cuda_error_type}): {cuda_error_msg}")
+                log_line(f"CUDA_ERROR type={cuda_error_type} msg={cuda_error_msg}")
+                if cuda_snippet:
+                    log_line(f"CUDA_ERROR snippet: {cuda_snippet}")
+            elif res.returncode != 0:
+                safe_print(f"[whisper] GPU failed (exit code {res.returncode})")
+                log_line(f"PROCESS_ERROR exit_code={res.returncode}")
+
+            # Try GPU without Flash Attention before falling back to CPU.
+            # -fa requires CUDA compute capability >= 7.0 (Volta+) and is
+            # the most common reason for GPU exit code failures.
+            nofa_res = _run_gpu_no_fa()
+            if nofa_res is not None and not _gpu_failed(nofa_res):
+                safe_print("[whisper] GPU succeeded without Flash Attention")
+                log_line("[whisper] GPU OK without -fa — will skip -fa for future attempts")
+                _gpu_consecutive_failures = 0
+                _gpu_skip_flash_attention = True
+                res = nofa_res
+            else:
+                # Both GPU attempts failed — fall back to CPU
+                _gpu_consecutive_failures += 1
+                log_line(f"[whisper] GPU failure count: {_gpu_consecutive_failures}/{_GPU_FAILURE_THRESHOLD}")
+                if nofa_res is not None:
+                    _log_gpu_stderr(nofa_res.stderr)
+                safe_print(f"[whisper] GPU failed; falling back to CPU")
+                res = _run_cpu_only()
+                if res is None:
+                    return 1, "", "Transcription timed out (CPU fallback)"
+        else:
+            # GPU succeeded — reset failure counter
+            _gpu_consecutive_failures = 0
     safe_print(f"[whisper] exit={res.returncode} stdout={len(res.stdout)}B stderr={len(res.stderr)}B out='{out_txt}'")
 
     text = ""
@@ -4138,17 +4332,17 @@ def _transcribe_and_paste(wav_path):
         # Store last transcription for manual copy access
         last_transcription = text
 
-        # Background auto-learning — extract new vocab without blocking the paste.
-        _text_for_learning = text
-        def _run_context_learning():
-            try:
-                from whisper_local.continual_context import extract_and_learn
-                added = extract_and_learn(_text_for_learning, OLLAMA_MODEL, OLLAMA_ENDPOINT)
-                if added:
-                    log_line(f"[CONTEXT] Learned: {', '.join(added)}", "info")
-            except Exception:
-                pass
-        threading.Thread(target=_run_context_learning, daemon=True).start()
+        # Background auto-learning disabled — requires Ollama which is not available.
+        # _text_for_learning = text
+        # def _run_context_learning():
+        #     try:
+        #         from whisper_local.continual_context import extract_and_learn
+        #         added = extract_and_learn(_text_for_learning, OLLAMA_MODEL, OLLAMA_ENDPOINT)
+        #         if added:
+        #             log_line(f"[CONTEXT] Learned: {', '.join(added)}", "info")
+        #     except Exception:
+        #         pass
+        # threading.Thread(target=_run_context_learning, daemon=True).start()
 
         # Check if our pill had focus when recording STARTED
         # Using captured focus state to avoid issues with UI updates changing focus
@@ -4447,6 +4641,8 @@ def _tray_update(title="Whisper Local", text="Idle"):
 def _tray_toggle(_=None):
     global listening_enabled
     listening_enabled = not listening_enabled
+    log_line(f"[TRAY] Toggle listening: {'enabled' if listening_enabled else 'PAUSED'}")
+    notify("Listening resumed" if listening_enabled else "Listening paused")
     _tray_update(text=("Listening" if listening_enabled else "Paused"))
     try:
         if gui and gui.root and gui.root.winfo_exists():
@@ -4563,6 +4759,7 @@ def start_tray():
         "Impulse",
         menu=pystray.Menu(
             pystray.MenuItem("Open Dashboard", _tray_open_dashboard, default=True),
+            pystray.Menu.SEPARATOR,
             pystray.MenuItem("Toggle Listening", _tray_toggle),
             pystray.Menu.SEPARATOR,
             pystray.MenuItem("Restart GUI", _tray_restart_gui),
@@ -4627,12 +4824,14 @@ def run_whisper_main_loop():
 
     startup_diagnostics()
     
-    # Start GPU monitoring in background
-    safe_print("🔍 Starting GPU monitoring...")
-    gpu_monitor.start_monitoring()
-    
-    # Start CUDA warmup in background (pre-load GPU model for instant first transcription)
-    threading.Thread(target=cuda_warmup, daemon=True).start()
+    # Only start GPU features if a CUDA-capable GPU was detected at startup.
+    # GPU monitoring polls nvidia-smi (now every 10s instead of 2s to reduce fan noise).
+    if GPU_AVAILABLE:
+        safe_print("[startup] GPU detected — enabling GPU monitoring and CUDA warmup")
+        gpu_monitor.start_monitoring()
+        threading.Thread(target=cuda_warmup, daemon=True).start()
+    else:
+        safe_print("[startup] No GPU detected — running in CPU-only mode")
     
     try:
         device_lines = devices_summary_text()
@@ -4774,6 +4973,8 @@ def run_whisper_main_loop():
 
         if changed:
             log_line(f"[HOTKEY] Active hold shortcut updated to: {active_hotkey_combo[0]}")
+            # Re-register global hotkey with new key combination
+            _global_hotkey.update_keys(active_hotkey_keys)
             try:
                 if gui and gui.root and gui.root.winfo_exists():
                     ui_queue.put((gui.set_hotkey_hint, (active_hotkey_combo[0],)))
@@ -4781,6 +4982,9 @@ def run_whisper_main_loop():
                         ui_queue.put((gui.set_status, (("armed" if listening_enabled else "idle"),)))
             except Exception:
                 pass
+
+    # Register system-wide hotkey (works even when CLI terminals have focus)
+    _global_hotkey.start(active_hotkey_keys)
 
     # Track ESC key state for debouncing
     esc_pressed_start = [None]  # Use list for nonlocal mutation
@@ -4830,6 +5034,30 @@ def run_whisper_main_loop():
                     log_line(f"[KEYBOARD_ERROR] is_pressed failed (count={keyboard_error_count[0]}): {e}", "warning")
                     last_keyboard_check_error[0] = now
 
+            # RegisterHotKey fires even when terminals swallow the key combo.
+            # When GetAsyncKeyState can't see the keys (terminal consumed them),
+            # use RegisterHotKey as press signal.  Release is detected when
+            # GetAsyncKeyState sees the keys come up, OR after a safety timeout.
+            if listening_enabled and _global_hotkey.pressed.is_set():
+                _global_hotkey.pressed.clear()
+                if not down:
+                    # GetAsyncKeyState missed the press — force it
+                    down = True
+                    if not hasattr(poll_hotkey, "_rh_press_time"):
+                        poll_hotkey._rh_press_time = None
+                    poll_hotkey._rh_press_time = time.time()
+
+            # Safety: if recording was started via RegisterHotKey and
+            # GetAsyncKeyState never sees a release (terminal swallowed it),
+            # auto-release once the keys come back up.
+            try:
+                if (was_down and not _are_all_keys_pressed(active_hotkey_keys)
+                        and getattr(poll_hotkey, "_rh_press_time", None) is not None):
+                    down = False
+                    poll_hotkey._rh_press_time = None
+            except Exception:
+                pass
+
             try:
                 if _are_all_keys_pressed(settings_shortcut_keys):
                     _launch_dashboard_from_ui_trigger()
@@ -4863,33 +5091,8 @@ def run_whisper_main_loop():
             poll_hotkey._latch_chord_was_down = latch_chord_down
 
             # ------------------------------------------------------------------
-            # Ctrl+Win+Shift  → cycle stylization profile
+            # Ctrl+Win+Shift stylization cycling disabled (requires Ollama)
             # ------------------------------------------------------------------
-            style_keys = ["ctrl", "windows", "shift"]
-            try:
-                style_chord_down = _are_all_keys_pressed(style_keys)
-            except Exception:
-                style_chord_down = False
-
-            if style_chord_down and not getattr(poll_hotkey, "_style_chord_was_down", False):
-                now_style = time.time()
-                if (now_style - last_edge_ts) * 1000 > EDGE_COOLDOWN_MS:
-                    last_edge_ts = now_style
-                    from whisper_local.processing.text_stylizer import next_profile, PROFILES
-                    global _flow_settings_mgr
-                    cur = _get_stylization_profile()
-                    nxt = next_profile(cur)
-                    # Persist so dashboard and next transcription pick it up
-                    try:
-                        if _flow_settings_mgr is None:
-                            from whisper_local.settings_manager import SettingsManager
-                            _flow_settings_mgr = SettingsManager()
-                        _flow_settings_mgr.update_setting("stylization_profile", nxt)
-                    except Exception:
-                        pass
-                    label = PROFILES.get(nxt, {}).get("label", nxt)
-                    log_line(f"[STYLE] Cycled to: {label}")
-            poll_hotkey._style_chord_was_down = style_chord_down
 
             # ------------------------------------------------------------------
             # Normal hold-to-record (only when not in latch mode)

@@ -68,8 +68,8 @@ class ContextAwareAgent:
             args = {}
 
         if intent == "transcribe":
-            # Low-latency path: return raw text immediately.
-            return raw_text, True, "transcribe"
+            # Low-latency path: return raw text, let post-processing run.
+            return raw_text, False, "transcribe"
 
         if intent == "correction":
             corrected = grammar_check(raw_text)
@@ -106,9 +106,11 @@ def main() -> int:
 
     _acquire_single_instance()
 
-    agent = ContextAwareAgent()
-    set_transcript_action_handler(agent.handle)
-    LOGGER.info("Context-aware router wiring enabled")
+    # Don't register transcript handler — ContextRouter requires Ollama
+    # which is not available, causing 12s timeout on every transcription.
+    # agent = ContextAwareAgent()
+    # set_transcript_action_handler(agent.handle)
+    LOGGER.info("Context-aware router disabled (no Ollama)")
 
     start_tray()
     run_whisper_main_loop()
