@@ -35,7 +35,7 @@ class GPUMonitor:
         """Initialize GPU monitor."""
         self._gpu_info: Optional[GPUInfo] = None
         self._last_update = 0
-        self._update_interval = 2.0  # Update every 2 seconds
+        self._update_interval = 10.0  # Update every 10 seconds (reduces fan noise)
         self._monitoring_enabled = False
         self._monitor_thread = None
         self._lock = threading.Lock()

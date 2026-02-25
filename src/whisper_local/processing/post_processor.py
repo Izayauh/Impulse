@@ -44,7 +44,7 @@ class PipelineConfig:
     enable_punctuation: bool = True
     enable_domain: bool = True
     enable_code_mode: bool = False
-    enable_homophone: bool = True
+    enable_homophone: bool = False  # Requires Ollama; disabled by default
     enable_final_sanitizer: bool = True
     domains: list[str] = field(default_factory=list)
     homophone_model: str = "llama3.2:3b"
