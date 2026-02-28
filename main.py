@@ -69,7 +69,7 @@ class ContextAwareAgent:
 
         if intent == "transcribe":
             # Low-latency path: return raw text, let post-processing run.
-            return raw_text, False, "transcribe"
+            return raw_text, True, "transcribe"
 
         if intent == "correction":
             corrected = grammar_check(raw_text)

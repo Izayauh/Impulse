@@ -41,6 +41,14 @@ class TestModelSelectionHelpers(unittest.TestCase):
         self.assertEqual(refreshed["active_model"], "large")
         self.assertTrue(auto_switched)
 
+    def test_auto_mode_selects_large_when_vram_exactly_8gb(self):
+        """Boundary test: exactly 8192 MB VRAM should select large, not base."""
+        base = default_state()
+        base["active_model"] = "base"
+        state, auto_switched = apply_mode(base, "auto", 8192)
+        self.assertEqual(state["active_model"], "large")
+        self.assertTrue(auto_switched)
+
     def test_save_and_load_round_trip(self):
         with tempfile.TemporaryDirectory() as tmp_dir:
             path = os.path.join(tmp_dir, "state", "model_selection.json")
