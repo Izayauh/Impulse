@@ -43,7 +43,7 @@ class AppSettings(BaseModel):
     ollama_endpoint: str = "http://127.0.0.1:11434"
     vad_sensitivity: int = Field(65, ge=1, le=100)
     vad_silence_ms: int = Field(700, ge=250, le=2000)
-    telemetry_enabled: bool = True
+    telemetry_enabled: bool = False
     transcription: TranscriptionSettings = Field(default_factory=TranscriptionSettings)
 
 
