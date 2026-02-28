@@ -8,7 +8,7 @@ This document outlines all the improvements made to the Whisper Local Dictation 
 **Problem:** Hardcoded paths pointing to wrong locations
 ```python
 # OLD (Broken):
-FLOW_WHISPER_BIN = r"C:\\Users\\isaia\\whisper.cpp\\build\\bin\\Release\\main.exe"
+FLOW_WHISPER_BIN = r"<repo>/whisper.cpp/build/bin/Release/main.exe"
 
 # NEW (Auto-detected):
 Auto-detects whisper-cli.exe or main.exe in script directory

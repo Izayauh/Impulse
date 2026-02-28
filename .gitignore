@@ -58,3 +58,6 @@ flow_out.txt
 
 ## Local backups
 .git.backup/
+
+# Local test run artifacts
+pytest_out*.txt
