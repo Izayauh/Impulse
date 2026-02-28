@@ -105,6 +105,9 @@ class CrashReporter:
         # Save to file
         crash_file = os.path.join(self.crash_dir, f'crash_{crash_id}.json')
         
+        # Queue for remote telemetry before file I/O
+        self._queue_telemetry(exception, crash_id, context)
+        
         try:
             with open(crash_file, 'w', encoding='utf-8') as f:
                 json.dump(report, f, indent=2)
@@ -141,6 +144,14 @@ class CrashReporter:
             traceback.print_exc()
         
         return crash_id
+    
+    def _queue_telemetry(self, exception: Exception, crash_id: str, context: Optional[Dict] = None) -> None:
+        """Queue crash for remote telemetry (if enabled)."""
+        try:
+            from whisper_local.telemetry import record_crash
+            record_crash(exception, crash_id=crash_id, context=context)
+        except Exception:
+            pass  # Telemetry failure must never break crash reporting
     
     def get_recent_crashes(self, limit: int = 10) -> list:
         """Get recent crash reports.

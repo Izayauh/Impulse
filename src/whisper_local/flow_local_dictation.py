@@ -68,6 +68,8 @@ from whisper_local.hotkey_settings import hotkey_tokens, load_hotkey, settings_f
 from whisper_local.snippets import apply_snippets, snippets_file
 from whisper_local.vocabulary import compose_prompt, load_vocabulary, save_vocabulary, vocabulary_file
 from whisper_local.audio_ducking import AudioDuckingSessionManager
+from whisper_local.telemetry import init_telemetry, shutdown_telemetry
+from whisper_local.crash_reporter import install_crash_handler
 
 # ============================================================================
 # DEBUG MODE DETECTION
@@ -924,8 +926,11 @@ def check_achievements(text, word_count, wpm, stats):
     return newly_unlocked
 
 
-# Enable CUDA by default unless explicitly disabled via environment
-os.environ.setdefault("GGML_CUDA_ENABLE", "1")
+# Enable CUDA by default for NVIDIA GPUs unless explicitly disabled via environment
+if gpu_monitor.is_nvidia_gpu():
+    os.environ.setdefault("GGML_CUDA_ENABLE", "1")
+else:
+    os.environ.setdefault("GGML_CUDA_ENABLE", "0")
 
 # ============================================================================
 # PATH RESOLUTION FOR BUNDLED AND DEV ENVIRONMENTS
@@ -952,7 +957,10 @@ if not os.path.isfile(_default_bin):
 
 os.environ.setdefault("FLOW_WHISPER_BIN", _default_bin)
 os.environ.setdefault("WHISPER_BIN", os.environ["FLOW_WHISPER_BIN"])
-os.environ.setdefault("FLOW_WHISPER_ARGS", "-ngl 99")
+if gpu_monitor.is_nvidia_gpu():
+    os.environ.setdefault("FLOW_WHISPER_ARGS", "-ngl 99")
+else:
+    os.environ.setdefault("FLOW_WHISPER_ARGS", "")
 
 _bin = os.environ.get("FLOW_WHISPER_BIN")
 if _bin and not os.path.isfile(_bin):
@@ -4231,6 +4239,8 @@ def _transcribe_and_paste(wav_path):
     set_status_safe("⚙️ Transcribing...", Theme.BG_ELEVATED, Theme.INFO, Theme.INFO)
     bin_path = (resolved_whisper_bin or WHISPER_BIN)
     
+    # Resume GPU monitoring for load-aware model selection during transcription
+    gpu_monitor.resume_monitoring()
     try:
         rc, out, err, model_used, processing_duration_sec = run_whisper_smart(wav_path, bin_path)
     except FileNotFoundError as e:
@@ -4238,12 +4248,17 @@ def _transcribe_and_paste(wav_path):
         set_status_safe("❌ Engine not found", Theme.ERROR, Theme.TEXT_PRIMARY, Theme.ERROR)
         log_line(f"TRANSCRIBE_ERROR: {e}")
         notify("Speech engine not found. Please reinstall the application.")
+        gpu_monitor.pause_monitoring()
         return
     except Exception as e:
         # Generic transcription error
         set_status_safe("❌ Error", Theme.ERROR, Theme.TEXT_PRIMARY, Theme.ERROR)
         log_line(f"TRANSCRIBE_ERROR: {e}")
+        gpu_monitor.pause_monitoring()
         return
+    finally:
+        # Always pause GPU monitoring after transcription completes
+        gpu_monitor.pause_monitoring()
 
     if rc != 0:
         # User-friendly status for failed transcription
@@ -4659,6 +4674,8 @@ def _tray_quit(_=None):
         log_line(f"DUCK_RESTORE requested_by=tray_quit forced={restored}")
         # Stop GPU monitoring
         gpu_monitor.stop_monitoring()
+        # Flush telemetry before force quit
+        shutdown_telemetry()
     finally:
         os._exit(0)
 
@@ -4764,6 +4781,10 @@ def run_whisper_main_loop():
     safe_print(f"◉ {APP_NAME} v{APP_VERSION}")
     safe_print("=" * 60)
 
+    # Initialize telemetry and crash handler early
+    install_crash_handler()
+    init_telemetry()
+
     # Show debug mode indicator
     if DEBUG_MODE:
         debug_print('')
@@ -4810,6 +4831,8 @@ def run_whisper_main_loop():
         safe_print("[startup] GPU detected — enabling GPU monitoring and CUDA warmup")
         gpu_monitor.start_monitoring()
         threading.Thread(target=cuda_warmup, daemon=True).start()
+        # Pause polling after initial detection — resume only during transcription
+        gpu_monitor.pause_monitoring()
     else:
         safe_print("[startup] No GPU detected — running in CPU-only mode")
     
@@ -4897,9 +4920,9 @@ def run_whisper_main_loop():
             log_line(f"[HEALTH_WARNING] Keyboard library has failed {keyboard_health_failures[0]} consecutive checks - consider restarting", "warning")
             notify("⚠️ Keyboard detection may be unreliable. Consider restarting the app.")
         
-        # Schedule next health check (every 30 seconds)
+        # Schedule next health check (every 60 seconds)
         try:
-            gui.root.after(30000, health_check)
+            gui.root.after(60000, health_check)
         except:
             pass  # GUI may have been destroyed
     
@@ -4983,9 +5006,9 @@ def run_whisper_main_loop():
         try:
             poll_hotkey_alive_count[0] += 1
 
-            # Periodic heartbeat: prove poll_hotkey is alive (every 60s)
+            # Periodic heartbeat: prove poll_hotkey is alive (every 5 min)
             now_hb = time.time()
-            if now_hb - poll_hotkey_last_heartbeat[0] >= 60.0:
+            if now_hb - poll_hotkey_last_heartbeat[0] >= 300.0:
                 poll_hotkey_last_heartbeat[0] = now_hb
                 log_line(
                     f"[POLL_HEARTBEAT] alive polls={poll_hotkey_alive_count[0]} "
@@ -5155,6 +5178,10 @@ def run_whisper_main_loop():
         stop_recording_and_transcribe()
     restored = audio_ducking_manager.force_restore(reason="mainloop_exit")
     log_line(f"DUCK_RESTORE requested_by=mainloop_exit forced={restored}")
+    
+    # Flush pending telemetry
+    shutdown_telemetry()
+    
     safe_print("Bye.")
 
 if __name__ == "__main__":

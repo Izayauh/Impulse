@@ -35,8 +35,9 @@ class GPUMonitor:
         """Initialize GPU monitor."""
         self._gpu_info: Optional[GPUInfo] = None
         self._last_update = 0
-        self._update_interval = 10.0  # Update every 10 seconds (reduces fan noise)
+        self._update_interval = 30.0  # Update every 30 seconds (reduces idle GPU wake-ups)
         self._monitoring_enabled = False
+        self._paused = False  # When True, skip nvidia-smi polling (idle mode)
         self._monitor_thread = None
         self._lock = threading.Lock()
         
@@ -166,10 +167,11 @@ class GPUMonitor:
         
         def monitor_loop():
             while self._monitoring_enabled:
-                try:
-                    self._update_gpu_info()
-                except Exception:
-                    pass
+                if not self._paused:
+                    try:
+                        self._update_gpu_info()
+                    except Exception:
+                        pass
                 time.sleep(self._update_interval)
         
         self._monitor_thread = threading.Thread(target=monitor_loop, daemon=True)
@@ -180,6 +182,14 @@ class GPUMonitor:
         self._monitoring_enabled = False
         if self._monitor_thread:
             self._monitor_thread.join(timeout=5)
+    
+    def pause_monitoring(self):
+        """Pause nvidia-smi polling (idle mode — no GPU wake-ups)."""
+        self._paused = True
+    
+    def resume_monitoring(self):
+        """Resume nvidia-smi polling (active transcription mode)."""
+        self._paused = False
     
     def get_gpu_info(self) -> Optional[GPUInfo]:
         """Get current GPU information.

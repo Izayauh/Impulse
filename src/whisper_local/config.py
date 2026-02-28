@@ -14,6 +14,8 @@ import logging
 
 from typing import Optional
 
+from whisper_local.gpu_monitor import gpu_monitor
+
 logger = logging.getLogger(__name__)
 
 
@@ -66,7 +68,7 @@ WORD_THRESHOLD_BALANCED = 75  # 25-75 words: use medium.en
 HOTKEY_DEBOUNCE_MS = 150  # Minimum ms between hotkey state changes
 UI_ANIMATION_FPS = 15  # Frame rate for pulse animations
 UI_QUEUE_POLL_MS = 50  # How often to check UI update queue
-HOTKEY_POLL_MS = 10  # How often to check hotkey state
+HOTKEY_POLL_MS = 50  # How often to check hotkey state (20 Hz, responsive)
 STATUS_SUCCESS_DISPLAY_SEC = 1.5  # How long to show success messages
 CLIPBOARD_SETTLE_DELAY_SEC = 0.05  # Delay after clipboard copy before paste
 
@@ -77,6 +79,15 @@ CLIPBOARD_SETTLE_DELAY_SEC = 0.05  # Delay after clipboard copy before paste
 MAX_TRANSCRIPT_SIZE_BYTES = 1024 * 1024  # 1 MB max transcript size
 MAX_TRANSCRIPT_LINE_COUNT = 10000  # Maximum lines to process
 MAX_LINE_LENGTH_CHARS = 10000  # Maximum characters per line
+
+
+# ============================================================================
+# TELEMETRY CONSTANTS
+# ============================================================================
+TELEMETRY_VERSION = 1
+TELEMETRY_SUBMIT_INTERVAL_SEC = 300  # Batch submissions every 5 minutes
+TELEMETRY_GITHUB_OWNER = "Izayauh"
+TELEMETRY_GITHUB_REPO = "whisper"
 
 
 # ============================================================================
@@ -278,7 +289,10 @@ class Config:
             self.input_device = os.environ["FLOW_INPUT_DEVICE"]
         
         # CUDA enable/disable
-        os.environ.setdefault("GGML_CUDA_ENABLE", "1")
+        if gpu_monitor.is_nvidia_gpu():
+            os.environ.setdefault("GGML_CUDA_ENABLE", "1")
+        else:
+            os.environ.setdefault("GGML_CUDA_ENABLE", "0")
     
     def get(self, key: str, default=None):
         """Get a configuration value."""

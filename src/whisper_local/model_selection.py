@@ -80,7 +80,7 @@ def save_state(path: str, state: Dict[str, Any]) -> bool:
 
 def auto_model_for_vram(vram_total_mb: Any) -> str:
     vram_mb = _safe_float(vram_total_mb)
-    return "large" if vram_mb > AUTO_VRAM_THRESHOLD_MB else "base"
+    return "large" if vram_mb >= AUTO_VRAM_THRESHOLD_MB else "base"
 
 
 def apply_mode(state: Dict[str, Any], requested_mode: str, vram_total_mb: Any) -> Tuple[Dict[str, Any], bool]:
