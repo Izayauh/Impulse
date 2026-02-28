@@ -54,7 +54,7 @@ export const useAppStore = create<AppState>((set) => ({
         set({
             isReady: true,
             stats: {
-                userName: 'Isaiah',
+                userName: 'User',
                 xp: 2300,
                 xpToNextLevel: 3500,
                 level: 9,
