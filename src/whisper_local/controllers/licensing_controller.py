@@ -11,18 +11,23 @@ class LicensingController:
 
     def get_status(self) -> Dict[str, Any]:
         """Return the current licensing status."""
-        state = self._manager.load_license_state()
-        is_valid = self._manager.is_licensed(offline_fallback=True)
-        key = state.get("key")
-        
+        status = self._manager.get_license_status(
+            offline_fallback=True,
+            allow_online_check=True,
+        )
+        key = status.get("key")
+
         # Mask key for privacy in UI
-        masked_key = f"****-****-****-{key[-4:]}" if key and len(key) >= 4 else None
+        masked_key = f"****-****-****-{str(key)[-4:]}" if key and len(str(key)) >= 4 else None
 
         return {
-            "active": state.get("active", False),
-            "is_valid": is_valid,
+            "active": bool(status.get("active", False)),
+            "is_valid": bool(status.get("is_valid", False)),
             "key": masked_key,
-            "last_check": state.get("last_check")
+            "last_check": status.get("last_check"),
+            "reason": status.get("reason"),
+            "message": status.get("message"),
+            "expires_at": status.get("expires_at"),
         }
 
     def activate(self, license_key: str) -> Dict[str, Any]:

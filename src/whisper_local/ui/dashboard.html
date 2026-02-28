@@ -137,7 +137,7 @@
     let hotkeyCapturePressed = new Set();
     let hotkeyCaptureDraft = [];
 
-    let licenseState = { active: false, is_valid: true, key: null };
+    let licenseState = { active: false, is_valid: false, key: null, reason: null, message: null, expires_at: null };
 
     let stats = {
       userName: 'Isaiah', xp: 2300, xpToNextLevel: 3500, level: 9, rank: 'Word Warrior', nextRank: 'Voice Virtuoso',
@@ -1383,6 +1383,7 @@
         loadHotkeyFromPython();
         loadSnippetsFromPython();
         loadUserSettingsFromPython();
+        loadLicenseStateFromPython();
         verifyBridgeHealth();
         setInterval(() => { pollPythonData(); }, PY_POLL_MS);
         return true;

@@ -70,6 +70,7 @@ from whisper_local.vocabulary import compose_prompt, load_vocabulary, save_vocab
 from whisper_local.audio_ducking import AudioDuckingSessionManager
 from whisper_local.telemetry import init_telemetry, shutdown_telemetry
 from whisper_local.crash_reporter import install_crash_handler
+from whisper_local.licensing import LicensingManager
 
 # ============================================================================
 # DEBUG MODE DETECTION
@@ -1190,6 +1191,60 @@ active_app_context = None
 
 # Timer reference for canceling pending status resets
 pending_status_timer = None
+
+# Licensing runtime guard (short cache to avoid expensive checks on every keypress)
+_licensing_manager = None
+_license_cached_status = None
+_license_cache_until_ts = 0.0
+_license_last_notify_ts = 0.0
+
+
+def _get_licensing_manager() -> LicensingManager:
+    global _licensing_manager
+    if _licensing_manager is None:
+        _licensing_manager = LicensingManager(_user_dir)
+    return _licensing_manager
+
+
+def _get_runtime_license_status(force_refresh: bool = False) -> dict:
+    global _license_cached_status, _license_cache_until_ts
+    now_ts = time.time()
+    if force_refresh or _license_cached_status is None or now_ts >= _license_cache_until_ts:
+        try:
+            _license_cached_status = _get_licensing_manager().get_license_status(
+                offline_fallback=True,
+                allow_online_check=False,  # non-blocking in hotkey path
+            )
+        except Exception as e:
+            _license_cached_status = {
+                "is_valid": False,
+                "reason": "license_check_error",
+                "message": f"License check failed: {e}",
+            }
+        _license_cache_until_ts = now_ts + 15.0
+    return _license_cached_status or {"is_valid": False, "reason": "unknown", "message": "License check unavailable."}
+
+
+def _license_allows_dictation(force_refresh: bool = False) -> bool:
+    """Return True when dictation should be allowed; show UX feedback when blocked."""
+    global _license_last_notify_ts
+    status = _get_runtime_license_status(force_refresh=force_refresh)
+    if status.get("is_valid"):
+        return True
+
+    reason = status.get("reason", "unlicensed")
+    message = status.get("message") or "License required."
+    set_status_safe("🔒 License required", Theme.WARNING, Theme.BG_DARK, Theme.WARNING)
+    log_line(f"[LICENSE_BLOCK] reason={reason} message={message}", "warning")
+
+    now_ts = time.time()
+    if now_ts - _license_last_notify_ts >= 20.0:
+        _license_last_notify_ts = now_ts
+        try:
+            notify(f"🔒 {message}")
+        except Exception:
+            pass
+    return False
 
 
 def _are_all_keys_pressed(keys) -> bool:
@@ -4512,6 +4567,15 @@ def stop_recording_and_transcribe():
             set_status_safe("🔇 No speech", Theme.WARNING, Theme.BG_DARK, Theme.WARNING)
             return
 
+        # Re-check licensing before transcription in case status changed mid-session.
+        if not _license_allows_dictation(force_refresh=True):
+            try:
+                if os.path.exists(WAV_TMP):
+                    os.remove(WAV_TMP)
+            except Exception:
+                pass
+            return
+
         _transcribe_and_paste(WAV_TMP)
     except Exception as e:
         log_line(f"[rec] stop/transcribe error: {e}", "error")
@@ -4523,8 +4587,11 @@ def stop_recording_and_transcribe():
             transcribing_flag.clear()
 
 def on_hotkey_press(e):
-    if not recording_flag.is_set():
-        start_recording()
+    if recording_flag.is_set():
+        return
+    if not _license_allows_dictation(force_refresh=False):
+        return
+    start_recording()
 
 def on_hotkey_release(e):
     if recording_flag.is_set():
@@ -4784,6 +4851,19 @@ def run_whisper_main_loop():
     # Initialize telemetry and crash handler early
     install_crash_handler()
     init_telemetry()
+
+    # Startup license status check (non-blocking; uses cached/offline policy)
+    startup_license = _get_runtime_license_status(force_refresh=True)
+    if startup_license.get("is_valid"):
+        log_line(f"[LICENSE] Startup status OK ({startup_license.get('reason', 'valid')})")
+    else:
+        reason = startup_license.get("reason", "unlicensed")
+        message = startup_license.get("message", "License required.")
+        log_line(f"[LICENSE] Startup blocked reason={reason} message={message}", "warning")
+        try:
+            notify(f"🔒 {message}")
+        except Exception:
+            pass
 
     # Show debug mode indicator
     if DEBUG_MODE:
