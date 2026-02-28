@@ -4395,28 +4395,8 @@ def _transcribe_and_paste(wav_path):
             pending_status_timer.start()
             safe_print("Copied to clipboard (dashboard focused)")
         else:
-            # --- CONTEXT SANDWICH LOGIC ---
-            from whisper_local.settings_manager import SettingsManager
-            sandwich_active = False
-            try:
-                if SettingsManager().get_setting("context_sandwich"):
-                    original_clipboard = pyperclip.paste()
-                    if original_clipboard and original_clipboard.strip() and original_clipboard != text:
-                        # Append the dictated text above the clipboard
-                        text = f"{text}\n\n{original_clipboard}"
-                        sandwich_active = True
-            except Exception as e:
-                debug_print(f"Context Sandwich error: {e}")
-
-            # Use pyautogui for reliable paste (Win32 SendInput blocked by Windows security)
+            # Paste dictated text directly (no context sandwich behavior).
             if instant_paste(text):
-                if sandwich_active:
-                    try:
-                        time.sleep(0.1) # Small delay to ensure host app processes paste before Enter
-                        pyautogui.press('enter')
-                    except Exception as e:
-                        debug_print(f"Failed to press enter for sandwich: {e}")
-
                 # Record stats async (don't block the paste experience)
                 word_count = len(text.split())
                 threading.Thread(

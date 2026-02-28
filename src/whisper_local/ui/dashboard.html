@@ -183,7 +183,6 @@
       theme: 'hot_pink',
       commandMode: true,
       autoCopy: true,
-      contextSandwich: false,
       microphone: 'Default System Microphone',
       vadSensitivity: 65,
       vadSilenceMs: 700,
@@ -734,10 +733,6 @@
         <label class="switch"><input type="checkbox" ${settingsState.autoCopy ? 'checked' : ''} onchange="toggleSetting('autoCopy')"><span></span></label>
       </div>
       <div class="settings-row">
-        <div><h4>Context Sandwich</h4><p>Append original clipboard to dictation automatically.</p></div>
-        <label class="switch"><input type="checkbox" ${settingsState.contextSandwich ? 'checked' : ''} onchange="toggleSetting('contextSandwich')"><span></span></label>
-      </div>
-      <div class="settings-row">
         <div><h4>Stylization Profile</h4><p>Clean: fillers removed, human text. Polished: light grammar fix via Ollama. (Ctrl+Win+Shift to cycle)</p></div>
         <select onchange="updateSetting('stylizationProfile', this.value)">
           ${['off', 'clean', 'polished'].map(p => '<option value="' + p + '"' + (settingsState.stylizationProfile === p ? ' selected' : '') + '>' + p.charAt(0).toUpperCase() + p.slice(1) + '</option>').join('')}
@@ -799,12 +794,12 @@
       const backendKeyMap = {
         launchBehavior: 'launch_behavior', theme: 'theme',
         commandMode: 'command_mode', autoCopy: 'auto_copy',
-        contextSandwich: 'context_sandwich',
         stylizationProfile: 'stylization_profile',
         ollamaModel: 'ollama_model',
         ollamaEndpoint: 'ollama_endpoint',
         microphone: 'input_device', vadSensitivity: 'vad_sensitivity',
         vadSilenceMs: 'vad_silence_ms',
+        telemetryEnabled: 'telemetry_enabled',
       };
       await Bridge.settings.update(backendKeyMap[key] || key, value);
     }
