@@ -31,7 +31,7 @@ DisableProgramGroupPage=yes
 ; Output settings
 OutputDir=dist
 OutputBaseFilename=WhisperLocal-Setup-{#MyAppVersion}
-SetupIconFile=Whisper.ico
+SetupIconFile=..\..\src\whisper_local\Whisper.ico
 UninstallDisplayIcon={app}\{#MyAppExeName}
 
 ; Enable disk spanning for large installers (>4GB)
@@ -75,7 +75,7 @@ Source: "dist\WhisperLocal\*"; DestDir: "{app}"; Flags: ignoreversion recursesub
 
 ; Additional files if needed
 Source: "README.md"; DestDir: "{app}"; Flags: ignoreversion; DestName: "README.txt"
-Source: "USER_GUIDE.md"; DestDir: "{app}"; Flags: ignoreversion; DestName: "User Guide.txt"
+Source: "USER_GUIDE.md"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist; DestName: "User Guide.txt"
 Source: "PRIVACY.md"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist; DestName: "Privacy Policy.txt"
 Source: "CHANGELOG.md"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist; DestName: "Changelog.txt"
 

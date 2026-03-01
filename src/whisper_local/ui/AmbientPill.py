@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+import os
 import queue
 from enum import Enum
 from typing import Any, Callable, Optional
@@ -23,7 +24,10 @@ _AUDIO_HEIGHT_DELTA = 4
 _GLOW_BASE = 6
 _GLOW_DELTA = 12
 _DOCK_MARGIN_BOTTOM = 16
-_AUDIO_FPS = 30
+_AUDIO_FPS = 30          # FPS while recording/processing (visible)
+# Beta safety knob: set WHISPER_IDLE_AUDIO_FPS env var to override idle tick rate.
+# Lower = less GPU compositor overhead when app is idle (default 2 FPS).
+_AUDIO_FPS_IDLE = int(os.environ.get("WHISPER_IDLE_AUDIO_FPS", "2"))
 _AUDIO_RESPONSE_ALPHA = 0.35
 _AUDIO_MAX_STEP = 0.22
 _PROCESSING_TIMEOUT_MS = 1200
@@ -223,7 +227,8 @@ if is_qt_available():
 
             self._audio_timer = QtCore.QTimer(self)
             self._audio_timer.timeout.connect(self._on_audio_tick)
-            self._audio_timer.start(int(1000 / max(10, _AUDIO_FPS)))
+            # Start at idle rate; _set_state will ramp up to _AUDIO_FPS when active
+            self._audio_timer.start(int(1000 / max(1, _AUDIO_FPS_IDLE)))
 
             self.resize(self._base_size)
             self._position_docked()
@@ -259,12 +264,14 @@ if is_qt_available():
 
         def show_for_active(self) -> None:
             """Show the pill when the user presses the record hotkey."""
+            self._set_audio_timer_rate(active=True)
             super().show()
             self.raise_()
 
         def hide_when_idle(self) -> None:
             """Hide the pill once it has returned to idle/armed state."""
             super().hide()
+            self._set_audio_timer_rate(active=False)
 
         def pump_queue(self):
             self._drain_ui_queue()
@@ -306,6 +313,22 @@ if is_qt_available():
             }
             return mapped.get(token, PillState.ARMED if self._is_armed_fn() else PillState.IDLE)
 
+        def _set_audio_timer_rate(self, active: bool) -> None:
+            """Switch the audio timer between active-rate and hidden-idle mode.
+
+            When hidden, we fully stop the timer so Qt doesn't keep scheduling
+            repaint-related ticks in the background. When visible/active, we
+            run at full-rate for responsive animation.
+            """
+            if not active and not self.isVisible():
+                if self._audio_timer.isActive():
+                    self._audio_timer.stop()
+                return
+
+            interval_ms = int(1000 / max(1, _AUDIO_FPS if active else _AUDIO_FPS_IDLE))
+            if not self._audio_timer.isActive() or self._audio_timer.interval() != interval_ms:
+                self._audio_timer.start(interval_ms)
+
         def _set_state(self, target: PillState) -> None:
             if self._state == target:
                 return
@@ -322,9 +345,12 @@ if is_qt_available():
                 self._audio_level_display = 0.0
                 self._glow = 0.0
                 self.hide()
+                # Drop to idle tick rate — no GPU compositor work needed while hidden
+                self._set_audio_timer_rate(active=False)
                 return
 
-            # Prepare for active states
+            # Prepare for active states — ramp up to full animation rate
+            self._set_audio_timer_rate(active=True)
             if not self.isVisible():
                 self.setWindowOpacity(0.0)
                 self.show()
@@ -351,10 +377,12 @@ if is_qt_available():
 
         def _on_audio_tick(self):
             if self._state != PillState.RECORDING:
+                # Decay internal state, but skip repaint when hidden — no GPU work needed.
                 self._audio_level_display *= 0.85
                 self._glow *= 0.9
                 self._wave_levels = [max(0.08, w * 0.86) for w in self._wave_levels]
-                self.update()
+                if self.isVisible():
+                    self.update()
                 return
 
             delta = self._audio_level_target - self._audio_level_display

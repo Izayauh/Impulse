@@ -3778,7 +3778,9 @@ def _verify_binary_hash(exe_path: str) -> None:
 
 
 _gpu_consecutive_failures = 0
-_GPU_FAILURE_THRESHOLD = 3  # After this many consecutive GPU failures, skip GPU entirely
+# Beta safety knob: set WHISPER_GPU_FAILURE_THRESHOLD env var to override (default 3).
+# After this many consecutive GPU failures the engine falls back to CPU permanently.
+_GPU_FAILURE_THRESHOLD = int(os.environ.get("WHISPER_GPU_FAILURE_THRESHOLD", "3"))
 _gpu_skip_flash_attention = False  # Set True if GPU works without -fa but fails with it
 
 def run_whisper(filename, bin_path, model_path=None):
@@ -5000,9 +5002,9 @@ def run_whisper_main_loop():
             log_line(f"[HEALTH_WARNING] Keyboard library has failed {keyboard_health_failures[0]} consecutive checks - consider restarting", "warning")
             notify("⚠️ Keyboard detection may be unreliable. Consider restarting the app.")
         
-        # Schedule next health check (every 60 seconds)
+        # Schedule next health check (every 5 minutes)
         try:
-            gui.root.after(60000, health_check)
+            gui.root.after(300000, health_check)
         except:
             pass  # GUI may have been destroyed
     
