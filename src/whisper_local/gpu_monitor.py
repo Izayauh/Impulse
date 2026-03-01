@@ -11,6 +11,17 @@ import threading
 from typing import Optional, Dict, Tuple
 from dataclasses import dataclass
 
+# ---------------------------------------------------------------------------
+# Beta-safety knobs (override via environment variables if needed)
+# ---------------------------------------------------------------------------
+import os
+
+# How often (seconds) the background monitor thread wakes up to query nvidia-smi.
+# This only fires when monitoring is *resumed* (i.e. during a transcription).
+# At idle the thread is paused and contributes zero subprocess overhead.
+# Beta safety knob: set WHISPER_GPU_MONITOR_INTERVAL_SEC env var to override.
+_ENV_MONITOR_INTERVAL = float(os.environ.get("WHISPER_GPU_MONITOR_INTERVAL_SEC", "60"))
+
 
 @dataclass
 class GPUInfo:
@@ -35,11 +46,13 @@ class GPUMonitor:
         """Initialize GPU monitor."""
         self._gpu_info: Optional[GPUInfo] = None
         self._last_update = 0
-        self._update_interval = 30.0  # Update every 30 seconds (reduces idle GPU wake-ups)
+        self._update_interval = _ENV_MONITOR_INTERVAL  # seconds; configurable via env var
         self._monitoring_enabled = False
-        self._paused = False  # When True, skip nvidia-smi polling (idle mode)
+        self._paused = True  # Start paused — only resume during transcription
         self._monitor_thread = None
         self._lock = threading.Lock()
+        # Use an Event so pause/stop requests wake the sleeping monitor immediately
+        self._wake_event = threading.Event()
         
         # Detect GPU vendor and capabilities
         self._gpu_vendor = self._detect_gpu_vendor()
@@ -162,9 +175,10 @@ class GPUMonitor:
         """Start background GPU monitoring thread."""
         if self._monitoring_enabled:
             return
-        
+
         self._monitoring_enabled = True
-        
+        self._wake_event.clear()
+
         def monitor_loop():
             while self._monitoring_enabled:
                 if not self._paused:
@@ -172,24 +186,32 @@ class GPUMonitor:
                         self._update_gpu_info()
                     except Exception:
                         pass
-                time.sleep(self._update_interval)
-        
+                # Sleep until the next poll interval OR until woken early by
+                # pause_monitoring() / stop_monitoring() / resume_monitoring().
+                # This means transitions to/from idle take effect immediately
+                # rather than waiting up to _update_interval seconds.
+                self._wake_event.wait(timeout=self._update_interval)
+                self._wake_event.clear()
+
         self._monitor_thread = threading.Thread(target=monitor_loop, daemon=True)
         self._monitor_thread.start()
-    
+
     def stop_monitoring(self):
         """Stop background GPU monitoring."""
         self._monitoring_enabled = False
+        self._wake_event.set()  # Wake the thread so it can exit promptly
         if self._monitor_thread:
             self._monitor_thread.join(timeout=5)
-    
+
     def pause_monitoring(self):
         """Pause nvidia-smi polling (idle mode — no GPU wake-ups)."""
         self._paused = True
-    
+        self._wake_event.set()  # Wake sleeping thread so it re-checks _paused immediately
+
     def resume_monitoring(self):
         """Resume nvidia-smi polling (active transcription mode)."""
         self._paused = False
+        self._wake_event.set()  # Wake sleeping thread so it can query right away
     
     def get_gpu_info(self) -> Optional[GPUInfo]:
         """Get current GPU information.

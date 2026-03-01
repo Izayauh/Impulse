@@ -171,7 +171,7 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon=os.path.join(SPEC_DIR, 'Whisper.ico'),
+    icon=os.path.join(ROOT_DIR, 'src', 'whisper_local', 'Whisper.ico'),
     version_info=None,  # Could add version info file here
 )
 
