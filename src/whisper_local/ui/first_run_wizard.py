@@ -34,7 +34,7 @@ except ImportError:
     print("Warning: Running wizard standalone - some features disabled")
     Theme = None
     APP_NAME = "WhisperLocal"
-    APP_VERSION = "1.0.0"
+    APP_VERSION = "1.0.0-beta.1"
     
     # Fallback DPI scaling (matching main module's moderate scaling)
     def _get_fallback_dpi_scale():

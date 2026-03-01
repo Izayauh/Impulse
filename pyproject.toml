@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "whisper-local"
-version = "1.0.0"
+version = "1.0.0-beta.1"
 description = "Privacy-focused local speech-to-text dictation"
 readme = "README.md"
 requires-python = ">=3.10"

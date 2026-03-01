@@ -5,7 +5,7 @@
 ; Run this with Inno Setup Compiler after building with PyInstaller.
 
 #define MyAppName "WhisperLocal"
-#define MyAppVersion "1.0.0"
+#define MyAppVersion "1.0.0-beta.1"
 #define MyAppPublisher "WhisperLocal"
 #define MyAppURL "https://github.com/Izayauh/whisper"
 #define MyAppExeName "WhisperLocal.exe"
@@ -30,7 +30,7 @@ DisableProgramGroupPage=yes
 
 ; Output settings
 OutputDir=dist
-OutputBaseFilename=WhisperLocal-Setup-{#MyAppVersion}-final
+OutputBaseFilename=WhisperLocal-Setup-{#MyAppVersion}
 SetupIconFile=Whisper.ico
 UninstallDisplayIcon={app}\{#MyAppExeName}
 

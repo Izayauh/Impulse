@@ -14,7 +14,7 @@ ROOT_DIR = os.path.abspath(os.path.join(SPEC_DIR, '..', '..'))
 
 # Application metadata
 APP_NAME = 'WhisperLocal'
-APP_VERSION = '1.0.0'
+APP_VERSION = '1.0.0-beta.1'
 MAIN_SCRIPT = os.path.join(ROOT_DIR, 'main.py')
 
 # Collect hidden imports for all required packages
