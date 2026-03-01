@@ -1,7 +1,7 @@
 # System Test Script for Whisper Dictation
-# This script tests all components of the dictation system
+# Tests core runtime requirements for local development and beta preflight.
 
-$root = (Resolve-Path (Join-Path $PSScriptRoot "..\\..")).Path
+$root = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
 Set-Location $root
 
 Write-Host "========================================" -ForegroundColor Cyan
@@ -17,14 +17,14 @@ Write-Host "[1/8] Testing Python installation..." -ForegroundColor Yellow
 try {
     $pythonVersion = python --version 2>&1
     if ($LASTEXITCODE -eq 0) {
-        Write-Host "  ✓ $pythonVersion" -ForegroundColor Green
+        Write-Host "  [OK] $pythonVersion" -ForegroundColor Green
         $testsPassed++
     } else {
-        Write-Host "  ✗ Python not found or not working" -ForegroundColor Red
+        Write-Host "  [FAIL] Python not found or not working" -ForegroundColor Red
         $testsFailed++
     }
 } catch {
-    Write-Host "  ✗ Python not found" -ForegroundColor Red
+    Write-Host "  [FAIL] Python not found" -ForegroundColor Red
     $testsFailed++
 }
 
@@ -39,26 +39,26 @@ foreach ($pkg in $requiredPackages) {
     }
 }
 if ($missingPackages.Count -eq 0) {
-    Write-Host "  ✓ All required packages installed" -ForegroundColor Green
+    Write-Host "  [OK] All required packages installed" -ForegroundColor Green
     $testsPassed++
 } else {
-    Write-Host "  ✗ Missing packages: $($missingPackages -join ', ')" -ForegroundColor Red
+    Write-Host "  [FAIL] Missing packages: $($missingPackages -join ', ')" -ForegroundColor Red
     Write-Host "  Run: python -m pip install $($missingPackages -join ' ')" -ForegroundColor Yellow
     $testsFailed++
 }
 
 # Test 3: Whisper Binary
 Write-Host "[3/8] Testing Whisper binary..." -ForegroundColor Yellow
-if (Test-Path "runtime\\bin\\whisper-cli.exe") {
-    Write-Host "  ✓ whisper-cli.exe found" -ForegroundColor Green
-    $whisperBinary = "runtime\\bin\\whisper-cli.exe"
+if (Test-Path "runtime\bin\whisper-cli.exe") {
+    Write-Host "  [OK] whisper-cli.exe found" -ForegroundColor Green
+    $whisperBinary = "runtime\bin\whisper-cli.exe"
     $testsPassed++
-} elseif (Test-Path "runtime\\bin\\main.exe") {
-    Write-Host "  ✓ main.exe found" -ForegroundColor Green
-    $whisperBinary = "runtime\\bin\\main.exe"
+} elseif (Test-Path "runtime\bin\main.exe") {
+    Write-Host "  [OK] main.exe found" -ForegroundColor Green
+    $whisperBinary = "runtime\bin\main.exe"
     $testsPassed++
 } else {
-    Write-Host "  ✗ No Whisper binary found (runtime\\bin\\whisper-cli.exe or runtime\\bin\\main.exe)" -ForegroundColor Red
+    Write-Host "  [FAIL] No Whisper binary found (runtime\\bin\\whisper-cli.exe or runtime\\bin\\main.exe)" -ForegroundColor Red
     $testsFailed++
     $whisperBinary = $null
 }
@@ -73,10 +73,10 @@ foreach ($dll in $requiredDlls) {
     }
 }
 if ($missingDlls.Count -eq 0) {
-    Write-Host "  ✓ All required DLLs found" -ForegroundColor Green
+    Write-Host "  [OK] All required DLLs found" -ForegroundColor Green
     $testsPassed++
 } else {
-    Write-Host "  ⚠ Missing DLLs: $($missingDlls -join ', ')" -ForegroundColor Yellow
+    Write-Host "  [WARN] Missing DLLs: $($missingDlls -join ', ')" -ForegroundColor Yellow
     Write-Host "  (May affect performance but might still work)" -ForegroundColor Yellow
     $testsPassed++
 }
@@ -87,20 +87,20 @@ if (Test-Path "runtime\\bin\\ggml-cuda.dll") {
     try {
         $nvidiaInfo = nvidia-smi --query-gpu=name,driver_version --format=csv,noheader 2>&1
         if ($LASTEXITCODE -eq 0) {
-            Write-Host "  ✓ CUDA available: $nvidiaInfo" -ForegroundColor Green
+            Write-Host "  [OK] CUDA available: $nvidiaInfo" -ForegroundColor Green
             $testsPassed++
         } else {
-            Write-Host "  ⚠ ggml-cuda.dll found but nvidia-smi failed" -ForegroundColor Yellow
+            Write-Host "  [WARN] ggml-cuda.dll found but nvidia-smi failed" -ForegroundColor Yellow
             Write-Host "  (Will fall back to CPU)" -ForegroundColor Yellow
             $testsPassed++
         }
     } catch {
-        Write-Host "  ⚠ ggml-cuda.dll found but nvidia-smi not available" -ForegroundColor Yellow
+        Write-Host "  [WARN] ggml-cuda.dll found but nvidia-smi not available" -ForegroundColor Yellow
         Write-Host "  (Install NVIDIA drivers for GPU acceleration)" -ForegroundColor Yellow
         $testsPassed++
     }
 } else {
-    Write-Host "  ⚠ No CUDA support (CPU only)" -ForegroundColor Yellow
+    Write-Host "  [WARN] No CUDA support (CPU only)" -ForegroundColor Yellow
     Write-Host "  (Transcription will be slower)" -ForegroundColor Yellow
     $testsPassed++
 }
@@ -120,10 +120,10 @@ foreach ($model in $modelFiles) {
     }
 }
 if ($foundModels.Count -gt 0) {
-    Write-Host "  ✓ Found models: $($foundModels -join ', ')" -ForegroundColor Green
+    Write-Host "  [OK] Found models: $($foundModels -join ', ')" -ForegroundColor Green
     $testsPassed++
 } else {
-    Write-Host "  ✗ No model files found in runtime\\models directory" -ForegroundColor Red
+    Write-Host "  [FAIL] No model files found in runtime\\models directory" -ForegroundColor Red
     Write-Host "  Download models from: https://huggingface.co/ggerganov/whisper.cpp" -ForegroundColor Yellow
     $testsFailed++
 }
@@ -131,17 +131,24 @@ if ($foundModels.Count -gt 0) {
 # Test 7: Audio Devices
 Write-Host "[7/8] Testing audio input devices..." -ForegroundColor Yellow
 try {
-    $devices = python -c "import sounddevice as sd; devs = [d for d in sd.query_devices() if d['max_input_channels'] > 0]; print(f'{len(devs)} input devices found'); [print(f\"  - {d['name']}\") for d in devs[:3]]" 2>&1
+    $py = @'
+import sounddevice as sd
+inputs = [d for d in sd.query_devices() if d.get("max_input_channels", 0) > 0]
+print(f"{len(inputs)} input devices found")
+for d in inputs[:3]:
+    print(f"  - {d.get('name', 'Unknown')}")
+'@
+    $devices = python -c $py 2>&1
     if ($LASTEXITCODE -eq 0) {
-        Write-Host "  ✓ $devices" -ForegroundColor Green
+        Write-Host "  [OK] $devices" -ForegroundColor Green
         $testsPassed++
     } else {
-        Write-Host "  ⚠ Could not query audio devices" -ForegroundColor Yellow
+        Write-Host "  [WARN] Could not query audio devices" -ForegroundColor Yellow
         Write-Host "  (Check microphone connection)" -ForegroundColor Yellow
         $testsPassed++
     }
 } catch {
-    Write-Host "  ⚠ Could not test audio devices" -ForegroundColor Yellow
+    Write-Host "  [WARN] Could not test audio devices" -ForegroundColor Yellow
     $testsPassed++
 }
 
@@ -151,18 +158,18 @@ if ($whisperBinary) {
     try {
         $help = & ".\$whisperBinary" --help 2>&1
         if ($help -match "usage:" -or $help -match "options:") {
-            Write-Host "  ✓ Whisper binary is executable" -ForegroundColor Green
+            Write-Host "  [OK] Whisper binary is executable" -ForegroundColor Green
             $testsPassed++
         } else {
-            Write-Host "  ⚠ Whisper binary ran but output unexpected" -ForegroundColor Yellow
+            Write-Host "  [WARN] Whisper binary ran but output unexpected" -ForegroundColor Yellow
             $testsPassed++
         }
     } catch {
-        Write-Host "  ✗ Could not execute Whisper binary" -ForegroundColor Red
+        Write-Host "  [FAIL] Could not execute Whisper binary" -ForegroundColor Red
         $testsFailed++
     }
 } else {
-    Write-Host "  ⊘ Skipped (no binary found)" -ForegroundColor Gray
+    Write-Host "  [SKIP] Skipped (no binary found)" -ForegroundColor Gray
 }
 
 # Summary
@@ -175,13 +182,13 @@ Write-Host "Tests Failed: $testsFailed" -ForegroundColor $(if ($testsFailed -gt 
 Write-Host ""
 
 if ($testsFailed -eq 0) {
-    Write-Host "✓ System is ready to use!" -ForegroundColor Green
+    Write-Host "[OK] System is ready to use!" -ForegroundColor Green
     Write-Host "  Run: scripts\\windows\\START_WHISPER.bat" -ForegroundColor Cyan
 } elseif ($testsFailed -le 2) {
-    Write-Host "⚠ System may work with some limitations" -ForegroundColor Yellow
+    Write-Host "[WARN] System may work with some limitations" -ForegroundColor Yellow
     Write-Host "  Fix the failed tests for best experience" -ForegroundColor Yellow
 } else {
-    Write-Host "✗ System is not ready" -ForegroundColor Red
+    Write-Host "[FAIL] System is not ready" -ForegroundColor Red
     Write-Host "  Please fix the failed tests before running" -ForegroundColor Yellow
 }
 
@@ -191,15 +198,7 @@ Write-Host "  - flow.log (application log)" -ForegroundColor Gray
 Write-Host "  - gpu_last.log (GPU test log)" -ForegroundColor Gray
 Write-Host ""
 
-# Write results to file
 $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
 "[Test Run: $timestamp]`nPassed: $testsPassed, Failed: $testsFailed" | Out-File -FilePath "test_results.log" -Append
 
 Write-Output "__CURSOR_DONE__"
-
-
-
-
-
-
-

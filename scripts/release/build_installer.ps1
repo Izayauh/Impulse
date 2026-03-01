@@ -30,13 +30,26 @@ $ErrorActionPreference = "Stop"
 # Configuration
 # ============================================================================
 $AppName = "WhisperLocal"
-$AppVersion = "1.0.0"
+$AppVersion = "1.0.0-beta.1"
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $ProjectRoot = Resolve-Path (Join-Path $ScriptDir "..\\..")
 $BuildDir = Join-Path $ProjectRoot "build_output"
 $DistDir = Join-Path $ProjectRoot "dist"
 $SpecFile = Join-Path $ScriptDir "build_config.spec"
 $IssFile = Join-Path $ScriptDir "installer.iss"
+
+function Get-AppVersion {
+    $configPath = Join-Path $ProjectRoot "src\whisper_local\config.py"
+    if (Test-Path $configPath) {
+        $match = Select-String -Path $configPath -Pattern 'APP_VERSION\s*=\s*"([^"]+)"' -AllMatches | Select-Object -First 1
+        if ($match -and $match.Matches.Count -gt 0) {
+            return $match.Matches[0].Groups[1].Value
+        }
+    }
+    return $AppVersion
+}
+
+$AppVersion = Get-AppVersion
 
 # Inno Setup paths (common installation locations)
 $InnoSetupPaths = @(
@@ -64,12 +77,12 @@ function Write-Step {
 
 function Write-Success {
     param([string]$Message)
-    Write-Host "[✓] $Message" -ForegroundColor Green
+    Write-Host "[OK] $Message" -ForegroundColor Green
 }
 
 function Write-Error {
     param([string]$Message)
-    Write-Host "[✗] $Message" -ForegroundColor Red
+    Write-Host "[FAIL] $Message" -ForegroundColor Red
 }
 
 function Write-Info {
@@ -180,7 +193,7 @@ function Test-Prerequisites {
         $modelPath = Join-Path $modelsDir $model
         if (Test-Path $modelPath) {
             $size = (Get-Item $modelPath).Length / 1MB
-            Write-Success "Model: $model ({0:N0} MB)" -f $size
+            Write-Success (("Model: {0} ({1:N0} MB)" -f $model, $size))
             $modelsFound++
         } else {
             Write-Info "Model not found: $model (optional)"
@@ -265,7 +278,7 @@ function Invoke-PyInstallerBuild {
     $exePath = Join-Path $DistDir "$AppName\$AppName.exe"
     if (Test-Path $exePath) {
         $exeSize = (Get-Item $exePath).Length / 1MB
-        Write-Success "Built: $exePath ({0:N1} MB)" -f $exeSize
+        Write-Success (("Built: {0} ({1:N1} MB)" -f $exePath, $exeSize))
     } else {
         Write-Error "Expected output not found: $exePath"
         return $false
@@ -274,7 +287,7 @@ function Invoke-PyInstallerBuild {
     # Calculate total distribution size
     $distFolder = Join-Path $DistDir $AppName
     $totalSize = (Get-ChildItem -Path $distFolder -Recurse | Measure-Object -Property Length -Sum).Sum / 1GB
-    Write-Success "Total distribution size: {0:N2} GB" -f $totalSize
+    Write-Success (("Total distribution size: {0:N2} GB" -f $totalSize))
     
     return $true
 }
@@ -317,7 +330,7 @@ function Invoke-InnoSetupBuild {
         $installerHash = Get-FileHash256 $installer.FullName
         
         Write-Success "Installer created: $($installer.Name)"
-        Write-Success "Size: {0:N2} GB" -f $installerSize
+        Write-Success (("Size: {0:N2} GB" -f $installerSize))
         Write-Success "SHA256: $installerHash"
         
         # Save hash to file
@@ -378,7 +391,7 @@ function Invoke-Build {
     $duration = $endTime - $startTime
     
     Write-Header "Build Complete!"
-    Write-Success "Duration: {0:N0} minutes {1:N0} seconds" -f $duration.TotalMinutes, ($duration.Seconds)
+    Write-Success (("Duration: {0:N0} minutes {1:N0} seconds" -f $duration.TotalMinutes, ($duration.Seconds)))
     
     if (-not $SkipInnoSetup) {
         $installerPattern = Join-Path $DistDir "$AppName-Setup-*.exe"

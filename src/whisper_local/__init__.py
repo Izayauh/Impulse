@@ -4,7 +4,7 @@ WhisperLocal - Privacy-focused speech-to-text dictation.
 This package contains the core components of the WhisperLocal application.
 """
 
-__version__ = "1.0.0"
+__version__ = "1.0.0-beta.1"
 __author__ = "WhisperLocal"
 
 # Import main components

@@ -31,7 +31,7 @@ def debug_print(*args, **kwargs):
 # APPLICATION METADATA
 # ============================================================================
 APP_NAME = "WhisperLocal"
-APP_VERSION = "1.0.0"
+APP_VERSION = "1.0.0-beta.1"
 APP_AUTHOR = "WhisperLocal"
 
 

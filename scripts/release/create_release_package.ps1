@@ -1,97 +1,127 @@
 # WhisperLocal Release Package Creator
-# This script creates a single ZIP file containing the multi-part installer
-# for easy distribution and download.
+# Creates a single ZIP package containing installer EXE + disk spanning BIN parts.
+
+param(
+    [string]$Version
+)
 
 $ErrorActionPreference = "Stop"
+
+$ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+$ProjectRoot = Resolve-Path (Join-Path $ScriptDir "..\..")
+$distDir = Join-Path $ProjectRoot "dist"
 
 Write-Host "=" * 60
 Write-Host "WhisperLocal Release Package Creator"
 Write-Host "=" * 60
 
-# Configuration
-$version = "1.0.0-final"
-$distDir = "dist"
-$outputZip = "$distDir\WhisperLocal-Setup-$version-Complete.zip"
-
-# Check if installer files exist
-$installerExe = "$distDir\WhisperLocal-Setup-$version.exe"
-if (-not (Test-Path $installerExe)) {
-    Write-Host "ERROR: Installer not found: $installerExe" -ForegroundColor Red
-    Write-Host "Please build the installer first using: build_installer.ps1" -ForegroundColor Yellow
+if (-not (Test-Path $distDir)) {
+    Write-Host "ERROR: dist directory not found: $distDir" -ForegroundColor Red
     exit 1
 }
 
-# Find all installer parts
-$installerFiles = Get-ChildItem -Path $distDir -Filter "WhisperLocal-Setup-$version*" | 
-    Where-Object { $_.Extension -eq ".exe" -or $_.Extension -eq ".bin" } |
+# Resolve installer EXE either by explicit version or latest build
+$installerExe = $null
+if ($Version -and $Version.Trim().Length -gt 0) {
+    $candidate = Join-Path $distDir ("WhisperLocal-Setup-" + $Version + ".exe")
+    if (Test-Path $candidate) {
+        $installerExe = Get-Item $candidate
+    } else {
+        Write-Host "ERROR: Installer not found: $candidate" -ForegroundColor Red
+        Write-Host "Tip: omit -Version to auto-select latest installer." -ForegroundColor Yellow
+        exit 1
+    }
+} else {
+    $installerExe = Get-ChildItem -Path $distDir -Filter "WhisperLocal-Setup-*.exe" |
+        Where-Object { $_.Name -notmatch "-Complete\.zip" } |
+        Sort-Object LastWriteTime -Descending |
+        Select-Object -First 1
+
+    if (-not $installerExe) {
+        Write-Host "ERROR: No installer exe found in $distDir" -ForegroundColor Red
+        Write-Host "Please build installer first using scripts\release\build_installer.ps1" -ForegroundColor Yellow
+        exit 1
+    }
+}
+
+$baseName = $installerExe.BaseName
+$version = $baseName -replace '^WhisperLocal-Setup-', ''
+
+# Find all installer parts for this exact build
+$installerFiles = Get-ChildItem -Path $distDir |
+    Where-Object {
+        $_.BaseName -like "$baseName*" -and ($_.Extension -eq ".exe" -or $_.Extension -eq ".bin")
+    } |
     Sort-Object Name
 
 if ($installerFiles.Count -eq 0) {
-    Write-Host "ERROR: No installer files found matching pattern: WhisperLocal-Setup-$version*" -ForegroundColor Red
+    Write-Host "ERROR: No installer files found for base: $baseName" -ForegroundColor Red
     exit 1
 }
 
-Write-Host "`nFound $($installerFiles.Count) installer file(s):" -ForegroundColor Green
+Write-Host "`nUsing installer build: $baseName" -ForegroundColor Cyan
+Write-Host "Found $($installerFiles.Count) installer file(s):" -ForegroundColor Green
 foreach ($file in $installerFiles) {
     $sizeGB = [math]::Round($file.Length / 1GB, 2)
     Write-Host "  - $($file.Name) ($sizeGB GB)"
 }
 
-# Create installation instructions
-$instructions = @"
-WhisperLocal Installation Instructions
-=======================================
+$outputZip = Join-Path $distDir ($baseName + "-Complete.zip")
+$checksumFile = $outputZip + ".sha256"
 
-Thank you for downloading WhisperLocal!
+# Build README content dynamically
+$readmeLines = @(
+    "WhisperLocal Installation Instructions",
+    "=======================================",
+    "",
+    "Thank you for downloading WhisperLocal!",
+    "",
+    "INSTALLATION STEPS:",
+    "-------------------",
+    "1. Extract all files from this ZIP to the same folder",
+    "2. You should see these files:",
+    "   - $($installerExe.Name)"
+)
 
-INSTALLATION STEPS:
--------------------
-1. Extract all files from this ZIP to the same folder
-2. You should see these files:
-   - WhisperLocal-Setup-$version.exe
-   - WhisperLocal-Setup-$version-1.bin
-   - WhisperLocal-Setup-$version-2.bin
-   - WhisperLocal-Setup-$version-3.bin
-   - README.txt (this file)
+$binFiles = $installerFiles | Where-Object { $_.Extension -eq ".bin" }
+foreach ($bin in $binFiles) {
+    $readmeLines += "   - $($bin.Name)"
+}
 
-3. Double-click WhisperLocal-Setup-$version.exe to start the installer
-4. The installer will automatically find and use the .bin files
-5. Follow the on-screen instructions to complete installation
+$readmeLines += @(
+    "   - README.txt (this file)",
+    "",
+    "3. Double-click $($installerExe.Name) to start the installer",
+    "4. The installer will automatically find and use the .bin files",
+    "5. Follow the on-screen instructions to complete installation",
+    "",
+    "IMPORTANT NOTES:",
+    "----------------",
+    "- All files MUST be in the same folder for the installer to work",
+    "- Do NOT delete or move the .bin files before installation completes",
+    "- Installer size is large because it includes local AI runtime dependencies",
+    "",
+    "SYSTEM REQUIREMENTS:",
+    "--------------------",
+    "- Windows 10 or 11 (64-bit)",
+    "- 4 GB RAM minimum (8 GB recommended)",
+    "- 5 GB free disk space",
+    "- NVIDIA GPU recommended for faster transcription (optional)",
+    "",
+    "For support and updates:",
+    "https://github.com/Izayauh/whisper"
+)
 
-IMPORTANT NOTES:
-----------------
-- All files MUST be in the same folder for the installer to work
-- Do NOT delete or move the .bin files before installation completes
-- The installer is large because it includes AI models for offline use
-- No internet connection is required after installation
+$instructionsFile = Join-Path $env:TEMP "WhisperLocal-README.txt"
+$readmeLines -join "`r`n" | Out-File -FilePath $instructionsFile -Encoding UTF8
 
-SYSTEM REQUIREMENTS:
---------------------
-- Windows 10 or 11 (64-bit)
-- 4 GB RAM minimum (8 GB recommended)
-- 5 GB free disk space
-- NVIDIA GPU recommended for faster transcription (optional)
-
-TROUBLESHOOTING:
-----------------
-If you see "Setup needs the next disk" error:
-- Ensure all files are extracted from the ZIP
-- Make sure all .bin files are in the same folder as the .exe
-- Try running the installer as Administrator
-
-For support and updates:
-https://github.com/Izayauh/whisper
-
-Privacy: WhisperLocal runs 100% offline. No data is sent to the cloud.
-"@
-
-$instructionsFile = "$env:TEMP\WhisperLocal-README.txt"
-$instructions | Out-File -FilePath $instructionsFile -Encoding UTF8
-
-# Remove old ZIP if it exists
+# Remove old outputs
 if (Test-Path $outputZip) {
     Write-Host "`nRemoving old package: $outputZip" -ForegroundColor Yellow
     Remove-Item $outputZip -Force
+}
+if (Test-Path $checksumFile) {
+    Remove-Item $checksumFile -Force
 }
 
 # Create ZIP package
@@ -99,18 +129,16 @@ Write-Host "`nCreating release package..." -ForegroundColor Cyan
 try {
     $filesToZip = @($instructionsFile) + $installerFiles.FullName
     Compress-Archive -Path $filesToZip -DestinationPath $outputZip -CompressionLevel Optimal
-    
+
     $zipSize = [math]::Round((Get-Item $outputZip).Length / 1GB, 2)
     Write-Host "`n✓ SUCCESS!" -ForegroundColor Green
     Write-Host "Release package created: $outputZip" -ForegroundColor Green
     Write-Host "Package size: $zipSize GB" -ForegroundColor Green
-    Write-Host "`nUsers should download this single ZIP file and extract all contents before running the installer." -ForegroundColor Cyan
 } catch {
     Write-Host "`nERROR: Failed to create ZIP package" -ForegroundColor Red
     Write-Host $_.Exception.Message -ForegroundColor Red
     exit 1
 } finally {
-    # Clean up temp file
     if (Test-Path $instructionsFile) {
         Remove-Item $instructionsFile -Force
     }
@@ -119,11 +147,9 @@ try {
 # Generate SHA256 checksum
 Write-Host "`nGenerating checksum..." -ForegroundColor Cyan
 $hash = Get-FileHash -Path $outputZip -Algorithm SHA256
-$checksumFile = "$distDir\WhisperLocal-Setup-$version-Complete.zip.sha256"
 "$($hash.Hash)  $(Split-Path $outputZip -Leaf)" | Out-File -FilePath $checksumFile -Encoding ASCII
 Write-Host "Checksum saved to: $checksumFile" -ForegroundColor Green
 
 Write-Host "`n" + ("=" * 60)
 Write-Host "DONE! Ready for distribution." -ForegroundColor Green
 Write-Host ("=" * 60)
-
