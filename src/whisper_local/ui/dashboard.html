@@ -1334,7 +1334,7 @@
       lastHotkeyDigest = digest(settingsState.hotkey);
 
       async function pollPythonData() {
-        if (pollBusy || document.hidden) return;
+        if (pollBusy || document.hidden || !document.hasFocus()) return;
         pollBusy = true;
         try {
           pollTick += 1;
