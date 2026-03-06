@@ -1,4 +1,5 @@
-import { Brain, Twitter, Github, Linkedin } from 'lucide-react';
+import { Brain, Download, Github, ShieldCheck } from 'lucide-react';
+import { CHANGELOG_URL, GITHUB_REPO_URL, PRIVACY_URL, RELEASE_PAGE_URL } from '@/src/lib/site';
 
 export function Footer() {
   return (
@@ -16,29 +17,28 @@ export function Footer() {
             Built for speed, privacy, and the flow state.
           </p>
           <div className="flex gap-4">
-            <a href="#" className="text-white/40 hover:text-brand transition-colors"><Twitter className="w-5 h-5" /></a>
-            <a href="#" className="text-white/40 hover:text-brand transition-colors"><Github className="w-5 h-5" /></a>
-            <a href="#" className="text-white/40 hover:text-brand transition-colors"><Linkedin className="w-5 h-5" /></a>
+            <a href={GITHUB_REPO_URL} target="_blank" rel="noreferrer" aria-label="GitHub repository" className="text-white/40 hover:text-brand transition-colors"><Github className="w-5 h-5" /></a>
+            <a href={RELEASE_PAGE_URL} target="_blank" rel="noreferrer" aria-label="Download Impulse beta" className="text-white/40 hover:text-brand transition-colors"><Download className="w-5 h-5" /></a>
+            <a href={PRIVACY_URL} target="_blank" rel="noreferrer" aria-label="Privacy policy" className="text-white/40 hover:text-brand transition-colors"><ShieldCheck className="w-5 h-5" /></a>
           </div>
         </div>
         
         <div>
           <h4 className="font-bold mb-6 uppercase tracking-widest text-xs text-white/40">Product</h4>
           <ul className="space-y-4 text-sm text-white/60">
-            <li><a href="#" className="hover:text-brand transition-colors">Download</a></li>
-            <li><a href="#" className="hover:text-brand transition-colors">Features</a></li>
+            <li><a href={RELEASE_PAGE_URL} target="_blank" rel="noreferrer" className="hover:text-brand transition-colors">Download</a></li>
+            <li><a href="#features" className="hover:text-brand transition-colors">Features</a></li>
             <li><a href="#beta" className="hover:text-brand transition-colors">Beta</a></li>
-            <li><a href="#" className="hover:text-brand transition-colors">Changelog</a></li>
+            <li><a href={CHANGELOG_URL} target="_blank" rel="noreferrer" className="hover:text-brand transition-colors">Changelog</a></li>
           </ul>
         </div>
 
         <div>
           <h4 className="font-bold mb-6 uppercase tracking-widest text-xs text-white/40">Company</h4>
           <ul className="space-y-4 text-sm text-white/60">
-            <li><a href="#" className="hover:text-brand transition-colors">About</a></li>
-            <li><a href="#" className="hover:text-brand transition-colors">Privacy</a></li>
-            <li><a href="#" className="hover:text-brand transition-colors">Terms</a></li>
-            <li><a href="#" className="hover:text-brand transition-colors">Contact</a></li>
+            <li><a href={GITHUB_REPO_URL} target="_blank" rel="noreferrer" className="hover:text-brand transition-colors">GitHub</a></li>
+            <li><a href={PRIVACY_URL} target="_blank" rel="noreferrer" className="hover:text-brand transition-colors">Privacy</a></li>
+            <li><a href="mailto:beta@impulse-app.com" className="hover:text-brand transition-colors">Contact</a></li>
           </ul>
         </div>
       </div>

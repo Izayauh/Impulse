@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
 import { Mail, ArrowRight, CheckCircle2, Loader2 } from 'lucide-react';
+import { RELEASE_PAGE_URL } from '@/src/lib/site';
 
 type FormState = 'idle' | 'submitting' | 'success' | 'error';
 
@@ -71,6 +72,15 @@ export function BetaSignup() {
                 <p className="text-white/60">
                   Check your email for your beta license key and download link.
                 </p>
+                <a
+                  href={RELEASE_PAGE_URL}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex mt-6 items-center gap-2 rounded-xl bg-white/8 px-4 py-3 text-sm font-semibold text-white hover:bg-white/12 transition-colors"
+                >
+                  Download the Windows beta
+                  <ArrowRight className="w-4 h-4" />
+                </a>
               </motion.div>
             ) : (
               <>
@@ -128,6 +138,14 @@ export function BetaSignup() {
                 <p className="text-white/30 text-xs mt-6 text-center">
                   We'll only email your license key. No spam, ever.
                 </p>
+                <a
+                  href={RELEASE_PAGE_URL}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="block mt-4 text-center text-sm text-brand hover:text-brand-light transition-colors"
+                >
+                  Already have a beta key? Download the Windows build.
+                </a>
               </>
             )}
           </div>

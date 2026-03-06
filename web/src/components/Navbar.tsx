@@ -1,5 +1,6 @@
 import { motion } from 'motion/react';
 import { Brain } from 'lucide-react';
+import { RELEASE_PAGE_URL } from '@/src/lib/site';
 
 export function Navbar() {
   return (
@@ -19,6 +20,7 @@ export function Navbar() {
         <div className="hidden md:flex items-center gap-8 text-sm font-medium text-white/70">
           <a href="#features" className="hover:text-white transition-colors">Features</a>
           <a href="#gamification" className="hover:text-white transition-colors">Productivity</a>
+          <a href={RELEASE_PAGE_URL} target="_blank" rel="noreferrer" className="hover:text-white transition-colors">Download</a>
           <a href="#beta" className="hover:text-white transition-colors">Beta</a>
         </div>
 
