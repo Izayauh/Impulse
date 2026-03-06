@@ -350,8 +350,14 @@ def init_telemetry(*, force: bool = False) -> bool:
         logger.warning("Could not read telemetry setting: %s", exc)
         return False
 
-    # Check for GitHub token
+    # Check for GitHub token — env var takes priority, then baked build constant
     token = os.environ.get("WHISPER_TELEMETRY_TOKEN", "")
+    if not token:
+        try:
+            from whisper_local._build_config import TELEMETRY_TOKEN as _baked
+            token = _baked or ""
+        except ImportError:
+            pass
     if not token:
         logger.info("Telemetry inactive — no WHISPER_TELEMETRY_TOKEN set")
         return False

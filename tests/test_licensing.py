@@ -73,3 +73,33 @@ def test_cached_license_invalid_after_offline_grace(tmp_path, monkeypatch):
     status = manager.get_license_status(offline_fallback=True, allow_online_check=False)
     assert status["is_valid"] is False
     assert status["reason"] == "offline_grace_expired"
+
+
+def test_beta_expiry_days_none_when_not_set(tmp_path, monkeypatch):
+    monkeypatch.delenv("WHISPER_BETA_EXPIRES_ON", raising=False)
+    manager = LicensingManager(data_dir=str(tmp_path))
+    assert manager.days_until_beta_expiry() is None
+
+
+def test_beta_expiry_days_counts_correctly(tmp_path, monkeypatch):
+    future = (dt.date.today() + dt.timedelta(days=5)).isoformat()
+    monkeypatch.setenv("WHISPER_BETA_EXPIRES_ON", future)
+    manager = LicensingManager(data_dir=str(tmp_path))
+    assert manager.days_until_beta_expiry() == 5
+
+
+def test_beta_expiry_days_zero_when_expired(tmp_path, monkeypatch):
+    yesterday = (dt.date.today() - dt.timedelta(days=1)).isoformat()
+    monkeypatch.setenv("WHISPER_BETA_EXPIRES_ON", yesterday)
+    manager = LicensingManager(data_dir=str(tmp_path))
+    assert manager.days_until_beta_expiry() == 0
+
+
+def test_status_includes_beta_expiry_days(tmp_path, monkeypatch):
+    future = (dt.date.today() + dt.timedelta(days=3)).isoformat()
+    monkeypatch.setenv("WHISPER_BETA_EXPIRES_ON", future)
+    monkeypatch.setenv("WHISPER_REQUIRE_LICENSE", "0")
+    manager = LicensingManager(data_dir=str(tmp_path))
+    status = manager.get_license_status(offline_fallback=True, allow_online_check=False)
+    assert "beta_expiry_days" in status
+    assert status["beta_expiry_days"] == 3

@@ -135,6 +135,7 @@ class FirstRunWizard:
         self.selected_device_name = None
         self.create_shortcut = tk.BooleanVar(value=True)
         self.auto_start = tk.BooleanVar(value=False)
+        self.telemetry_consent = tk.BooleanVar(value=False)
         
         # Create main window
         self.root = tk.Tk()
@@ -164,8 +165,11 @@ class FirstRunWizard:
         self._ollama_available = False
         self._ollama_models = []
 
+        # License activation state
+        self._license_activated = False
+
         # Step indicators
-        self.steps = ["Welcome", "Microphone", "Ollama", "Tutorial", "Finish"]
+        self.steps = ["Welcome", "License", "Microphone", "Ollama", "Tutorial", "Finish"]
         self._create_step_indicators()
         
         # Start with welcome step
@@ -306,12 +310,14 @@ class FirstRunWizard:
         if step == 0:
             self._show_welcome()
         elif step == 1:
-            self._show_microphone()
+            self._show_license()
         elif step == 2:
-            self._show_ollama()
+            self._show_microphone()
         elif step == 3:
-            self._show_tutorial()
+            self._show_ollama()
         elif step == 4:
+            self._show_tutorial()
+        elif step == 5:
             self._show_finish()
     
     def _show_welcome(self):
@@ -391,7 +397,130 @@ Your voice never leaves your machine."""
         
         # Next button
         self._create_nav_button("Get Started →", self._next_step, accent=True)
-    
+
+    def _show_license(self):
+        """Show license activation screen."""
+        header = tk.Label(
+            self.content_frame,
+            text="Activate Your License",
+            font=(Theme.FONT_FAMILY, Theme.FONT_SIZE_HEADER, "bold"),
+            fg=Theme.TEXT_PRIMARY,
+            bg=Theme.BG_DARK
+        )
+        header.pack(pady=(Theme.PAD_SM + 2, scaled(5)))
+
+        subtitle = tk.Label(
+            self.content_frame,
+            text="Enter the beta key from your email",
+            font=(Theme.FONT_FAMILY, Theme.FONT_SIZE_SM),
+            fg=Theme.TEXT_SECONDARY,
+            bg=Theme.BG_DARK
+        )
+        subtitle.pack(pady=(0, Theme.PAD_LG - 1))
+
+        # Info card
+        info_frame = tk.Frame(
+            self.content_frame, bg=Theme.BG_CARD,
+            highlightthickness=1, highlightbackground=Theme.BORDER_SUBTLE
+        )
+        info_frame.pack(fill="x", pady=Theme.PAD_SM)
+
+        info_text = (
+            "When you signed up for the beta, a license key was\n"
+            "emailed to you. Paste it below to activate Impulse.\n"
+            "\n"
+            "Don't have a key yet? You can skip this step and\n"
+            "activate later from the dashboard."
+        )
+        tk.Label(
+            info_frame, text=info_text,
+            font=(Theme.FONT_FAMILY, Theme.FONT_SIZE_SM),
+            fg=Theme.TEXT_SECONDARY, bg=Theme.BG_CARD,
+            justify="left", padx=Theme.PAD_XL, pady=Theme.PAD_LG
+        ).pack()
+
+        # Key entry
+        entry_frame = tk.Frame(self.content_frame, bg=Theme.BG_DARK)
+        entry_frame.pack(fill="x", pady=Theme.PAD_LG)
+
+        tk.Label(
+            entry_frame, text="License Key",
+            font=(Theme.FONT_FAMILY, Theme.FONT_SIZE_SM, "bold"),
+            fg=Theme.TEXT_SECONDARY, bg=Theme.BG_DARK
+        ).pack(anchor="w")
+
+        self._license_entry = tk.Entry(
+            entry_frame,
+            font=(Theme.FONT_FAMILY, Theme.FONT_SIZE_MD),
+            fg=Theme.TEXT_PRIMARY,
+            bg=Theme.BG_ELEVATED,
+            insertbackground=Theme.TEXT_PRIMARY,
+            relief="flat",
+            highlightthickness=1,
+            highlightbackground=Theme.BORDER_SUBTLE,
+            highlightcolor=Theme.PINK_PRIMARY
+        )
+        self._license_entry.pack(fill="x", pady=(Theme.PAD_XS, 0), ipady=Theme.PAD_SM)
+
+        # Status message
+        self._license_status = tk.Label(
+            self.content_frame,
+            text="",
+            font=(Theme.FONT_FAMILY, Theme.FONT_SIZE_SM),
+            fg=Theme.TEXT_SECONDARY,
+            bg=Theme.BG_DARK
+        )
+        self._license_status.pack(pady=Theme.PAD_SM)
+
+        # Activate button
+        activate_frame = tk.Frame(self.content_frame, bg=Theme.BG_DARK)
+        activate_frame.pack()
+        self._activate_btn = self._create_button(
+            activate_frame, "Activate", self._do_activate, side="left"
+        )
+
+        # If already activated, show success state
+        if self._license_activated:
+            self._license_status.config(text="✓  License activated!", fg=Theme.SUCCESS)
+
+        # Navigation: Skip (secondary) and Next
+        self._create_nav_button("Skip →", self._next_step)
+        self._create_nav_button("Next →", self._next_step, accent=True)
+
+    def _do_activate(self):
+        """Attempt to activate the entered license key."""
+        key = self._license_entry.get().strip()
+        if not key:
+            self._license_status.config(text="Please enter a license key.", fg=Theme.WARNING)
+            return
+
+        self._license_status.config(text="Activating...", fg=Theme.INFO)
+        self._activate_btn.config(state="disabled")
+
+        def run_activate():
+            try:
+                from whisper_local.licensing import LicensingManager
+                lm = LicensingManager()
+                success, message = lm.activate_license(key)
+                self.root.after(0, lambda: self._on_activate_result(success, message))
+            except Exception as e:
+                self.root.after(0, lambda: self._on_activate_result(False, str(e)))
+
+        threading.Thread(target=run_activate, daemon=True).start()
+
+    def _on_activate_result(self, success: bool, message: str):
+        """Handle activation result on the main thread."""
+        try:
+            self._activate_btn.config(state="normal")
+        except Exception:
+            pass
+
+        if success:
+            self._license_activated = True
+            self._license_status.config(text="✓  License activated!", fg=Theme.SUCCESS)
+        else:
+            self._license_status.config(text=message, fg=Theme.ERROR)
+
     def _show_microphone(self):
         """Show microphone selection screen."""
         header = tk.Label(
@@ -870,7 +999,33 @@ Your voice never leaves your machine."""
             activeforeground=Theme.TEXT_PRIMARY
         )
         autostart_check.pack(anchor="w", pady=scaled(2))
-        
+
+        # Separator
+        tk.Frame(options_frame, bg=Theme.BORDER_SUBTLE, height=1).pack(fill="x", pady=scaled(8))
+
+        # Telemetry opt-in
+        telemetry_check = tk.Checkbutton(
+            options_frame,
+            text="Help improve Impulse (send anonymous crash reports)",
+            variable=self.telemetry_consent,
+            font=(Theme.FONT_FAMILY, Theme.FONT_SIZE_SM),
+            fg=Theme.TEXT_SECONDARY,
+            bg=Theme.BG_DARK,
+            selectcolor=Theme.BG_ELEVATED,
+            activebackground=Theme.BG_DARK,
+            activeforeground=Theme.TEXT_PRIMARY
+        )
+        telemetry_check.pack(anchor="w", pady=scaled(2))
+
+        tk.Label(
+            options_frame,
+            text="No audio, text, or personal data is ever sent.",
+            font=(Theme.FONT_FAMILY, Theme.FONT_SIZE_XS),
+            fg=Theme.TEXT_MUTED,
+            bg=Theme.BG_DARK,
+            padx=scaled(21)
+        ).pack(anchor="w")
+
         # Finish button
         self._create_nav_button("Start Using WhisperLocal", self._finish, accent=True, center=True)
     
@@ -942,18 +1097,14 @@ Your voice never leaves your machine."""
         if self.auto_start.get():
             self._setup_auto_start()
 
-        # Save Ollama availability and default stylization profile
+        # Save Ollama availability, stylization profile, and telemetry consent
         try:
             from whisper_local.settings_manager import SettingsManager
             sm = SettingsManager()
-            if self._ollama_available:
-                sm.update_many({
-                    "stylization_profile": "polished",
-                })
-            else:
-                sm.update_many({
-                    "stylization_profile": "clean",
-                })
+            sm.update_many({
+                "stylization_profile": "polished" if self._ollama_available else "clean",
+                "telemetry_enabled": self.telemetry_consent.get(),
+            })
         except Exception:
             pass
 

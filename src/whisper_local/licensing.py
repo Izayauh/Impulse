@@ -19,7 +19,7 @@ from .config import get_user_data_dir
 # Configuration for the licensing API
 LICENSING_API_URL = os.environ.get(
     "WHISPER_LICENSE_API_URL",
-    "https://api.lemonsqueezy.com/v1/licenses/validate",
+    "https://impulse-eight-lake.vercel.app/api/validate",
 )
 
 
@@ -46,6 +46,15 @@ def _utc_now() -> _dt.datetime:
 
 def _iso_now() -> str:
     return _utc_now().isoformat()
+
+
+def _local_date(now: Optional[_dt.datetime] = None) -> _dt.date:
+    """Return the local calendar date for operator-facing day-based rules."""
+    if now is None:
+        return _dt.date.today()
+    if now.tzinfo is None:
+        return now.date()
+    return now.astimezone().date()
 
 
 def _parse_dt(value: Any) -> Optional[_dt.datetime]:
@@ -169,8 +178,18 @@ class LicensingManager:
     def _is_build_expired(self, now: Optional[_dt.datetime] = None) -> bool:
         if self._beta_expires_on is None:
             return False
-        check_now = now or _utc_now()
-        return check_now.date() > self._beta_expires_on
+        return _local_date(now) > self._beta_expires_on
+
+    def days_until_beta_expiry(self, now: Optional[_dt.datetime] = None) -> Optional[int]:
+        """Return days remaining until beta expiry, or None if no expiry is set.
+
+        Returns 0 if expired, negative values are clamped to 0.
+        """
+        if self._beta_expires_on is None:
+            return None
+        check_now = _local_date(now)
+        remaining = (self._beta_expires_on - check_now).days
+        return max(0, remaining)
 
     def _online_validate(self, license_key: str) -> Tuple[Optional[bool], str, Dict[str, Any]]:
         """Validate license online.
@@ -262,13 +281,38 @@ class LicensingManager:
         self._save_license_state(self._default_state())
         return True, "License deactivated."
 
+    def _stamp_expiry(self, d: Dict[str, Any], now: Optional[_dt.datetime] = None) -> Dict[str, Any]:
+        """Attach beta_expiry_days to a status dict so callers can show warnings."""
+        d["beta_expiry_days"] = self.days_until_beta_expiry(now)
+        return d
+
     def get_license_status(
         self,
         offline_fallback: bool = True,
         allow_online_check: bool = True,
     ) -> Dict[str, Any]:
-        """Return a rich status object for enforcement and UI."""
+        """Return a rich status object for enforcement and UI.
+
+        Always includes ``beta_expiry_days`` (int or None) so callers can
+        surface an expiry warning before the build actually stops working.
+        """
         now = _utc_now()
+        result = self._get_license_status_raw(
+            offline_fallback=offline_fallback,
+            allow_online_check=allow_online_check,
+            now=now,
+        )
+        return self._stamp_expiry(result, now)
+
+    def _get_license_status_raw(
+        self,
+        offline_fallback: bool = True,
+        allow_online_check: bool = True,
+        now: Optional[_dt.datetime] = None,
+    ) -> Dict[str, Any]:
+        """Internal implementation — callers should use get_license_status()."""
+        if now is None:
+            now = _utc_now()
 
         if self._dev_bypass:
             return {

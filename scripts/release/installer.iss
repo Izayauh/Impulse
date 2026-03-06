@@ -29,7 +29,7 @@ AllowNoIcons=yes
 DisableProgramGroupPage=yes
 
 ; Output settings
-OutputDir=dist
+OutputDir=..\..\dist
 OutputBaseFilename=WhisperLocal-Setup-{#MyAppVersion}
 SetupIconFile=..\..\src\whisper_local\Whisper.ico
 UninstallDisplayIcon={app}\{#MyAppExeName}
@@ -71,13 +71,13 @@ Name: "quicklaunchicon"; Description: "{cm:CreateQuickLaunchIcon}"; GroupDescrip
 
 [Files]
 ; Main application and dependencies from PyInstaller build
-Source: "dist\WhisperLocal\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "..\..\dist\WhisperLocal\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 ; Additional files if needed
-Source: "README.md"; DestDir: "{app}"; Flags: ignoreversion; DestName: "README.txt"
-Source: "USER_GUIDE.md"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist; DestName: "User Guide.txt"
-Source: "PRIVACY.md"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist; DestName: "Privacy Policy.txt"
-Source: "CHANGELOG.md"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist; DestName: "Changelog.txt"
+Source: "..\..\README.md"; DestDir: "{app}"; Flags: ignoreversion; DestName: "README.txt"
+Source: "..\..\USER_GUIDE.md"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist; DestName: "User Guide.txt"
+Source: "..\..\PRIVACY.md"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist; DestName: "Privacy Policy.txt"
+Source: "..\..\CHANGELOG.md"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist; DestName: "Changelog.txt"
 
 [Icons]
 ; Start Menu shortcuts
@@ -197,4 +197,3 @@ begin
     end;
   end;
 end;
-

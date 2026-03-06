@@ -31,6 +31,10 @@ psutil==5.9.8
 # Optional: Windows notifications (graceful fallback if unavailable)
 winotify==1.1.0
 
+# Updater / release metadata
+requests==2.32.3
+packaging==24.2
+
 # Build tools (for development/building)
 pyinstaller==6.3.0
 

@@ -5,7 +5,7 @@ All notable changes to Impulse will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.0.0] - 2025-01-XX
+## [1.0.0-beta.1] - 2026-03-03
 
 ### Added
 
@@ -59,6 +59,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Settings wizard for common issues
   - Detailed logging for advanced debugging
 
+### Beta Notes
+
+- **License required.** A beta key is required at first run.
+- **Beta expires April 30, 2026.** The app will stop transcribing after this date until updated.
+- **Telemetry opt-in.** Anonymous usage events may be collected with your permission.
+- **Hotkey reliability.** Uses Win32 `GetAsyncKeyState` instead of the `keyboard` library, which silently fails on Windows 11.
+- **Latch mode.** `WIN+CTRL+ALT` toggles hands-free recording without holding keys.
+- **Ollama optional.** "Polished" stylization requires a local Ollama instance; falls back gracefully if unavailable.
+
+### Known Limitations
+
+- English only (base.en, medium.en, large-v3 models)
+- Windows 10/11 only — macOS and Linux not yet supported
+- Custom hotkeys not yet configurable in UI (hardcoded WIN+CTRL)
+
 ### Technical Details
 
 - Based on [Whisper.cpp](https://github.com/ggerganov/whisper.cpp) for efficient inference
@@ -78,13 +93,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Planned Features
+### Planned
 
 - macOS and Linux support
-- Custom hotkey configuration
+- Custom hotkey configuration in UI
 - Voice commands for punctuation
 - Multiple language support
-- Auto-updater
 
 ---
 

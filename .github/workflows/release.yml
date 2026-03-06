@@ -73,9 +73,7 @@ jobs:
       - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install pyinstaller
-          pip install sounddevice soundfile keyboard pyperclip pyautogui pillow pystray numpy
-          pip install winotify || echo "winotify optional - continuing"
+          pip install -r requirements.txt
 
       - name: Install Inno Setup
         shell: pwsh
@@ -102,8 +100,10 @@ jobs:
       - name: Download whisper.cpp binaries
         shell: pwsh
         run: |
+          New-Item -ItemType Directory -Path "runtime\bin" -Force | Out-Null
+
           # Check if whisper-cli.exe exists, if not download from whisper.cpp releases
-          if (-not (Test-Path "whisper-cli.exe")) {
+          if (-not (Test-Path "runtime\bin\whisper-cli.exe")) {
             Write-Host "whisper-cli.exe not found, downloading from whisper.cpp..."
             
             # Download latest whisper.cpp Windows release
@@ -120,24 +120,25 @@ jobs:
               
               # Copy required files
               Get-ChildItem -Path "whisper-temp" -Recurse -Include "*.exe", "*.dll" | 
-                ForEach-Object { Copy-Item $_.FullName -Destination "." -Force }
+                ForEach-Object { Copy-Item $_.FullName -Destination "runtime\bin" -Force }
               
               Remove-Item "whisper-release.zip", "whisper-temp" -Recurse -Force
             } else {
               Write-Warning "Could not find Windows release asset"
+              exit 1
             }
           }
           
           # List available files
-          Write-Host "`nFiles in workspace:"
-          Get-ChildItem -Filter "*.exe" | ForEach-Object { Write-Host "  EXE: $($_.Name)" }
-          Get-ChildItem -Filter "*.dll" | ForEach-Object { Write-Host "  DLL: $($_.Name)" }
+          Write-Host "`nFiles in runtime\bin:"
+          Get-ChildItem "runtime\bin" -Filter "*.exe" | ForEach-Object { Write-Host "  EXE: $($_.Name)" }
+          Get-ChildItem "runtime\bin" -Filter "*.dll" | ForEach-Object { Write-Host "  DLL: $($_.Name)" }
 
       - name: Download AI models
         shell: pwsh
         run: |
           # Create models directory
-          New-Item -ItemType Directory -Path "models" -Force | Out-Null
+          New-Item -ItemType Directory -Path "runtime\models" -Force | Out-Null
           
           $models = @{
             "ggml-base.en.bin" = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin"
@@ -146,7 +147,7 @@ jobs:
           }
           
           foreach ($model in $models.GetEnumerator()) {
-            $path = "models\$($model.Key)"
+            $path = "runtime\models\$($model.Key)"
             if (-not (Test-Path $path)) {
               Write-Host "Downloading $($model.Key)..."
               # Use aria2c for faster downloads if available, otherwise Invoke-WebRequest
@@ -156,12 +157,36 @@ jobs:
                 $sizeText = "{0:N0} MB" -f $size
                 Write-Host "  Downloaded: $($model.Key) ($sizeText)"
               } catch {
-                Write-Warning "Failed to download $($model.Key): $_"
+              Write-Warning "Failed to download $($model.Key): $_"
+              exit 1
               }
             } else {
               Write-Host "Model already exists: $($model.Key)"
             }
           }
+
+      - name: Validate release runtime assets
+        shell: pwsh
+        run: |
+          $requiredFiles = @(
+            "runtime\bin\whisper-cli.exe",
+            "runtime\bin\ggml-base.dll",
+            "runtime\bin\ggml-cpu.dll",
+            "runtime\bin\ggml.dll",
+            "runtime\bin\whisper.dll",
+            "runtime\models\ggml-base.en.bin",
+            "runtime\models\ggml-medium.en.bin",
+            "runtime\models\ggml-large-v3.bin"
+          )
+
+          foreach ($path in $requiredFiles) {
+            if (-not (Test-Path $path)) {
+              Write-Error "Missing required release asset: $path"
+              exit 1
+            }
+          }
+
+          Write-Host "Runtime asset validation passed."
 
       # ========================================
       # Update Version Numbers
@@ -170,17 +195,19 @@ jobs:
         shell: pwsh
         run: |
           $version = "${{ steps.version.outputs.VERSION_NUMBER }}"
-          
+
           # Update installer.iss version
-          $issContent = Get-Content "installer.iss" -Raw
+          $issPath = "scripts\release\installer.iss"
+          $issContent = Get-Content $issPath -Raw
           $issContent = $issContent -replace '#define MyAppVersion ".*"', "#define MyAppVersion `"$version`""
-          Set-Content "installer.iss" $issContent
-          
+          Set-Content $issPath $issContent
+
           # Update build_config.spec version
-          $specContent = Get-Content "build_config.spec" -Raw
+          $specPath = "scripts\release\build_config.spec"
+          $specContent = Get-Content $specPath -Raw
           $specContent = $specContent -replace "APP_VERSION = '.*'", "APP_VERSION = '$version'"
-          Set-Content "build_config.spec" $specContent
-          
+          Set-Content $specPath $specContent
+
           Write-Host "Updated version to: $version"
 
       # ========================================
@@ -188,9 +215,11 @@ jobs:
       # ========================================
       - name: Build with PyInstaller
         shell: pwsh
+        env:
+          WHISPER_TELEMETRY_TOKEN: ${{ secrets.WHISPER_TELEMETRY_TOKEN }}
         run: |
           Write-Host "Building WhisperLocal with PyInstaller..."
-          python -m PyInstaller --clean --noconfirm build_config.spec
+          python -m PyInstaller --clean --noconfirm --distpath dist --workpath build scripts\release\build_config.spec
           
           # Verify output
           if (Test-Path "dist\WhisperLocal\WhisperLocal.exe") {
@@ -206,7 +235,7 @@ jobs:
         shell: pwsh
         run: |
           Write-Host "Building installer with Inno Setup..."
-          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" /Q installer.iss
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" /Q scripts\release\installer.iss
           
           # Find and verify installer
           $installer = Get-ChildItem -Path "dist" -Filter "WhisperLocal-Setup-*.exe" | 
@@ -301,4 +330,3 @@ jobs:
           Write-Host "Download URL:"
           Write-Host "  https://github.com/Izayauh/whisper/releases/tag/${{ steps.version.outputs.VERSION }}"
           Write-Host ""
-

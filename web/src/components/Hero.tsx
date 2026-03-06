@@ -28,8 +28,13 @@ export function Hero() {
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-24">
-            <button className="bg-white text-black px-8 py-4 rounded-2xl font-bold text-lg hover:bg-white/90 transition-all active:scale-95 shadow-[0_0_40px_rgba(255,255,255,0.15)] w-full sm:w-auto">
-              Download for Windows
+            <button
+              onClick={() => {
+                document.getElementById('beta')?.scrollIntoView({ behavior: 'smooth' });
+              }}
+              className="bg-white text-black px-8 py-4 rounded-2xl font-bold text-lg hover:bg-white/90 transition-all active:scale-95 shadow-[0_0_40px_rgba(255,255,255,0.15)] w-full sm:w-auto"
+            >
+              Join the Beta
             </button>
             <button
               onClick={() => {
