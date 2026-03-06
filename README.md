@@ -2,7 +2,9 @@
 
 **Privacy-focused, GPU-accelerated speech-to-text dictation for Windows**
 
-Transform your voice into text instantly - completely offline, using OpenAI's Whisper AI running locally on your computer.
+Transform your voice into text instantly — completely offline, using OpenAI's Whisper AI running locally on your computer.
+
+> **Beta Notice:** This is a pre-release beta (`1.0.0-beta.1`). A license key is required for activation. The beta expires **April 30, 2026**. Please report bugs via GitHub Issues.
 
 ---
 
@@ -14,7 +16,7 @@ Transform your voice into text instantly - completely offline, using OpenAI's Wh
 
 1. Download the installer (~3.5 GB)
 2. Run `Impulse-Setup.exe`
-3. Follow the setup wizard
+3. Follow the setup wizard — you'll be prompted to enter your beta license key
 4. Start dictating!
 
 No Python, no configuration, no technical knowledge required.
@@ -26,7 +28,14 @@ No Python, no configuration, no technical knowledge required.
 git clone https://github.com/Izayauh/whisper.git
 cd whisper
 
-# Run the canonical Windows launcher
+# Create and activate virtual environment
+python -m venv .venv
+.venv\Scripts\activate
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Run the application
 .\run_impulse.bat
 ```
 
@@ -58,6 +67,7 @@ That's it! Your spoken words appear as text.
 | Action | Hotkey |
 |--------|--------|
 | Record & Dictate | Hold `WIN + CTRL` |
+| Toggle Latch Mode (hands-free) | `WIN + CTRL + ALT` |
 | Open Dashboard | Click the floating status pill |
 | Settings | `WIN + CTRL + S` |
 | Exit | `ESC` |
@@ -82,10 +92,10 @@ This gives you the best of both worlds: quick response for short commands, high 
 
 Impulse is designed for privacy:
 
-- ✅ **100% Local** - No internet connection required
-- ✅ **No Cloud** - Speech never leaves your computer
-- ✅ **No Telemetry** - Zero data collection
-- ✅ **Open Source** - Fully auditable code
+- ✅ **100% Local** — Transcription never leaves your computer
+- ✅ **No Cloud** — Speech processed entirely on-device
+- ✅ **Opt-In Telemetry** — Anonymous beta usage reporting, disabled by default after beta
+- ✅ **Open Source** — Fully auditable code
 
 See our full [Privacy Policy](PRIVACY.md).
 
@@ -170,7 +180,7 @@ MIT License - Based on [Whisper.cpp](https://github.com/ggerganov/whisper.cpp)
 
 ## 🆘 Support
 
-1. Check the log file: `%LOCALAPPDATA%\Impulse\flow.log`
+1. Check the log file: `%LOCALAPPDATA%\WhisperLocal\logs\flow.log`
 2. See [`USER_GUIDE.md`](USER_GUIDE.md) for detailed help
 3. Open an issue on GitHub
 

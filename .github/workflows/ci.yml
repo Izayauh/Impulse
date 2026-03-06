@@ -76,14 +76,14 @@ jobs:
     - name: Lint with flake8
       run: |
         # Stop the build if there are Python syntax errors or undefined names
-        flake8 flow_local_dictation.py first_run_wizard.py --count --select=E9,F63,F7,F82 --show-source --statistics
+        flake8 src/whisper_local/ --count --select=E9,F63,F7,F82 --show-source --statistics
         # Exit-zero treats all errors as warnings. Line length set to 120
-        flake8 flow_local_dictation.py first_run_wizard.py --count --max-line-length=120 --statistics --exit-zero
+        flake8 src/whisper_local/ --count --max-line-length=120 --statistics --exit-zero
       continue-on-error: true
-    
+
     - name: Check code formatting with black
       run: |
-        black --check --line-length=120 flow_local_dictation.py first_run_wizard.py || true
+        black --check --line-length=120 src/whisper_local/ || true
       continue-on-error: true
 
   security:

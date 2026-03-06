@@ -4858,6 +4858,17 @@ def run_whisper_main_loop():
     startup_license = _get_runtime_license_status(force_refresh=True)
     if startup_license.get("is_valid"):
         log_line(f"[LICENSE] Startup status OK ({startup_license.get('reason', 'valid')})")
+        beta_days = startup_license.get("beta_expiry_days")
+        if beta_days is not None and beta_days <= 7:
+            expiry_msg = (
+                f"Beta expires today!" if beta_days == 0
+                else f"Beta expires in {beta_days} day{'s' if beta_days != 1 else ''}."
+            )
+            log_line(f"[LICENSE] Beta expiry warning: {expiry_msg}", "warning")
+            try:
+                notify(f"⚠️ {expiry_msg} Update Impulse to keep dictating.")
+            except Exception:
+                pass
     else:
         reason = startup_license.get("reason", "unlicensed")
         message = startup_license.get("message", "License required.")

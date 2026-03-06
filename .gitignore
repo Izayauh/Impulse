@@ -17,6 +17,7 @@ build/
 output/
 runtime/bin/
 runtime/models/
+runtime/tmp_pipeline/
 cache/
 crashes/
 
@@ -61,3 +62,6 @@ flow_out.txt
 
 # Local test run artifacts
 pytest_out*.txt
+
+# Auto-generated build config (contains baked secrets)
+src/whisper_local/_build_config.py

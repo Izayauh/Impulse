@@ -37,6 +37,7 @@ $BuildDir = Join-Path $ProjectRoot "build_output"
 $DistDir = Join-Path $ProjectRoot "dist"
 $SpecFile = Join-Path $ScriptDir "build_config.spec"
 $IssFile = Join-Path $ScriptDir "installer.iss"
+$MinimumFreeSpaceBytes = 10GB
 
 function Get-AppVersion {
     $configPath = Join-Path $ProjectRoot "src\whisper_local\config.py"
@@ -115,6 +116,19 @@ function Get-FileHash256 {
     return $hash.Hash.ToLower()
 }
 
+function Test-FreeSpace {
+    param(
+        [string]$Path,
+        [Int64]$RequiredBytes
+    )
+
+    $resolved = Resolve-Path $Path
+    $item = Get-Item $resolved
+    $root = [System.IO.Path]::GetPathRoot($item.FullName)
+    $drive = Get-PSDrive -Name $root.TrimEnd('\').TrimEnd(':') -ErrorAction Stop
+    return $drive.Free -ge $RequiredBytes
+}
+
 # ============================================================================
 # Prerequisite Checks
 # ============================================================================
@@ -129,6 +143,20 @@ function Test-Prerequisites {
         Write-Success "Python: $pyVersion"
     } else {
         Write-Error "Python not found in PATH"
+        $allGood = $false
+    }
+
+    # Check required Python packages used by the packaged app.
+    try {
+        python -c "import requests, packaging" 2>$null
+        if ($LASTEXITCODE -eq 0) {
+            Write-Success "Core updater deps: requests, packaging"
+        } else {
+            Write-Error "Missing runtime deps. Run: pip install -r requirements.txt"
+            $allGood = $false
+        }
+    } catch {
+        Write-Error "Missing runtime deps. Run: pip install -r requirements.txt"
         $allGood = $false
     }
     
@@ -204,6 +232,18 @@ function Test-Prerequisites {
         Write-Error "No AI models found in runtime\\models directory"
         $allGood = $false
     }
+
+    if (Test-FreeSpace -Path $ProjectRoot -RequiredBytes $MinimumFreeSpaceBytes) {
+        $freeGb = [math]::Round(((Get-PSDrive -Name ([System.IO.Path]::GetPathRoot($ProjectRoot.Path).TrimEnd('\').TrimEnd(':'))).Free / 1GB), 2)
+        Write-Success "Free disk space check passed ($freeGb GB available)"
+    } else {
+        $driveName = [System.IO.Path]::GetPathRoot($ProjectRoot.Path).TrimEnd('\').TrimEnd(':')
+        $drive = Get-PSDrive -Name $driveName
+        $freeGb = [math]::Round($drive.Free / 1GB, 2)
+        $requiredGb = [math]::Round($MinimumFreeSpaceBytes / 1GB, 2)
+        Write-Error "Insufficient free disk space on $driveName drive ($freeGb GB free, need at least $requiredGb GB)"
+        $allGood = $false
+    }
     
     # Check DLLs
     $dlls = @("ggml-base.dll", "ggml-cpu.dll", "ggml-cuda.dll", "ggml.dll", "whisper.dll")
@@ -252,7 +292,7 @@ function Invoke-Clean {
 function Invoke-PyInstallerBuild {
     Write-Header "Building with PyInstaller"
     
-    Set-Location $ScriptDir
+    Set-Location $ProjectRoot
     
     Write-Step "Running PyInstaller..."
     Write-Info "This may take several minutes for the first build..."
@@ -260,6 +300,10 @@ function Invoke-PyInstallerBuild {
     $pyInstallerArgs = @(
         "--clean",
         "--noconfirm",
+        "--distpath",
+        $DistDir,
+        "--workpath",
+        (Join-Path $ProjectRoot "build"),
         $SpecFile
     )
     
@@ -416,4 +460,3 @@ try {
     Write-Output "__CURSOR_DONE__"
     exit 1
 }
-

@@ -27,7 +27,7 @@ export function Footer() {
           <ul className="space-y-4 text-sm text-white/60">
             <li><a href="#" className="hover:text-brand transition-colors">Download</a></li>
             <li><a href="#" className="hover:text-brand transition-colors">Features</a></li>
-            <li><a href="#" className="hover:text-brand transition-colors">Pricing</a></li>
+            <li><a href="#beta" className="hover:text-brand transition-colors">Beta</a></li>
             <li><a href="#" className="hover:text-brand transition-colors">Changelog</a></li>
           </ul>
         </div>
@@ -44,7 +44,7 @@ export function Footer() {
       </div>
       
       <div className="max-w-7xl mx-auto mt-20 pt-8 border-t border-white/5 flex flex-col md:flex-row justify-between items-center gap-4 text-xs text-white/20 font-medium uppercase tracking-widest">
-        <span>© 2024 Impulse AI Inc. All rights reserved.</span>
+        <span>© 2026 Impulse AI Inc. All rights reserved.</span>
         <span>Designed with passion for the creative mind.</span>
       </div>
     </footer>

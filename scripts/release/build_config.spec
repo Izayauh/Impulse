@@ -17,6 +17,14 @@ APP_NAME = 'WhisperLocal'
 APP_VERSION = '1.0.0-beta.1'
 MAIN_SCRIPT = os.path.join(ROOT_DIR, 'main.py')
 
+# Bake telemetry token into the frozen build so it works without
+# the env var being set on the end user's machine.
+_telemetry_token = os.environ.get("WHISPER_TELEMETRY_TOKEN", "")
+_build_config_path = os.path.join(ROOT_DIR, 'src', 'whisper_local', '_build_config.py')
+with open(_build_config_path, 'w', encoding='utf-8') as _f:
+    _f.write(f'# Auto-generated at build time — do not edit or commit\n')
+    _f.write(f'TELEMETRY_TOKEN = {repr(_telemetry_token)}\n')
+
 # Collect hidden imports for all required packages
 hidden_imports = [
     'sounddevice',
@@ -47,6 +55,8 @@ hidden_imports = [
     're',
     'math',
     'msvcrt',
+    'requests',
+    'packaging',
     # Optional imports
     'winotify',
 ]
@@ -203,4 +213,3 @@ print(f"Data files: {len(datas)}")
 print(f"Hidden imports: {len(hidden_imports)}")
 print(f"Output: dist/{APP_NAME}/")
 print(f"{'='*60}\n")
-
