@@ -1,5 +1,6 @@
 import { motion } from 'motion/react';
 import { InteractiveDemo } from './InteractiveDemo';
+import { RELEASE_PAGE_URL } from '@/src/lib/site';
 
 export function Hero() {
   return (
@@ -19,7 +20,7 @@ export function Hero() {
           <span className="inline-block px-4 py-1.5 rounded-full glass text-xs font-bold tracking-widest uppercase text-brand mb-6">
             Voice Dictation Reimagined
           </span>
-          <h1 className="font-display text-5xl md:text-7xl lg:text-8xl font-bold tracking-tighter mb-8 leading-[1.1] md:leading-[0.9]">
+          <h1 className="font-display text-4xl sm:text-5xl md:text-7xl lg:text-8xl font-bold tracking-tighter mb-8 leading-[1.05] md:leading-[0.9] max-w-5xl mx-auto">
             Speak your ideas <br />
             <span className="text-gradient">into reality.</span>
           </h1>
@@ -28,11 +29,19 @@ export function Hero() {
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-24">
+            <a
+              href={RELEASE_PAGE_URL}
+              target="_blank"
+              rel="noreferrer"
+              className="bg-white text-black px-8 py-4 rounded-2xl font-bold text-lg hover:bg-white/90 transition-all active:scale-95 shadow-[0_0_40px_rgba(255,255,255,0.15)] w-full sm:w-auto text-center"
+            >
+              Download Windows Beta
+            </a>
             <button
               onClick={() => {
                 document.getElementById('beta')?.scrollIntoView({ behavior: 'smooth' });
               }}
-              className="bg-white text-black px-8 py-4 rounded-2xl font-bold text-lg hover:bg-white/90 transition-all active:scale-95 shadow-[0_0_40px_rgba(255,255,255,0.15)] w-full sm:w-auto"
+              className="glass px-8 py-4 rounded-2xl font-bold text-lg hover:bg-white/10 transition-all active:scale-95 w-full sm:w-auto"
             >
               Join the Beta
             </button>
@@ -40,7 +49,7 @@ export function Hero() {
               onClick={() => {
                 document.getElementById('demo-section')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
               }}
-              className="glass px-8 py-4 rounded-2xl font-bold text-lg hover:bg-white/10 transition-all active:scale-95 w-full sm:w-auto"
+              className="px-8 py-4 rounded-2xl font-bold text-lg text-white/80 border border-white/10 hover:bg-white/5 transition-all active:scale-95 w-full sm:w-auto"
             >
               Try the Demo Below
             </button>
