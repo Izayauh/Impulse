@@ -1,24 +1,4 @@
-function requireEnv(name) {
-  const value = process.env[name];
-  if (!value) {
-    throw new Error(`Missing required environment variable: ${name}`);
-  }
-  return value;
-}
-
-async function kvGet(key) {
-  const baseUrl = requireEnv('KV_REST_API_URL').replace(/\/+$/, '');
-  const res = await fetch(`${baseUrl}/get/${encodeURIComponent(key)}`, {
-    headers: {
-      Authorization: `Bearer ${requireEnv('KV_REST_API_TOKEN')}`,
-    },
-  });
-  if (!res.ok) {
-    throw new Error(`Upstash get failed: ${res.status}`);
-  }
-  const body = await res.json();
-  return body.result ?? null;
-}
+const { kvGet, recordValidationSuccess } = require('./_lib/beta');
 
 module.exports = async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -46,12 +26,14 @@ module.exports = async function handler(req, res) {
       });
     }
 
+    const lead = await recordValidationSuccess(license_key.trim(), instance_name || null);
     return res.status(200).json({
       valid: true,
       meta: {
         email: data.email,
         created_at: data.created_at,
         instance_name: instance_name || null,
+        activated_at: lead?.activated_at || null,
       },
     });
   } catch (err) {
