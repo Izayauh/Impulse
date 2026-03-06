@@ -2,5 +2,11 @@
   "framework": "vite",
   "installCommand": "npm ci --prefix web",
   "buildCommand": "npm run build --prefix web",
-  "outputDirectory": "web/dist"
+  "outputDirectory": "web/dist",
+  "crons": [
+    {
+      "path": "/api/cron/beta-sequence",
+      "schedule": "0 15 * * *"
+    }
+  ]
 }
