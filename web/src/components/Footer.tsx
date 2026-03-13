@@ -44,7 +44,7 @@ export function Footer() {
       </div>
       
       <div className="max-w-7xl mx-auto mt-20 pt-8 border-t border-white/5 flex flex-col md:flex-row justify-between items-center gap-4 text-xs text-white/20 font-medium uppercase tracking-widest">
-        <span>© 2026 Impulse AI Inc. All rights reserved.</span>
+        <span>© 2026 Impulse. All rights reserved.</span>
         <span>Designed with passion for the creative mind.</span>
       </div>
     </footer>
