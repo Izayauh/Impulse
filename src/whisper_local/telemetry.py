@@ -27,6 +27,8 @@ from queue import Queue, Empty
 from typing import Any, Dict, List, Optional
 from urllib import request, error
 
+from whisper_local.config import get_user_data_dir
+
 logger = logging.getLogger(__name__)
 
 
@@ -36,8 +38,6 @@ logger = logging.getLogger(__name__)
 
 def get_install_id() -> str:
     """Return a stable, anonymous install ID (creates one on first call)."""
-    from whisper_local.config import get_user_data_dir
-
     id_file = os.path.join(get_user_data_dir(), "state", "install_id.txt")
 
     if os.path.exists(id_file):

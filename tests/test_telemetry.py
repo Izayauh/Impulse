@@ -50,8 +50,8 @@ def test_sanitize_payload_redacts_transcripts():
 
 
 def test_get_install_id_is_stable(tmp_path):
-    # Mock get_user_data_dir to point to tmp_path
-    with patch("whisper_local.config.get_user_data_dir", return_value=str(tmp_path)):
+    # Patch the symbol used by whisper_local.telemetry.get_install_id.
+    with patch("whisper_local.telemetry.get_user_data_dir", return_value=str(tmp_path)):
         id1 = get_install_id()
         id2 = get_install_id()
         
