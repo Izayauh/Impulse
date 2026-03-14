@@ -28,7 +28,7 @@ export function Hero() {
             Impulse is the AI-powered dictation layer that lives on top of every application. <span className="hidden md:inline">Perfect formatting, gamified focus, and zero friction.</span>
           </p>
 
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-24">
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-6">
             <a
               href={RELEASE_PAGE_URL}
               target="_blank"
@@ -54,6 +54,12 @@ export function Hero() {
               Try the Demo Below
             </button>
           </div>
+
+          <p className="text-sm md:text-base text-white/45 max-w-3xl mx-auto mb-24 leading-relaxed">
+            On the GitHub release page, download the installer <span className="text-white/70 font-semibold">.exe</span> and
+            every matching <span className="text-white/70 font-semibold">.bin</span> file, keep them in the same folder,
+            then run the installer.
+          </p>
         </motion.div>
 
         {/* Interactive Demo Container */}

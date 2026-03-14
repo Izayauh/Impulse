@@ -72,6 +72,9 @@ export function BetaSignup() {
                 <p className="text-white/60">
                   Check your email for your beta license key and download link.
                 </p>
+                <p className="text-white/40 text-sm mt-3 leading-relaxed">
+                  On the download page, grab the installer <span className="text-white/70 font-semibold">.exe</span> and all matching <span className="text-white/70 font-semibold">.bin</span> files, keep them together, then run setup.
+                </p>
                 <a
                   href={RELEASE_PAGE_URL}
                   target="_blank"
@@ -146,6 +149,9 @@ export function BetaSignup() {
                 >
                   Already have a beta key? Open the Windows beta download page.
                 </a>
+                <p className="text-white/35 text-xs mt-3 text-center leading-relaxed">
+                  Download the installer <span className="text-white/60 font-semibold">.exe</span> plus every matching <span className="text-white/60 font-semibold">.bin</span> file, then keep them in the same folder before running setup.
+                </p>
               </>
             )}
           </div>
