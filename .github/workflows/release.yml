@@ -272,37 +272,6 @@ jobs:
           echo "CHECKSUM_FILE=$hashFile" >> $env:GITHUB_OUTPUT
         id: checksum
 
-      - name: Create full release package
-        shell: pwsh
-        run: |
-          powershell -ExecutionPolicy Bypass -File scripts\release\create_release_package.ps1 -Version "${{ steps.version.outputs.VERSION_NUMBER }}"
-
-          $package = Get-ChildItem -Path "dist" -Filter "WhisperLocal-Setup-*-Complete.zip" |
-            Sort-Object LastWriteTime -Descending | Select-Object -First 1
-
-          if (-not $package) {
-            Write-Error "Full release package ZIP was not created."
-            exit 1
-          }
-
-          $packageHash = "$($package.FullName).sha256"
-          if (-not (Test-Path $packageHash)) {
-            Write-Error "Full release package checksum was not created: $packageHash"
-            exit 1
-          }
-
-          $stablePackage = "dist\Impulse-Windows-Beta.zip"
-          $stablePackageHash = "dist\Impulse-Windows-Beta.zip.sha256"
-          Copy-Item $package.FullName $stablePackage -Force
-          Copy-Item $packageHash $stablePackageHash -Force
-
-          echo "PACKAGE_NAME=$($package.Name)" >> $env:GITHUB_OUTPUT
-          echo "PACKAGE_PATH=$($package.FullName)" >> $env:GITHUB_OUTPUT
-          echo "PACKAGE_HASH=$packageHash" >> $env:GITHUB_OUTPUT
-          echo "STABLE_PACKAGE=$stablePackage" >> $env:GITHUB_OUTPUT
-          echo "STABLE_PACKAGE_HASH=$stablePackageHash" >> $env:GITHUB_OUTPUT
-        id: package
-
       # ========================================
       # Create Release
       # ========================================
@@ -318,11 +287,12 @@ jobs:
             
             ### Installation
             
-            1. Download `Impulse-Windows-Beta.zip` below
-            2. Extract **all** files to the same folder
-            3. Run `WhisperLocal-Setup-${{ steps.version.outputs.VERSION_NUMBER }}.exe`
-            4. Keep the `.bin` files beside the installer until setup finishes
-            5. Start dictating with `WIN + CTRL`!
+            1. Download `WhisperLocal-Setup-${{ steps.version.outputs.VERSION_NUMBER }}.exe`
+            2. Download every matching `WhisperLocal-Setup-${{ steps.version.outputs.VERSION_NUMBER }}-*.bin` part
+            3. Put all downloaded files in the same folder
+            4. Run the installer `.exe`
+            5. Keep the `.bin` files beside the installer until setup finishes
+            6. Start dictating with `WIN + CTRL`!
             
             ### System Requirements
             
@@ -331,20 +301,18 @@ jobs:
             - 4 GB disk space
             - NVIDIA GPU with CUDA recommended (CPU also works)
             
-            ### Checksums
+            ### Checksum
             
             - Installer EXE SHA256: `${{ steps.checksum.outputs.CHECKSUM }}`
-            - Full package ZIP SHA256: see the attached `.sha256` file
             
             ### What's New
             
             See [CHANGELOG.md](https://github.com/Izayauh/whisper/blob/main/CHANGELOG.md) for details.
             
           files: |
-            dist/WhisperLocal-Setup-*-Complete.zip
-            dist/WhisperLocal-Setup-*-Complete.zip.sha256
-            dist/Impulse-Windows-Beta.zip
-            dist/Impulse-Windows-Beta.zip.sha256
+            dist/WhisperLocal-Setup-*.exe
+            dist/WhisperLocal-Setup-*.bin
+            dist/WhisperLocal-Setup-*.sha256
           draft: false
           prerelease: ${{ steps.version.outputs.IS_PRERELEASE }}
           generate_release_notes: true
@@ -362,8 +330,7 @@ jobs:
           Write-Host "Version: ${{ steps.version.outputs.VERSION }}"
           Write-Host "Installer: ${{ steps.installer.outputs.INSTALLER_NAME }}"
           Write-Host "Installer SHA256: ${{ steps.checksum.outputs.CHECKSUM }}"
-          Write-Host "Package: ${{ steps.package.outputs.PACKAGE_NAME }}"
           Write-Host ""
-          Write-Host "Stable download URL:"
-          Write-Host "  https://github.com/Izayauh/whisper/releases/latest/download/Impulse-Windows-Beta.zip"
+          Write-Host "Release page:"
+          Write-Host "  https://github.com/Izayauh/whisper/releases/tag/${{ steps.version.outputs.VERSION }}"
           Write-Host ""

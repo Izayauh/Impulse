@@ -35,7 +35,7 @@ function publicBaseUrl() {
 }
 
 function releaseUrl() {
-  return optionalEnv('PUBLIC_DOWNLOAD_URL', 'https://github.com/Izayauh/whisper/releases/latest/download/Impulse-Windows-Beta.zip');
+  return optionalEnv('PUBLIC_DOWNLOAD_URL', 'https://github.com/Izayauh/whisper/releases/latest');
 }
 
 function upstashHeaders(json = false) {
