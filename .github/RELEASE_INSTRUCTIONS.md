@@ -7,7 +7,7 @@ This document explains how to create and publish new releases of WhisperLocal.
 Releases are automated via GitHub Actions. When you push a version tag, the workflow automatically:
 1. Builds the installer using PyInstaller and Inno Setup
 2. Downloads the required Whisper models from Hugging Face
-3. Creates a GitHub Release with the installer attached
+3. Creates a GitHub Release with the full installer package attached
 4. Calculates and publishes SHA256 checksums
 
 ### Creating a New Release
@@ -87,8 +87,10 @@ If you need to create a release manually:
    - Create a new tag (e.g., `v1.0.0`)
    - Add release title: "WhisperLocal v1.0.0"
    - Add release notes
-   - Upload `dist\WhisperLocal-Setup-1.0.0.exe`
-   - Upload `dist\WhisperLocal-Setup-1.0.0.sha256`
+   - Run `powershell -ExecutionPolicy Bypass -File scripts\release\create_release_package.ps1`
+   - Upload `dist\WhisperLocal-Setup-1.0.0-Complete.zip`
+   - Upload `dist\WhisperLocal-Setup-1.0.0-Complete.zip.sha256`
+   - (Recommended) Upload a stable alias asset named `Impulse-Windows-Beta.zip` plus its `.sha256` file
    - Click "Publish release"
 
 ## Pre-Release Checklist
@@ -99,6 +101,7 @@ Before creating a release, verify:
 - [ ] Application starts correctly
 - [ ] Dictation works (WIN + CTRL hotkey)
 - [ ] Settings window opens (WIN + CTRL + S)
+- [ ] Full installer package ZIP includes the EXE and all required `.bin` parts
 - [ ] All three AI models are included
 - [ ] CHANGELOG.md is updated
 - [ ] Version numbers are consistent across files

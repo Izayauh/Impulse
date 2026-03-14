@@ -35,7 +35,7 @@ function publicBaseUrl() {
 }
 
 function releaseUrl() {
-  return optionalEnv('PUBLIC_DOWNLOAD_URL', 'https://github.com/Izayauh/whisper/releases/tag/v1.0.0-beta.1');
+  return optionalEnv('PUBLIC_DOWNLOAD_URL', 'https://github.com/Izayauh/whisper/releases/latest/download/Impulse-Windows-Beta.zip');
 }
 
 function upstashHeaders(json = false) {

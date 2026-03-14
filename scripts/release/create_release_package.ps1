@@ -11,9 +11,9 @@ $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $ProjectRoot = Resolve-Path (Join-Path $ScriptDir "..\..")
 $distDir = Join-Path $ProjectRoot "dist"
 
-Write-Host "=" * 60
+Write-Host ("=" * 60)
 Write-Host "WhisperLocal Release Package Creator"
-Write-Host "=" * 60
+Write-Host ("=" * 60)
 
 if (-not (Test-Path $distDir)) {
     Write-Host "ERROR: dist directory not found: $distDir" -ForegroundColor Red
@@ -131,7 +131,8 @@ try {
     Compress-Archive -Path $filesToZip -DestinationPath $outputZip -CompressionLevel Optimal
 
     $zipSize = [math]::Round((Get-Item $outputZip).Length / 1GB, 2)
-    Write-Host "`n✓ SUCCESS!" -ForegroundColor Green
+    Write-Host ""
+    Write-Host "SUCCESS!" -ForegroundColor Green
     Write-Host "Release package created: $outputZip" -ForegroundColor Green
     Write-Host "Package size: $zipSize GB" -ForegroundColor Green
 } catch {
@@ -150,6 +151,7 @@ $hash = Get-FileHash -Path $outputZip -Algorithm SHA256
 "$($hash.Hash)  $(Split-Path $outputZip -Leaf)" | Out-File -FilePath $checksumFile -Encoding ASCII
 Write-Host "Checksum saved to: $checksumFile" -ForegroundColor Green
 
-Write-Host "`n" + ("=" * 60)
+Write-Host ""
+Write-Host ("=" * 60)
 Write-Host "DONE! Ready for distribution." -ForegroundColor Green
 Write-Host ("=" * 60)
