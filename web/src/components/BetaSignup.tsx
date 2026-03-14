@@ -78,7 +78,7 @@ export function BetaSignup() {
                   rel="noreferrer"
                   className="inline-flex mt-6 items-center gap-2 rounded-xl bg-white/8 px-4 py-3 text-sm font-semibold text-white hover:bg-white/12 transition-colors"
                 >
-                  Download the Windows beta package
+                  Open the Windows beta download page
                   <ArrowRight className="w-4 h-4" />
                 </a>
               </motion.div>
@@ -144,7 +144,7 @@ export function BetaSignup() {
                   rel="noreferrer"
                   className="block mt-4 text-center text-sm text-brand hover:text-brand-light transition-colors"
                 >
-                  Already have a beta key? Download the Windows beta package.
+                  Already have a beta key? Open the Windows beta download page.
                 </a>
               </>
             )}

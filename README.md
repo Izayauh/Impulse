@@ -12,13 +12,14 @@ Transform your voice into text instantly — completely offline, using OpenAI's 
 
 ### Option 1: Full Windows Package (Recommended for most users)
 
-**[Download the Windows package ZIP](https://github.com/Izayauh/whisper/releases/latest/download/Impulse-Windows-Beta.zip)**
+**[Open the latest Windows release page](https://github.com/Izayauh/whisper/releases/latest)**
 
-1. Download the full Windows package ZIP (~4+ GB)
-2. Extract **all** files to the same folder
-3. Run `WhisperLocal-Setup-<version>.exe`
-4. Keep the `.bin` files beside the installer until setup finishes
-5. Follow the setup wizard — you'll be prompted to enter your beta license key
+1. Open the latest GitHub release page
+2. Download the installer `.exe` **and every matching `.bin` part**
+3. Put all downloaded files in the same folder
+4. Run `WhisperLocal-Setup-<version>.exe`
+5. Keep the `.bin` files beside the installer until setup finishes
+6. Follow the setup wizard — you'll be prompted to enter your beta license key
 
 No Python, no configuration, no technical knowledge required.
 
