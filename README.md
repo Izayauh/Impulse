@@ -10,16 +10,15 @@ Transform your voice into text instantly — completely offline, using OpenAI's 
 
 ## 📥 Download & Install
 
-### Option 1: Full Windows Package (Recommended for most users)
+### Option 1: Windows Installer (Recommended for most users)
 
 **[Open the latest Windows release page](https://github.com/Izayauh/whisper/releases/latest)**
 
-1. Open the latest GitHub release page
-2. Download the installer `.exe` **and every matching `.bin` part**
-3. Put all downloaded files in the same folder
-4. Run `WhisperLocal-Setup-<version>.exe`
-5. Keep the `.bin` files beside the installer until setup finishes
-6. Follow the setup wizard — you'll be prompted to enter your beta license key
+1. Download the single Windows bootstrap installer when it is available
+2. Run the installer and stay online while setup downloads the runtime/model payload
+3. Follow the setup wizard - you'll be prompted to enter your beta license key
+
+Fallback: if the release only includes split assets, download `WhisperLocal-Setup-<version>.exe` and every matching `.bin` part, keep them in the same folder, then run the installer.
 
 No Python, no configuration, no technical knowledge required.
 

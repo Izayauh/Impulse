@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
 import { Mail, ArrowRight, CheckCircle2, Loader2 } from 'lucide-react';
-import { RELEASE_PAGE_URL } from '@/src/lib/site';
+import { DOWNLOAD_URL } from '@/src/lib/site';
 
 type FormState = 'idle' | 'submitting' | 'success' | 'error';
 
@@ -73,10 +73,10 @@ export function BetaSignup() {
                   Check your email for your beta license key and download link.
                 </p>
                 <p className="text-white/40 text-sm mt-3 leading-relaxed">
-                  On the download page, grab the installer <span className="text-white/70 font-semibold">.exe</span> and all matching <span className="text-white/70 font-semibold">.bin</span> files, keep them together, then run setup.
+                  Run the Windows installer like a normal setup. If the download page falls back to GitHub release assets, grab the installer <span className="text-white/70 font-semibold">.exe</span> plus every matching <span className="text-white/70 font-semibold">.bin</span> file.
                 </p>
                 <a
-                  href={RELEASE_PAGE_URL}
+                  href={DOWNLOAD_URL}
                   target="_blank"
                   rel="noreferrer"
                   className="inline-flex mt-6 items-center gap-2 rounded-xl bg-white/8 px-4 py-3 text-sm font-semibold text-white hover:bg-white/12 transition-colors"
@@ -142,7 +142,7 @@ export function BetaSignup() {
                   We'll only email your license key. No spam, ever.
                 </p>
                 <a
-                  href={RELEASE_PAGE_URL}
+                  href={DOWNLOAD_URL}
                   target="_blank"
                   rel="noreferrer"
                   className="block mt-4 text-center text-sm text-brand hover:text-brand-light transition-colors"
@@ -150,7 +150,7 @@ export function BetaSignup() {
                   Already have a beta key? Open the Windows beta download page.
                 </a>
                 <p className="text-white/35 text-xs mt-3 text-center leading-relaxed">
-                  Download the installer <span className="text-white/60 font-semibold">.exe</span> plus every matching <span className="text-white/60 font-semibold">.bin</span> file, then keep them in the same folder before running setup.
+                  Preferred path: the single bootstrap installer. Fallback path: the split installer <span className="text-white/60 font-semibold">.exe</span> plus every matching <span className="text-white/60 font-semibold">.bin</span> file in the same folder.
                 </p>
               </>
             )}

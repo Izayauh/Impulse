@@ -211,6 +211,12 @@ jobs:
           $issContent = $issContent -replace '#define MyAppVersion ".*"', "#define MyAppVersion `"$version`""
           Set-Content $issPath $issContent
 
+          # Update bootstrap_installer.iss version
+          $bootstrapIssPath = "scripts\release\bootstrap_installer.iss"
+          $bootstrapIssContent = Get-Content $bootstrapIssPath -Raw
+          $bootstrapIssContent = $bootstrapIssContent -replace '#define MyAppVersion ".*"', "#define MyAppVersion `"$version`""
+          Set-Content $bootstrapIssPath $bootstrapIssContent
+
           # Update build_config.spec version
           $specPath = "scripts\release\build_config.spec"
           $specContent = Get-Content $specPath -Raw
@@ -262,6 +268,38 @@ jobs:
           }
         id: installer
 
+      - name: Generate bootstrap payload manifest
+        if: ${{ secrets.WHISPER_BOOTSTRAP_BASE_URL != '' }}
+        shell: pwsh
+        env:
+          WHISPER_BOOTSTRAP_BASE_URL: ${{ secrets.WHISPER_BOOTSTRAP_BASE_URL }}
+        run: |
+          & .\scripts\release\generate_bootstrap_payload.ps1 `
+            -BaseUrl $env:WHISPER_BOOTSTRAP_BASE_URL `
+            -Version "${{ steps.version.outputs.VERSION_NUMBER }}"
+
+      - name: Build bootstrap installer with Inno Setup
+        if: ${{ secrets.WHISPER_BOOTSTRAP_BASE_URL != '' }}
+        shell: pwsh
+        run: |
+          Write-Host "Building bootstrap installer with Inno Setup..."
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" /Q scripts\release\bootstrap_installer.iss
+
+          $installer = Get-ChildItem -Path "dist" -Filter "WhisperLocal-Bootstrap-Setup-*.exe" |
+            Sort-Object LastWriteTime -Descending | Select-Object -First 1
+
+          if ($installer) {
+            $size = $installer.Length / 1MB
+            $sizeText = "{0:N1} MB" -f $size
+            Write-Host "Bootstrap installer created: $($installer.Name) ($sizeText)"
+            echo "INSTALLER_NAME=$($installer.Name)" >> $env:GITHUB_OUTPUT
+            echo "INSTALLER_PATH=$($installer.FullName)" >> $env:GITHUB_OUTPUT
+          } else {
+            Write-Error "Bootstrap installer build failed - no installer found in dist/"
+            exit 1
+          }
+        id: bootstrap_installer
+
       - name: Calculate checksums
         shell: pwsh
         run: |
@@ -278,10 +316,28 @@ jobs:
           echo "CHECKSUM_FILE=$hashFile" >> $env:GITHUB_OUTPUT
         id: checksum
 
+      - name: Calculate bootstrap checksum
+        if: ${{ secrets.WHISPER_BOOTSTRAP_BASE_URL != '' }}
+        shell: pwsh
+        run: |
+          $installer = Get-ChildItem -Path "dist" -Filter "WhisperLocal-Bootstrap-Setup-*.exe" |
+            Sort-Object LastWriteTime -Descending | Select-Object -First 1
+
+          $hash = (Get-FileHash -Path $installer.FullName -Algorithm SHA256).Hash.ToLower()
+          $hashFile = "dist\$($installer.BaseName).sha256"
+
+          "$hash *$($installer.Name)" | Out-File -FilePath $hashFile -Encoding ascii
+
+          Write-Host "SHA256: $hash"
+          echo "CHECKSUM=$hash" >> $env:GITHUB_OUTPUT
+          echo "CHECKSUM_FILE=$hashFile" >> $env:GITHUB_OUTPUT
+        id: bootstrap_checksum
+
       # ========================================
       # Create Release
       # ========================================
       - name: Create Release
+        if: ${{ secrets.WHISPER_BOOTSTRAP_BASE_URL == '' }}
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.version.outputs.VERSION }}
@@ -325,6 +381,60 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Create Release With Bootstrap Installer
+        if: ${{ secrets.WHISPER_BOOTSTRAP_BASE_URL != '' }}
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.VERSION }}
+          name: WhisperLocal ${{ steps.version.outputs.VERSION }}
+          body: |
+            ## WhisperLocal ${{ steps.version.outputs.VERSION }}
+
+            Privacy-focused, GPU-accelerated speech-to-text dictation for Windows.
+
+            ### Recommended Installation
+
+            1. Download `WhisperLocal-Bootstrap-Setup-${{ steps.version.outputs.VERSION_NUMBER }}.exe`
+            2. Run the installer and stay online while setup downloads the runtime/model payload
+            3. Start dictating with `WIN + CTRL`
+
+            ### Fallback Installation
+
+            If the bootstrap installer is unavailable on your network, use the split GitHub release assets instead:
+
+            1. Download `WhisperLocal-Setup-${{ steps.version.outputs.VERSION_NUMBER }}.exe`
+            2. Download every matching `WhisperLocal-Setup-${{ steps.version.outputs.VERSION_NUMBER }}-*.bin` part
+            3. Put all downloaded files in the same folder
+            4. Run the installer `.exe`
+            5. Keep the `.bin` files beside the installer until setup finishes
+
+            ### Hosted Bootstrap Payload
+
+            - Upload the files listed in `WhisperLocal-Bootstrap-Payload-${{ steps.version.outputs.VERSION_NUMBER }}.json` to `${{ secrets.WHISPER_BOOTSTRAP_BASE_URL }}`
+            - The manifest includes SHA256 checksums for each hosted payload file
+
+            ### Checksums
+
+            - Bootstrap installer SHA256: `${{ steps.bootstrap_checksum.outputs.CHECKSUM }}`
+            - Split installer EXE SHA256: `${{ steps.checksum.outputs.CHECKSUM }}`
+
+            ### What's New
+
+            See [CHANGELOG.md](https://github.com/Izayauh/whisper/blob/main/CHANGELOG.md) for details.
+
+          files: |
+            dist/WhisperLocal-Bootstrap-Setup-*.exe
+            dist/WhisperLocal-Bootstrap-Setup-*.sha256
+            dist/WhisperLocal-Bootstrap-Payload-*.json
+            dist/WhisperLocal-Setup-*.exe
+            dist/WhisperLocal-Setup-*.bin
+            dist/WhisperLocal-Setup-*.sha256
+          draft: false
+          prerelease: ${{ steps.version.outputs.IS_PRERELEASE }}
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Summary
         shell: pwsh
         run: |
@@ -336,6 +446,10 @@ jobs:
           Write-Host "Version: ${{ steps.version.outputs.VERSION }}"
           Write-Host "Installer: ${{ steps.installer.outputs.INSTALLER_NAME }}"
           Write-Host "Installer SHA256: ${{ steps.checksum.outputs.CHECKSUM }}"
+          if ("${{ secrets.WHISPER_BOOTSTRAP_BASE_URL }}" -ne "") {
+            Write-Host "Bootstrap installer: ${{ steps.bootstrap_installer.outputs.INSTALLER_NAME }}"
+            Write-Host "Bootstrap SHA256: ${{ steps.bootstrap_checksum.outputs.CHECKSUM }}"
+          }
           Write-Host ""
           Write-Host "Release page:"
           Write-Host "  https://github.com/Izayauh/whisper/releases/tag/${{ steps.version.outputs.VERSION }}"

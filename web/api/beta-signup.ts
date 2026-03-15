@@ -56,6 +56,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 }
 
 async function sendWelcomeEmail(email: string, licenseKey: string) {
+  const downloadUrl = process.env.PUBLIC_DOWNLOAD_URL || 'https://github.com/Izayauh/whisper/releases/latest';
+
   await resend.emails.send({
     from: process.env.RESEND_FROM_EMAIL || 'Impulse <beta@impulse-app.com>',
     to: email,
@@ -77,11 +79,14 @@ async function sendWelcomeEmail(email: string, licenseKey: string) {
 
         <h2 style="font-size: 18px; font-weight: 600; margin-bottom: 12px;">Getting started</h2>
         <ol style="color: #444; font-size: 15px; line-height: 1.8; padding-left: 20px;">
-          <li>Download Impulse for Windows from the beta page</li>
+          <li><a href="${downloadUrl}" style="color: #111; font-weight: 600;">Download Impulse for Windows</a></li>
           <li>Run the installer and launch Impulse</li>
           <li>Paste your license key when prompted</li>
           <li>Hold <strong>Win+Ctrl</strong> to start dictating!</li>
         </ol>
+        <p style="color: #666; font-size: 14px; line-height: 1.6; margin-top: 20px;">
+          Prefer the single bootstrap installer when available. If the download page sends you to split GitHub release assets instead, download the installer <strong>.exe</strong> and every matching <strong>.bin</strong> file before running setup.
+        </p>
 
         <hr style="border: none; border-top: 1px solid #eee; margin: 32px 0;" />
         <p style="color: #999; font-size: 13px;">

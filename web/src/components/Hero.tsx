@@ -1,6 +1,6 @@
 import { motion } from 'motion/react';
 import { InteractiveDemo } from './InteractiveDemo';
-import { RELEASE_PAGE_URL } from '@/src/lib/site';
+import { DOWNLOAD_URL } from '@/src/lib/site';
 
 export function Hero() {
   return (
@@ -30,7 +30,7 @@ export function Hero() {
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-6">
             <a
-              href={RELEASE_PAGE_URL}
+              href={DOWNLOAD_URL}
               target="_blank"
               rel="noreferrer"
               className="bg-white text-black px-8 py-4 rounded-2xl font-bold text-lg hover:bg-white/90 transition-all active:scale-95 shadow-[0_0_40px_rgba(255,255,255,0.15)] w-full sm:w-auto text-center"
@@ -56,9 +56,8 @@ export function Hero() {
           </div>
 
           <p className="text-sm md:text-base text-white/45 max-w-3xl mx-auto mb-24 leading-relaxed">
-            On the GitHub release page, download the installer <span className="text-white/70 font-semibold">.exe</span> and
-            every matching <span className="text-white/70 font-semibold">.bin</span> file, keep them in the same folder,
-            then run the installer.
+            Download the Windows installer, run it like a normal setup, and keep the installer online during setup if it needs to fetch the runtime payload.
+            If you land on the GitHub release fallback instead, use the split installer <span className="text-white/70 font-semibold">.exe</span> with every matching <span className="text-white/70 font-semibold">.bin</span> part.
           </p>
         </motion.div>
 
