@@ -35,6 +35,7 @@ powershell -ExecutionPolicy Bypass -File scripts\release\build_installer.ps1 -Cl
 Notes:
 - Version is sourced from `src/whisper_local/config.py`.
 - Inno output name uses `WhisperLocal-Setup-<version>.exe`.
+- Set `WHISPER_BOOTSTRAP_BASE_URL` before the build if you want the single-file bootstrap installer too.
 
 ## 4) Create delivery package
 
@@ -48,6 +49,7 @@ This auto-detects latest installer and produces:
 
 ## 5) Smoke test installer on clean machine
 
+- [ ] Bootstrap installer downloads hosted payload and finishes successfully
 - [ ] Install/uninstall works
 - [ ] First-run wizard opens
 - [ ] Dictation blocked when unlicensed
@@ -58,5 +60,6 @@ This auto-detects latest installer and produces:
 ## 6) Publish beta
 
 - [ ] Create GitHub pre-release tag: `v1.0.0-beta.1`
-- [ ] Upload installer package + sha256
+- [ ] Upload bootstrap installer + payload manifest if external hosting is configured
+- [ ] Upload split installer package + sha256
 - [ ] Include known issues + expiration policy in release notes

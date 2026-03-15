@@ -7,8 +7,9 @@ This document explains how to create and publish new releases of WhisperLocal.
 Releases are automated via GitHub Actions. When you push a version tag, the workflow automatically:
 1. Builds the installer using PyInstaller and Inno Setup
 2. Downloads the required Whisper models from Hugging Face
-3. Creates a GitHub Release with the split installer assets attached
-4. Calculates and publishes SHA256 checksums
+3. Builds the split GitHub release installer path
+4. Optionally builds a single-file bootstrap installer when hosted payload URLs are configured
+5. Calculates and publishes SHA256 checksums
 
 ### Creating a New Release
 
@@ -37,7 +38,8 @@ Releases are automated via GitHub Actions. When you push a version tag, the work
 
 5. **Verify the release**:
    - Go to [Releases](https://github.com/Izayauh/whisper/releases)
-   - Download and test the installer on a clean Windows machine
+   - Download and test the bootstrap installer on a clean Windows machine when present
+   - Also verify the split installer fallback still works
 
 ### Version Numbering
 
@@ -68,6 +70,7 @@ If you need to create a release manually:
    - `whisper-cli.exe`
    - `*.dll` files (ggml-base.dll, ggml-cpu.dll, etc.)
    - `models/` directory with AI models
+   - Optional for bootstrap builds: `WHISPER_BOOTSTRAP_BASE_URL` pointing at the public payload folder
 
 ### Build Steps
 
@@ -78,8 +81,11 @@ If you need to create a release manually:
 
 2. **Verify the output**:
    ```powershell
-   # Check the installer was created
+   # Check the split installer was created
    dir dist\WhisperLocal-Setup-*.exe
+
+   # Check the bootstrap installer was created when WHISPER_BOOTSTRAP_BASE_URL is set
+   dir dist\WhisperLocal-Bootstrap-Setup-*.exe
    ```
 
 3. **Create the release on GitHub**:
@@ -87,6 +93,7 @@ If you need to create a release manually:
    - Create a new tag (e.g., `v1.0.0`)
    - Add release title: "WhisperLocal v1.0.0"
    - Add release notes
+   - Upload `dist\WhisperLocal-Bootstrap-Setup-1.0.0.exe` and `dist\WhisperLocal-Bootstrap-Payload-1.0.0.json` when bootstrap hosting is configured
    - Upload `dist\WhisperLocal-Setup-1.0.0.exe`
    - Upload every matching `dist\WhisperLocal-Setup-1.0.0-*.bin` file
    - Upload `dist\WhisperLocal-Setup-1.0.0.sha256`
@@ -101,9 +108,33 @@ Before creating a release, verify:
 - [ ] Dictation works (WIN + CTRL hotkey)
 - [ ] Settings window opens (WIN + CTRL + S)
 - [ ] Release includes the installer EXE and all required `.bin` parts
+- [ ] Bootstrap installer works when `WHISPER_BOOTSTRAP_BASE_URL` is configured
 - [ ] All three AI models are included
 - [ ] CHANGELOG.md is updated
 - [ ] Version numbers are consistent across files
+
+## Bootstrap Payload Hosting
+
+Set `WHISPER_BOOTSTRAP_BASE_URL` to a public folder URL that will serve the payload files listed in `dist\WhisperLocal-Bootstrap-Payload-<version>.json`.
+
+Example layout:
+
+```text
+https://downloads.example.com/whisper/v1.0.4/
+  _internal/cublas64_13.dll
+  _internal/cublasLt64_13.dll
+  _internal/ggml-base.dll
+  _internal/ggml-cpu.dll
+  _internal/ggml-cuda.dll
+  _internal/ggml.dll
+  _internal/models/ggml-base.en.bin
+  _internal/models/ggml-medium.en.bin
+  _internal/models/ggml-large-v3.bin
+  _internal/whisper-cli.exe
+  _internal/whisper.dll
+```
+
+The manifest generated during release includes public URLs and SHA256 checksums for every hosted payload file.
 
 ## Troubleshooting Build Failures
 
@@ -126,6 +157,7 @@ Models are downloaded from Hugging Face. If downloads fail:
 - Ensure all source files exist in `dist\WhisperLocal\`
 - Check that `Whisper.ico` is present
 - Verify `installer.iss` syntax is correct
+- Verify `bootstrap_payload.iss.inc` was generated before compiling `bootstrap_installer.iss`
 
 ### "Build takes too long"
 
@@ -149,4 +181,3 @@ This is normal for the first build. Consider caching if builds become too slow.
 ## Contact
 
 If you encounter issues with the release process, open an issue on GitHub.
-

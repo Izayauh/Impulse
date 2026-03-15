@@ -20,8 +20,10 @@
 param(
     [switch]$SkipPyInstaller,
     [switch]$SkipInnoSetup,
+    [switch]$SkipBootstrap,
     [switch]$Clean,
-    [switch]$Verbose
+    [switch]$Verbose,
+    [string]$BootstrapBaseUrl = $env:WHISPER_BOOTSTRAP_BASE_URL
 )
 
 $ErrorActionPreference = "Stop"
@@ -37,6 +39,8 @@ $BuildDir = Join-Path $ProjectRoot "build_output"
 $DistDir = Join-Path $ProjectRoot "dist"
 $SpecFile = Join-Path $ScriptDir "build_config.spec"
 $IssFile = Join-Path $ScriptDir "installer.iss"
+$BootstrapIssFile = Join-Path $ScriptDir "bootstrap_installer.iss"
+$BootstrapManifestScript = Join-Path $ScriptDir "generate_bootstrap_payload.ps1"
 $MinimumFreeSpaceBytes = 10GB
 
 function Get-AppVersion {
@@ -114,6 +118,21 @@ function Get-FileHash256 {
     param([string]$FilePath)
     $hash = Get-FileHash -Path $FilePath -Algorithm SHA256
     return $hash.Hash.ToLower()
+}
+
+function Sync-InstallerVersion {
+    $installerScripts = @($IssFile, $BootstrapIssFile)
+    foreach ($scriptPath in $installerScripts) {
+        if (-not (Test-Path $scriptPath)) {
+            continue
+        }
+
+        $content = Get-Content $scriptPath -Raw
+        $updated = $content -replace '#define MyAppVersion ".*"', "#define MyAppVersion `"$AppVersion`""
+        if ($updated -ne $content) {
+            Set-Content -Path $scriptPath -Value $updated -Encoding ASCII
+        }
+    }
 }
 
 function Test-FreeSpace {
@@ -389,6 +408,82 @@ function Invoke-InnoSetupBuild {
     return $true
 }
 
+function Invoke-BootstrapPayloadGeneration {
+    if ([string]::IsNullOrWhiteSpace($BootstrapBaseUrl)) {
+        Write-Info "Bootstrap installer skipped (set WHISPER_BOOTSTRAP_BASE_URL to enable it)"
+        return $false
+    }
+
+    if (-not (Test-Path $BootstrapManifestScript)) {
+        Write-Error "Bootstrap manifest generator not found: $BootstrapManifestScript"
+        return $false
+    }
+
+    Write-Header "Generating Bootstrap Payload Manifest"
+    Write-Step "Preparing hosted payload manifest..."
+
+    $process = Start-Process -FilePath "powershell" -ArgumentList @(
+        "-NoProfile",
+        "-ExecutionPolicy", "Bypass",
+        "-File", $BootstrapManifestScript,
+        "-BaseUrl", $BootstrapBaseUrl,
+        "-Version", $AppVersion
+    ) -NoNewWindow -Wait -PassThru
+
+    if ($process.ExitCode -ne 0) {
+        Write-Error "Bootstrap payload manifest generation failed with exit code $($process.ExitCode)"
+        return $false
+    }
+
+    return $true
+}
+
+function Invoke-BootstrapInstallerBuild {
+    Write-Header "Building Bootstrap Installer with Inno Setup"
+
+    $innoPath = Get-InnoSetupPath
+    if (-not $innoPath) {
+        Write-Error "Inno Setup not found"
+        return $false
+    }
+
+    if (-not (Test-Path $BootstrapIssFile)) {
+        Write-Error "Bootstrap installer script not found: $BootstrapIssFile"
+        return $false
+    }
+
+    Write-Step "Running Inno Setup Compiler for bootstrap installer..."
+
+    $process = Start-Process -FilePath $innoPath -ArgumentList @(
+        "/Q",
+        $BootstrapIssFile
+    ) -NoNewWindow -Wait -PassThru
+
+    if ($process.ExitCode -ne 0) {
+        Write-Error "Bootstrap installer build failed with exit code $($process.ExitCode)"
+        return $false
+    }
+
+    $installerPattern = Join-Path $DistDir "$AppName-Bootstrap-Setup-*.exe"
+    $installer = Get-ChildItem -Path $installerPattern | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+
+    if ($installer) {
+        $installerSize = $installer.Length / 1MB
+        $installerHash = Get-FileHash256 $installer.FullName
+        $hashFile = Join-Path $DistDir "$($installer.BaseName).sha256"
+        "$installerHash *$($installer.Name)" | Out-File -FilePath $hashFile -Encoding ascii
+
+        Write-Success "Bootstrap installer created: $($installer.Name)"
+        Write-Success (("Size: {0:N1} MB" -f $installerSize))
+        Write-Success "SHA256: $installerHash"
+        Write-Success "Hash saved to: $hashFile"
+        return $true
+    }
+
+    Write-Error "Bootstrap installer not found in $DistDir"
+    return $false
+}
+
 # ============================================================================
 # Main Build Process
 # ============================================================================
@@ -398,6 +493,7 @@ function Invoke-Build {
     Write-Header "$AppName Build Script v$AppVersion"
     Write-Info "Build started at: $startTime"
     Write-Info "Working directory: $ScriptDir"
+    Sync-InstallerVersion
     
     # Clean if requested
     if ($Clean) {
@@ -429,6 +525,17 @@ function Invoke-Build {
     } else {
         Write-Info "Skipping Inno Setup build (--SkipInnoSetup)"
     }
+
+    if (-not $SkipInnoSetup -and -not $SkipBootstrap) {
+        if (Invoke-BootstrapPayloadGeneration) {
+            if (-not (Invoke-BootstrapInstallerBuild)) {
+                Write-Error "Bootstrap installer build failed"
+                exit 1
+            }
+        }
+    } elseif ($SkipBootstrap) {
+        Write-Info "Skipping bootstrap installer build (--SkipBootstrap)"
+    }
     
     # Summary
     $endTime = Get-Date
@@ -444,6 +551,14 @@ function Invoke-Build {
             Write-Host ""
             Write-Host "  Installer ready for distribution:" -ForegroundColor Green
             Write-Host "  $($installer.FullName)" -ForegroundColor White
+            Write-Host ""
+        }
+
+        $bootstrapPattern = Join-Path $DistDir "$AppName-Bootstrap-Setup-*.exe"
+        $bootstrapInstaller = Get-ChildItem -Path $bootstrapPattern -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+        if ($bootstrapInstaller) {
+            Write-Host "  Bootstrap installer ready for distribution:" -ForegroundColor Green
+            Write-Host "  $($bootstrapInstaller.FullName)" -ForegroundColor White
             Write-Host ""
         }
     }
