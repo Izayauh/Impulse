@@ -2624,21 +2624,23 @@ def collapse_repetition_artifacts(text: str, min_sentence_words: int = 8) -> str
 
 # --- Smart text post-processing helpers (Wispr Flow-inspired) ---
 
-# Filler word patterns - comprehensive list for natural speech cleanup
+# Filler word patterns - conservative list for natural speech cleanup.
+# Each pattern must be precise enough to avoid mangling real sentences.
 FILLER_PATTERNS = [
-    # Basic filler sounds
+    # Basic filler sounds (always safe to remove)
     r"\b(?:um+|uh+|er+|ah+|eh+|hm+|hmm+|mmm+)\b",
     # Common verbal fillers
     r"\b(?:you know|ya know|y'know)\b",
-    r"\b(?:i mean)\b",
-    r"\b(?:kind of|kinda|sort of|sorta)\b",
     # "like" as filler (but not when followed by specific words)
     r"\b(?:like)\b(?!\s*(?:to|that|this|those|these|it|i|we|he|she|they|a|an|the|\d))",
-    # Additional fillers
-    r"\b(?:basically|literally|actually)\b(?=\s*,|\s+(?:um|uh|like|you know))",
+    # Only strip "basically/literally/actually" when directly followed by
+    # another filler sound — NOT when followed by a plain comma (that's
+    # normal English: "Actually, I think...").
+    r"\b(?:basically|literally|actually)\b(?=\s+(?:um|uh|like|you know))",
     r"\b(?:so)\b(?=\s*,?\s*(?:um|uh|like|you know|basically))",
     r"\b(?:well)\b(?=\s*,?\s*(?:um|uh|like|you know))",
-    r"\b(?:right)\b(?=\s*,?\s*(?:um|uh|so|like))",
+    # Protect "all right" — only strip standalone "right" before fillers.
+    r"(?<!\ball\s)\b(?:right)\b(?=\s*,?\s*(?:um|uh|like))",
     r"\b(?:okay|ok)\b(?=\s*,?\s*(?:so|um|uh|like))",
 ]
 
@@ -2717,6 +2719,11 @@ def apply_corrections(s: str) -> str:
     - "scratch that, the meeting is tomorrow" -> "the meeting is tomorrow"
     - "wait no, make it 3 o'clock" -> "make it 3 o'clock"
     - "I said Monday, I mean Tuesday" -> "I said Tuesday"
+
+    Corrections are scoped to avoid destroying long dictations:
+    - "scratch that" / "never mind" only discard the immediately preceding
+      sentence, not the entire text.
+    - "I mean" / "or rather" only apply within a single sentence scope.
     """
     out = s
 
@@ -2730,14 +2737,21 @@ def apply_corrections(s: str) -> str:
         flags=re.IGNORECASE
     )
 
-    # 2. Handle "scratch that / never mind / forget that" - remove everything before
-    match = re.search(
-        r"^.*?(?:scratch\s*that|never\s*mind|forget\s*(?:that|it)|let\s*me\s*(?:start\s*over|try\s*again))\s*[,.]?\s*(.+)$",
-        out,
-        flags=re.IGNORECASE
+    # 2. Handle "scratch that / never mind / forget that"
+    # Only discard the immediately preceding sentence (up to the prior sentence
+    # boundary), not the entire text.  This prevents natural uses of "never
+    # mind" mid-dictation from destroying hundreds of words.
+    _CORRECTION_PHRASES = r"(?:scratch\s*that|never\s*mind|forget\s*(?:that|it)|let\s*me\s*(?:start\s*over|try\s*again))"
+    _correction_pat = re.compile(
+        # preceding sentence boundary (or start of string), then one sentence,
+        # then the correction phrase, then the replacement text.
+        r"([.!?]\s+|^)"           # sentence boundary or start  (group 1)
+        r"[^.!?]*?"               # the sentence to discard (non-greedy)
+        + _CORRECTION_PHRASES +
+        r"\s*[,.]?\s*",
+        re.IGNORECASE,
     )
-    if match and match.group(1).strip():
-        out = match.group(1).strip()
+    out = _correction_pat.sub(r"\1", out)
 
     # 3. Handle "wait no" / "no wait" at the start - keep what comes after
     match = re.search(
@@ -2748,17 +2762,23 @@ def apply_corrections(s: str) -> str:
     if match and match.group(1).strip():
         out = match.group(1).strip()
 
-    # 4. Handle "I mean" / "or rather" corrections
-    # Simple approach: keep just what comes after "I mean"
+    # 4. Handle "I mean" / "or rather" corrections (sentence-scoped)
+    # Only replace within the current sentence to avoid discarding long text.
     # "Monday I mean Tuesday" -> "Tuesday"
-    # "2 pm I mean 4 pm" -> "4 pm"
     # "the meeting is at 2 I mean 4 pm" -> "4 pm"
-    match = re.search(
-        r"(?:,\s*)?(?:I\s*mean|or\s*rather|or\s*actually)\s+(.+)$",
+    out = re.sub(
+        r"(?<=[.!?]\s)[^.!?]*?(?:,\s*)?(?:I\s*mean|or\s*rather|or\s*actually)\s+",
+        "",
         out,
-        flags=re.IGNORECASE
+        flags=re.IGNORECASE,
     )
-    if match:
+    # Also handle if it occurs in the very first sentence (no preceding boundary)
+    match = re.match(
+        r"^[^.!?]*?(?:,\s*)?(?:I\s*mean|or\s*rather|or\s*actually)\s+(.+)$",
+        out,
+        flags=re.IGNORECASE,
+    )
+    if match and len(out.split()) <= 30:
         out = match.group(1).strip()
 
     # Clean up any double spaces

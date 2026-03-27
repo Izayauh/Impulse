@@ -1,6 +1,11 @@
 @echo off
-echo [WhisperLocal] start_dictation.bat is a compatibility launcher.
-echo [WhisperLocal] Running in DEBUG mode so startup errors stay visible.
-echo [WhisperLocal] Canonical launcher: run_whisperlocal.bat.
-call "%~dp0\..\..\run_whisperlocal.bat" --debug %*
+echo [WhisperLocal] Starting WhisperLocal (dev mode)...
+
+set WHISPER_DEV_BYPASS_LICENSE=1
+
+cd /d "%~dp0\..\.."
+if exist ".venv\Scripts\activate.bat" (
+    call .venv\Scripts\activate.bat
+)
+python main.py --debug %*
 
