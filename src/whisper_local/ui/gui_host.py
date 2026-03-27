@@ -56,7 +56,11 @@ except ImportError:
     gpu_monitor = None
 
 
-DASHBOARD_HTML_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "dashboard.html")
+# Prefer React Impulse dashboard (built to dist/); fall back to legacy dashboard.html
+_UI_DIR = os.path.dirname(os.path.abspath(__file__))
+_IMPULSE_DIST_HTML = os.path.join(_UI_DIR, "impulse-dashboard", "dist", "index.html")
+_LEGACY_HTML = os.path.join(_UI_DIR, "dashboard.html")
+DASHBOARD_HTML_PATH = _IMPULSE_DIST_HTML if os.path.exists(_IMPULSE_DIST_HTML) else _LEGACY_HTML
 
 _dashboard_open = False
 _dashboard_lock = threading.Lock()
@@ -654,18 +658,26 @@ def _run_webview_dashboard() -> None:
 
         debug_mode = _pywebview_debug_enabled()
         _configure_hardware_acceleration_env()
+        is_impulse = DASHBOARD_HTML_PATH == _IMPULSE_DIST_HTML
+        print(f"[Dashboard] Loading {'Impulse React' if is_impulse else 'Legacy HTML'} dashboard")
         if debug_mode:
-            print("[Dashboard] Starting pywebview host in debug mode")
+            print(f"[Dashboard] Starting pywebview host in debug mode — {DASHBOARD_HTML_PATH}")
 
         api = AppApi()
         _api_instance = api
 
+        # Impulse dashboard has a sidebar layout and needs wider window
+        win_w = 1200 if is_impulse else 420
+        win_h = 800 if is_impulse else 700
+        min_w = 900 if is_impulse else 380
+        min_h = 600 if is_impulse else 500
+
         window = webview.create_window(
             title="Whisper Local Dashboard",
             url=DASHBOARD_HTML_PATH,
-            width=420,
-            height=700,
-            min_size=(380, 500),
+            width=win_w,
+            height=win_h,
+            min_size=(min_w, min_h),
             resizable=True,
             js_api=api,
             focus=True,

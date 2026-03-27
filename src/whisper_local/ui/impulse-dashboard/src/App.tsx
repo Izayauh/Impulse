@@ -66,7 +66,7 @@ function HomePage() {
   const handleCopyLast = async () => {
     const lastTranscript = stats?.recentTranscripts?.[0]?.text;
     if (lastTranscript) {
-      await navigator.clipboard.writeText(lastTranscript);
+      await useAppStore.getState().copyToClipboard(lastTranscript);
       showToast('Copied to clipboard ✓');
     } else {
       showToast('Nothing to copy');

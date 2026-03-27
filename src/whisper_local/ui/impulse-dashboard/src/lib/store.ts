@@ -1,9 +1,10 @@
 import { create } from 'zustand';
 
-// Type definitions based on dashboard.html
+// Type definitions based on Python AppApi.get_stats() return shape
 export interface AppStats {
     userName: string;
     xp: number;
+    totalXp: number;
     xpToNextLevel: number;
     level: number;
     rank: string;
@@ -18,7 +19,7 @@ export interface AppStats {
     totalTime: string;
     dayStreak: number;
     weekStreak: number;
-    recentTranscripts: Array<{ text: string; words: number; time: string }>;
+    recentTranscripts: Array<{ text: string; fullText?: string; words: number; time: string }>;
     last7Days: Array<{ day: string; words: number }>;
     records: any;
 }
@@ -46,6 +47,12 @@ export interface AppSettings {
     autoCopy: boolean;
 }
 
+export interface Snippet {
+    id: number;
+    trigger: string;
+    replacement: string;
+}
+
 interface ToastState {
     message: string;
     visible: boolean;
@@ -54,6 +61,8 @@ interface ToastState {
 interface AppState {
     stats: AppStats | null;
     achievements: Achievement[];
+    snippets: Snippet[];
+    dictionary: string[];
     isReady: boolean;
     activePage: PageId;
     settings: AppSettings;
@@ -61,13 +70,33 @@ interface AppState {
     setActivePage: (page: PageId) => void;
     updateSettings: (partial: Partial<AppSettings>) => void;
     showToast: (message: string) => void;
+    copyToClipboard: (text: string) => Promise<boolean>;
+    addSnippet: (trigger: string, replacement: string) => Promise<void>;
+    deleteSnippet: (id: number) => Promise<void>;
+    addDictionaryWord: (word: string) => Promise<void>;
     initBridge: () => void;
     loadDevData: () => void;
+    fetchUserData: () => Promise<void>;
 }
+
+/**
+ * Detect whether we're running inside a pywebview window.
+ * The bridge object is injected by pywebview after the window loads,
+ * so we may need to poll for it briefly.
+ */
+const getPyWebViewApi = (): any | null => {
+    try {
+        return (window as any).pywebview?.api ?? null;
+    } catch {
+        return null;
+    }
+};
 
 export const useAppStore = create<AppState>((set, get) => ({
     stats: null,
     achievements: [],
+    snippets: [],
+    dictionary: [],
     isReady: false,
     activePage: 'home',
     settings: {
@@ -81,9 +110,23 @@ export const useAppStore = create<AppState>((set, get) => ({
 
     setActivePage: (page) => set({ activePage: page }),
 
-    updateSettings: (partial) => set((state) => ({
-        settings: { ...state.settings, ...partial }
-    })),
+    updateSettings: (partial) => {
+        set((state) => ({
+            settings: { ...state.settings, ...partial }
+        }));
+
+        // Push settings changes to Python backend if bridge is available
+        const api = getPyWebViewApi();
+        if (api) {
+            for (const [key, value] of Object.entries(partial)) {
+                try {
+                    api.update_user_setting(key, value);
+                } catch (e) {
+                    console.warn(`Failed to sync setting ${key}:`, e);
+                }
+            }
+        }
+    },
 
     showToast: (message) => {
         set({ toast: { message, visible: true } });
@@ -92,12 +135,39 @@ export const useAppStore = create<AppState>((set, get) => ({
         }, 2000);
     },
 
+    /**
+     * Copy text to clipboard — uses pywebview bridge when available
+     * (navigator.clipboard requires HTTPS or localhost, which pywebview
+     * file:// URLs don't satisfy). Falls back to navigator.clipboard
+     * for dev/browser mode.
+     */
+    copyToClipboard: async (text: string): Promise<boolean> => {
+        const api = getPyWebViewApi();
+        if (api?.copy_text) {
+            try {
+                const result = await api.copy_text(text);
+                return !!result;
+            } catch (e) {
+                console.warn('Bridge copy_text failed, trying navigator.clipboard', e);
+            }
+        }
+        // Fallback for dev mode / browser
+        try {
+            await navigator.clipboard.writeText(text);
+            return true;
+        } catch (e) {
+            console.warn('navigator.clipboard failed', e);
+            return false;
+        }
+    },
+
     loadDevData: () => {
         set({
             isReady: true,
             stats: {
                 userName: 'User',
                 xp: 2300,
+                totalXp: 2300,
                 xpToNextLevel: 3500,
                 level: 9,
                 rank: 'Word Warrior',
@@ -138,37 +208,167 @@ export const useAppStore = create<AppState>((set, get) => ({
                 { id: 2, key: 'daily_500', category: 'milestones', name: 'Chatterbox', description: '500 words in a day', icon: '500', rarity: 'common', xp: 40, unlocked: true },
                 { id: 3, key: 'total_1k', category: 'milestones', name: 'Starter Stack', description: '1,000 total words', icon: '1K', rarity: 'common', xp: 25, unlocked: true },
                 { id: 7, key: 'speed_150', category: 'speed', name: 'Speed Demon', description: 'Reach 150 WPM', icon: '150', rarity: 'epic', xp: 200, unlocked: false, progress: 95 }
+            ],
+            snippets: [
+                { id: 1, trigger: 'omw', replacement: 'On my way!' },
+                { id: 2, trigger: 'brb', replacement: 'Be right back' },
+                { id: 3, trigger: 'sgtm', replacement: 'Sounds good to me' },
+            ],
+            dictionary: [
+                "Whisper", "VRAM", "Tokenization", "Inference"
             ]
         });
     },
 
-    initBridge: () => {
-        if (typeof (window as any).pywebview === 'undefined') {
-            console.log('No pywebview found, falling back to dev data');
-            useAppStore.getState().loadDevData();
-            return;
-        }
-
-        const poll = async () => {
+    fetchUserData: async () => {
+        const api = getPyWebViewApi();
+        if (api) {
             try {
-                const api = (window as any).pywebview.api;
-                if (api) {
-                    const newStats = await api.get_stats();
-                    if (newStats) set({ stats: newStats, isReady: true });
+                if (api.get_snippets) {
+                    const snips = await api.get_snippets();
+                    set({ snippets: snips || [] });
+                }
+                if (api.get_vocabulary) {
+                    const vocab = await api.get_vocabulary();
+                    set({ dictionary: vocab || [] });
                 }
             } catch (e) {
-                console.warn('PyWebView bridge error', e);
+                console.warn('Failed to load user data from bridge', e);
             }
-            setTimeout(poll, 1000);
+        }
+    },
+
+    addSnippet: async (trigger: string, replacement: string) => {
+        const api = getPyWebViewApi();
+        if (api?.add_snippet) {
+            try {
+                await api.add_snippet(trigger, replacement);
+                await get().fetchUserData();
+                get().showToast('Snippet added ✓');
+            } catch (e) {
+                console.error(e);
+            }
+        } else {
+            // Dev mode fallback
+            set(state => ({
+                snippets: [{ id: Date.now(), trigger, replacement }, ...state.snippets]
+            }));
+            get().showToast('Snippet added (Dev) ✓');
+        }
+    },
+
+    deleteSnippet: async (id: number) => {
+        const api = getPyWebViewApi();
+        if (api?.delete_snippet) {
+            try {
+                await api.delete_snippet(id);
+                await get().fetchUserData();
+                get().showToast('Snippet removed ✓');
+            } catch (e) {
+                console.error(e);
+            }
+        } else {
+            // Dev mode fallback
+            set(state => ({
+                snippets: state.snippets.filter(s => s.id !== id)
+            }));
+            get().showToast('Snippet removed (Dev) ✓');
+        }
+    },
+
+    addDictionaryWord: async (word: string) => {
+        const api = getPyWebViewApi();
+        if (api?.add_vocabulary_word) {
+            try {
+                await api.add_vocabulary_word(word);
+                await get().fetchUserData();
+                get().showToast('Word added to Dictionary ✓');
+            } catch (e) {
+                console.error(e);
+            }
+        } else {
+            // Dev mode fallback
+            if (!get().dictionary.includes(word)) {
+                set(state => ({
+                    dictionary: [...state.dictionary, word]
+                }));
+            }
+            get().showToast('Word added (Dev) ✓');
+        }
+    },
+
+    initBridge: () => {
+        /**
+         * Initialization strategy:
+         * 1. Wait for pywebview.api to become available (up to 3s)
+         * 2. Once available, poll get_stats() every second for live data
+         * 3. Also pull initial settings from the Python backend
+         * 4. If pywebview never appears, fall back to loadDevData()
+         */
+        let attempts = 0;
+        const MAX_WAIT_ATTEMPTS = 30; // 30 × 100ms = 3s
+
+        const startPolling = () => {
+            const poll = async () => {
+                try {
+                    const api = getPyWebViewApi();
+                    if (api) {
+                        const newStats = await api.get_stats();
+                        if (newStats) {
+                            // Python API doesn't send userName, inject a default
+                            if (!newStats.userName) {
+                                newStats.userName = 'User';
+                            }
+                            set({ stats: newStats, isReady: true });
+                        }
+                    }
+                } catch (e) {
+                    console.warn('PyWebView bridge poll error', e);
+                }
+                setTimeout(poll, 1000);
+            };
+            poll();
+        };
+
+        const loadSettingsFromBridge = async () => {
+            try {
+                const api = getPyWebViewApi();
+                if (api?.get_user_settings) {
+                    const settings = await api.get_user_settings();
+                    if (settings) {
+                        set((state) => ({
+                            settings: {
+                                ...state.settings,
+                                model: settings.model_mode || settings.model || state.settings.model,
+                                commandMode: settings.command_mode ?? settings.commandMode ?? state.settings.commandMode,
+                                autoCopy: settings.auto_copy ?? settings.autoCopy ?? state.settings.autoCopy,
+                            }
+                        }));
+                    }
+                }
+            } catch (e) {
+                console.warn('Failed to load settings from bridge', e);
+            }
         };
 
         const checkReady = () => {
-            if ((window as any).pywebview) {
-                poll();
+            const api = getPyWebViewApi();
+            if (api) {
+                console.log('[Impulse] pywebview bridge connected');
+                startPolling();
+                loadSettingsFromBridge();
+                get().fetchUserData();
             } else {
-                setTimeout(checkReady, 100);
+                attempts++;
+                if (attempts >= MAX_WAIT_ATTEMPTS) {
+                    console.log('[Impulse] No pywebview found, using dev data');
+                    get().loadDevData();
+                } else {
+                    setTimeout(checkReady, 100);
+                }
             }
         };
+
         checkReady();
     }
 }));
