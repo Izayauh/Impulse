@@ -39,11 +39,13 @@ export const LiveFeedCard = () => {
     }
   ];
 
-  const handleCopy = async (text: string, idx: number) => {
-    await navigator.clipboard.writeText(text);
-    setCopiedIdx(idx);
+  const handleCopy = async (text: string, index: number) => {
+    await useAppStore.getState().copyToClipboard(text);
+    setCopiedIdx(index);
     showToast('Copied to clipboard ✓');
-    setTimeout(() => setCopiedIdx(null), 2000);
+    setTimeout(() => {
+      setCopiedIdx(null);
+    }, 2000);
   };
 
   return (

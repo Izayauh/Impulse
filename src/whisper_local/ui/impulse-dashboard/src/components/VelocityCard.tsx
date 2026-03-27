@@ -1,6 +1,7 @@
 import { TrendingUp } from 'lucide-react';
 import { useAppStore } from '../lib/store';
 import { useMemo } from 'react';
+import { LineChart, Line, XAxis, Tooltip, ResponsiveContainer } from 'recharts';
 
 export const VelocityCard = () => {
   const stats = useAppStore(state => state.stats);
@@ -15,15 +16,9 @@ export const VelocityCard = () => {
       { day: 'Thu', words: 400 },
       { day: 'Fri', words: 2178 },
     ];
-
-    const maxValue = Math.max(...days.map(d => d.words), 1);
-    const lastIdx = days.length - 1;
-
-    return days.map((d, i) => ({
+    return days.map(d => ({
       day: d.day,
       value: d.words,
-      height: Math.max(8, (d.words / maxValue) * 100),
-      active: i === lastIdx,
     }));
   }, [stats]);
 
@@ -39,39 +34,44 @@ export const VelocityCard = () => {
         </div>
       </div>
 
-      <div
-        className="relative h-40 flex items-end justify-between px-2 pt-4"
-        role="img"
-        aria-label={`Bar chart showing words transcribed over 7 days. Highest: ${Math.max(...data.map(d => d.value))} words.`}
-      >
-        {data.map((item, i) => (
-          <div key={i} className="flex flex-col items-center gap-2 group/bar relative w-full h-full justify-end cursor-default">
-            {/* Value label — visible on hover AND touch */}
-            <span
-              className={`text-[10px] absolute -top-4 font-bold transition-opacity tabular-nums ${
-                item.active
-                  ? 'opacity-100 text-emerald-400 drop-shadow-sm'
-                  : 'opacity-0 group-hover/bar:opacity-100 text-white/70'
-              }`}
-              aria-label={`${item.day}: ${item.value} words`}
-            >
-              {item.value.toLocaleString()}
-            </span>
-
-            <div 
-              style={{ height: `${item.height}%` }} 
-              className={`w-10 rounded-t border-t border-x relative overflow-hidden transition-all duration-500
-                ${item.active 
-                  ? "bg-gradient-to-b from-teal-400 to-teal-400/10 border-teal-400/50 shadow-[0_0_15px_rgba(45,212,191,0.2)]" 
-                  : "bg-gradient-to-b from-pink-500/80 to-pink-500/10 border-pink-500/50 hover:from-pink-400"}`}
+      <div className="h-44 w-full -ml-4 mt-2">
+        <ResponsiveContainer width="100%" height="100%">
+          <LineChart data={data}>
+            <XAxis 
+              dataKey="day" 
+              axisLine={false} 
+              tickLine={false} 
+              tick={{ fill: '#ffffff50', fontSize: 12, fontWeight: 600 }}
+              dy={10}
             />
-            <span className={`text-xs font-semibold ${item.active ? 'text-white' : 'text-white/50'}`}>
-              {item.day}
-            </span>
-          </div>
-        ))}
-        {/* Baseline */}
-        <div className="absolute bottom-6 left-0 right-0 h-px bg-white/5" />
+            <Tooltip 
+              cursor={{ stroke: '#ec489930', strokeWidth: 2, strokeDasharray: '4 4' }}
+              content={({ active, payload }) => {
+                if (active && payload && payload.length) {
+                  return (
+                    <div className="bg-[#1e1e24] shadow-xl rounded-lg p-3 border border-pink-500/20">
+                      <p className="text-white/60 text-xs font-semibold mb-1">{payload[0].payload.day}</p>
+                      <p className="text-white text-lg font-bold tabular-nums">
+                        {payload[0].value?.toLocaleString()} <span className="text-pink-400 text-sm font-medium">words</span>
+                      </p>
+                    </div>
+                  );
+                }
+                return null;
+              }}
+            />
+            <Line 
+              type="monotone" 
+              dataKey="value" 
+              stroke="#ec4899" 
+              strokeWidth={3}
+              dot={{ fill: '#0E0E12', stroke: '#ec4899', strokeWidth: 2, r: 4 }}
+              activeDot={{ fill: '#2dd4bf', stroke: '#0E0E12', strokeWidth: 3, r: 6 }}
+              animationDuration={1500}
+              animationEasing="ease-out"
+            />
+          </LineChart>
+        </ResponsiveContainer>
       </div>
     </div>
   );
