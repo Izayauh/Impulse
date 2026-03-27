@@ -83,7 +83,7 @@ def _configure_hardware_acceleration_env(env: Dict[str, str] | None = None) -> D
     flags = (
         "--enable-gpu --enable-gpu-rasterization --enable-zero-copy "
         "--ignore-gpu-blocklist --use-angle=d3d11 "
-        "--enable-features=CanvasOopRasterization --disable-frame-rate-limit"
+        "--enable-features=CanvasOopRasterization"
     )
     if existing:
         if flags not in existing:

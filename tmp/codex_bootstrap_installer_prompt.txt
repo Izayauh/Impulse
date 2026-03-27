@@ -1,0 +1,32 @@
+Implement an Inno Setup bootstrap installer path for Whisper/Impulse in this repo.
+
+Requirements:
+- Keep the current working split GitHub release flow as a fallback.
+- Add a polished single-installer strategy that downloads the heavy runtime/model payload during install instead of requiring end users to manually fetch .bin parts.
+- Use the existing Inno Setup-based release structure where practical.
+- Prefer the smallest safe vertical slice over a large rewrite.
+
+Context discovered already:
+- Current public GitHub release works, but only via split assets: .exe + matching .bin files.
+- GitHub Release assets have a <2 GiB per-file limit, so a single 4.4 GiB ZIP is not viable there.
+- The website currently points users to the latest GitHub release page with explicit instructions about downloading all .bin parts.
+- The release workflow for v1.0.4 now succeeds after fixing whisper.cpp asset selection.
+
+What to do:
+1. Inspect scripts/release/*, .github/workflows/release.yml, website/download copy, and docs.
+2. Implement an installer-side bootstrap structure in Inno Setup that can download hosted payload assets during install.
+3. If hosted payload URLs are not fully provisioned yet, add clear config placeholders / environment variables / documentation for the hosted asset URLs and how the release process should publish them.
+4. Do not break the current working release path unless you also replace it with a validated better path.
+5. Update release/build scripts and docs so the bootstrap path is coherent and ready to ship.
+6. Run any practical validation you can locally.
+7. Commit your changes.
+
+Desired deliverable:
+- A clean bootstrap-installer path based on Inno Setup that feels like a normal single-file installer.
+- Clear documentation of the external hosting setup still needed, if any.
+
+When done, print:
+- concise summary of what changed
+- validation performed
+- blockers / remaining external setup
+- commit hash
