@@ -36,19 +36,61 @@ export interface Achievement {
     progress?: number;
 }
 
+export type PageId = 'home' | 'snippets' | 'dictionary' | 'achievements' | 'challenges';
+
+export interface AppSettings {
+    model: string;
+    vadSensitivity: number;
+    silenceTimeout: number;
+    commandMode: boolean;
+    autoCopy: boolean;
+}
+
+interface ToastState {
+    message: string;
+    visible: boolean;
+}
+
 interface AppState {
     stats: AppStats | null;
     achievements: Achievement[];
     isReady: boolean;
+    activePage: PageId;
+    settings: AppSettings;
+    toast: ToastState;
+    setActivePage: (page: PageId) => void;
+    updateSettings: (partial: Partial<AppSettings>) => void;
+    showToast: (message: string) => void;
     initBridge: () => void;
-    // Fallback dev stats if not in pywebview
     loadDevData: () => void;
 }
 
-export const useAppStore = create<AppState>((set) => ({
+export const useAppStore = create<AppState>((set, get) => ({
     stats: null,
     achievements: [],
     isReady: false,
+    activePage: 'home',
+    settings: {
+        model: 'base',
+        vadSensitivity: 65,
+        silenceTimeout: 700,
+        commandMode: true,
+        autoCopy: true,
+    },
+    toast: { message: '', visible: false },
+
+    setActivePage: (page) => set({ activePage: page }),
+
+    updateSettings: (partial) => set((state) => ({
+        settings: { ...state.settings, ...partial }
+    })),
+
+    showToast: (message) => {
+        set({ toast: { message, visible: true } });
+        setTimeout(() => {
+            set({ toast: { message: '', visible: false } });
+        }, 2000);
+    },
 
     loadDevData: () => {
         set({
@@ -101,21 +143,17 @@ export const useAppStore = create<AppState>((set) => ({
     },
 
     initBridge: () => {
-        // If pywebview is not defined, load dev data for the frontend designer
         if (typeof (window as any).pywebview === 'undefined') {
             console.log('No pywebview found, falling back to dev data');
             useAppStore.getState().loadDevData();
             return;
         }
 
-        // Otherwise, poll stats and achievements
         const poll = async () => {
             try {
                 const api = (window as any).pywebview.api;
                 if (api) {
                     const newStats = await api.get_stats();
-                    // Merge stats totals and chart data appropriately in a real implementation
-                    // For now, assume get_stats returns the full struct if available
                     if (newStats) set({ stats: newStats, isReady: true });
                 }
             } catch (e) {
@@ -124,7 +162,6 @@ export const useAppStore = create<AppState>((set) => ({
             setTimeout(poll, 1000);
         };
 
-        // Wait for pywebview to be ready
         const checkReady = () => {
             if ((window as any).pywebview) {
                 poll();

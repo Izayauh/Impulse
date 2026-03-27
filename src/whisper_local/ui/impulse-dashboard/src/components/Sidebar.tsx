@@ -1,69 +1,80 @@
-import { Home, Code, Book, Trophy, Zap, Settings, LogOut, Brain } from 'lucide-react';
+import { Brain, Settings } from 'lucide-react';
 import { cn } from '../lib/utils';
-import { motion } from 'motion/react';
+import { useAppStore, type PageId } from '../lib/store';
 
-const navItems = [
-  { icon: Home, label: 'Home', active: true },
-  { icon: Code, label: 'Snippets', active: false },
-  { icon: Book, label: 'Dictionary', active: false },
-  { icon: Trophy, label: 'Achievements', active: false },
-  { icon: Zap, label: 'Challenges', active: false },
+const navItems: { label: string; rightText: string; id: PageId }[] = [
+  { label: 'Home', rightText: 'Feed', id: 'home' },
+  { label: 'Snippets', rightText: '3', id: 'snippets' },
+  { label: 'Dictionary', rightText: '12', id: 'dictionary' },
+  { label: 'Achievements', rightText: '9/14', id: 'achievements' },
+  { label: 'Challenges', rightText: 'Daily', id: 'challenges' },
 ];
 
-export const Sidebar = () => {
+interface SidebarProps {
+  onOpenSettings?: () => void;
+}
+
+export const Sidebar = ({ onOpenSettings }: SidebarProps) => {
+  const stats = useAppStore(state => state.stats);
+  const activePage = useAppStore(state => state.activePage);
+  const setActivePage = useAppStore(state => state.setActivePage);
+  const xp = stats?.xp || 97046;
+  const rank = stats?.rank || 'Voice Virtuoso';
+
   return (
-    <aside className="w-64 h-screen glass-panel fixed left-0 top-0 flex flex-col p-6 z-50">
-      <div className="flex items-center gap-3 mb-12 px-2 animate-float">
-        <div className="relative group">
-          <div className="absolute inset-0 bg-pink-500/40 blur-xl rounded-xl group-hover:bg-pink-500/60 transition-all duration-300 animate-pulse-glow" />
-          <div className="relative w-10 h-10 rounded-xl bg-gradient-to-br from-pink-500 via-rose-500 to-orange-500 flex items-center justify-center shadow-lg transform group-hover:scale-110 transition-transform">
-            <Brain className="w-6 h-6 text-white" />
-          </div>
+    <aside className="w-[280px] h-screen bg-[#0E0E12] border-r border-white/[0.08] fixed left-0 top-0 flex flex-col pt-8 pb-6 px-6 z-50">
+      {/* Logo */}
+      <div className="flex items-center gap-3 mb-10 px-2 cursor-pointer">
+        <div className="w-8 h-8 rounded-lg bg-pink-500/10 flex items-center justify-center border border-pink-500/20">
+          <Brain className="w-5 h-5 text-pink-500" />
         </div>
-        <span className="text-xl font-display font-bold tracking-tight text-white group-hover:text-pink-400 transition-colors">Impulse</span>
+        <span className="text-xl font-display font-semibold text-white tracking-wide">Impulse</span>
       </div>
 
-      <nav className="flex-1 space-y-2">
-        {navItems.map((item, i) => (
-          <motion.button
-            key={item.label}
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: i * 0.1 }}
+      {/* Nav */}
+      <nav className="flex-1 space-y-1.5">
+        {navItems.map((item) => (
+          <button
+            key={item.id}
+            onClick={() => setActivePage(item.id)}
             className={cn(
-              "w-full flex items-center gap-4 px-4 py-3 rounded-2xl transition-all duration-300 group relative overflow-hidden",
-              item.active
-                ? "text-white"
-                : "text-white/50 hover:text-white"
+              "w-full flex items-center justify-between px-4 py-2.5 rounded-xl transition-all duration-200 text-sm focus-visible:ring-2 focus-visible:ring-pink-500/50 focus-visible:outline-none",
+              activePage === item.id
+                ? "bg-pink-500/10 text-pink-100 border border-pink-500/20 shadow-inner"
+                : "text-white/50 hover:text-white hover:bg-white/5 border border-transparent"
             )}
+            aria-current={activePage === item.id ? 'page' : undefined}
           >
-            {item.active && (
-              <div className="absolute inset-0 bg-gradient-to-r from-pink-500/20 to-transparent border border-pink-500/30 rounded-2xl" />
-            )}
-            {!item.active && (
-              <div className="absolute inset-0 bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity rounded-2xl" />
-            )}
-            <item.icon className={cn(
-              "w-5 h-5 relative z-10 transition-transform group-hover:scale-110",
-              item.active ? "text-pink-500 drop-shadow-[0_0_8px_rgba(236,72,153,0.8)]" : "group-hover:text-pink-400"
-            )} />
-            <span className="font-medium relative z-10">{item.label}</span>
-            {item.active && (
-              <div className="ml-auto w-1.5 h-1.5 rounded-full bg-pink-500 shadow-[0_0_8px_rgba(236,72,153,1)] relative z-10" />
-            )}
-          </motion.button>
+            <span className={cn("font-medium", activePage === item.id ? "text-white" : "")}>{item.label}</span>
+            <span className={cn("text-xs font-semibold", activePage === item.id ? "text-pink-300" : "text-white/30")}>
+              {item.rightText}
+            </span>
+          </button>
         ))}
       </nav>
 
-      <div className="mt-auto space-y-2">
-        <button className="w-full flex items-center gap-4 px-4 py-3 rounded-2xl text-white/50 hover:text-white hover:bg-white/5 transition-all group overflow-hidden relative">
-          <Settings className="w-5 h-5 group-hover:rotate-90 transition-transform duration-500" />
-          <span className="font-medium">Settings</span>
-        </button>
-        <button className="w-full flex items-center gap-4 px-4 py-3 rounded-2xl text-rose-400/70 hover:text-rose-400 hover:bg-rose-400/10 transition-all group">
-          <LogOut className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
-          <span className="font-medium">Logout</span>
-        </button>
+      {/* Profile / Rank */}
+      <div className="mt-auto">
+        <div className="flex items-center gap-3 p-3 bg-white/[0.02] border border-white/[0.08] rounded-2xl">
+          <div className="w-10 h-10 rounded-full bg-pink-500 flex items-center justify-center text-white font-bold tracking-tighter shadow-[0_0_15px_rgba(236,72,153,0.4)]">
+            WL
+          </div>
+          <div className="flex-1 min-w-0">
+            <h4 className="text-[11px] text-white/60 uppercase tracking-widest font-semibold font-display leading-tight">
+              Rank: <span className="text-pink-400" title={rank}>{rank}</span>
+            </h4>
+            <p className="text-sm font-semibold text-emerald-400 truncate mt-0.5">
+              {xp.toLocaleString()} <span className="text-white/50 text-xs">XP</span>
+            </p>
+          </div>
+          <button 
+            onClick={onOpenSettings}
+            className="w-8 h-8 rounded-lg bg-white/5 hover:bg-white/10 flex items-center justify-center text-white/50 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-pink-500/50 focus-visible:outline-none"
+            aria-label="Open settings"
+          >
+            <Settings className="w-4 h-4" />
+          </button>
+        </div>
       </div>
     </aside>
   );
