@@ -5,7 +5,7 @@
 ; Run this with Inno Setup Compiler after building with PyInstaller.
 
 #define MyAppName "WhisperLocal"
-#define MyAppVersion "1.0.0-beta.1"
+#define MyAppVersion "1.0.5"
 #define MyAppPublisher "WhisperLocal"
 #define MyAppURL "https://github.com/Izayauh/whisper"
 #define MyAppExeName "WhisperLocal.exe"
@@ -197,3 +197,4 @@ begin
     end;
   end;
 end;
+
