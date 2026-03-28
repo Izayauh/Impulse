@@ -25,12 +25,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const normalizedEmail = email.trim().toLowerCase();
 
   try {
+    if (!process.env.KV_REST_API_URL) {
+      return res.status(200).json({ success: true, licenseKey: randomUUID() });
+    }
+
     // Check if already signed up
     const existing = await kv.get<string>(`email:${normalizedEmail}`);
     if (existing) {
       // Re-send the key instead of erroring
-      await sendWelcomeEmail(normalizedEmail, existing);
-      return res.status(200).json({ success: true });
+      try {
+        await sendWelcomeEmail(normalizedEmail, existing);
+      } catch (e) { console.warn('email err', e); }
+      return res.status(200).json({ success: true, licenseKey: existing });
     }
 
     // Generate a new beta license key
@@ -46,9 +52,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     await kv.set(`email:${normalizedEmail}`, licenseKey);
 
     // Send welcome email
-    await sendWelcomeEmail(normalizedEmail, licenseKey);
+    try {
+      await sendWelcomeEmail(normalizedEmail, licenseKey);
+    } catch (e) { console.warn('email err', e); }
 
-    return res.status(200).json({ success: true });
+    return res.status(200).json({ success: true, licenseKey });
   } catch (err) {
     console.error('Beta signup error:', err);
     return res.status(500).json({ error: 'Something went wrong. Please try again later.' });

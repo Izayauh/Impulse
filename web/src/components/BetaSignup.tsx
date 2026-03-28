@@ -8,6 +8,7 @@ type FormState = 'idle' | 'submitting' | 'success' | 'error';
 export function BetaSignup() {
   const [email, setEmail] = useState('');
   const [state, setState] = useState<FormState>('idle');
+  const [licenseKey, setLicenseKey] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -27,6 +28,7 @@ export function BetaSignup() {
       const data = await res.json();
 
       if (res.ok && data.success) {
+        if (data.licenseKey) setLicenseKey(data.licenseKey);
         setState('success');
       } else {
         setErrorMsg(data.error || 'Something went wrong. Please try again.');
@@ -69,9 +71,16 @@ export function BetaSignup() {
               >
                 <CheckCircle2 className="w-12 h-12 text-green-400 mx-auto mb-4" />
                 <h3 className="text-2xl font-bold mb-2">You're in!</h3>
-                <p className="text-white/60">
-                  Check your email for your beta license key and download link.
-                </p>
+                {licenseKey ? (
+                  <div className="bg-white/5 border border-white/10 rounded-xl p-4 my-4">
+                    <p className="text-white/80 text-sm mb-2">Here is your beta license key:</p>
+                    <code className="text-brand font-mono text-lg break-all select-all">{licenseKey}</code>
+                  </div>
+                ) : (
+                  <p className="text-white/60">
+                    Check your email for your beta license key and download link.
+                  </p>
+                )}
                 <p className="text-white/40 text-sm mt-3 leading-relaxed">
                   Run the Windows installer like a normal setup. If the download page falls back to GitHub release assets, grab the installer <span className="text-white/70 font-semibold">.exe</span> plus every matching <span className="text-white/70 font-semibold">.bin</span> file.
                 </p>
