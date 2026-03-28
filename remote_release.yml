@@ -1,0 +1,456 @@
+# ============================================================================
+# WhisperLocal Automated Release Workflow
+# Builds and publishes installer when a version tag is pushed
+# ============================================================================
+#
+# Usage:
+#   git tag v1.0.0 -m "Release v1.0.0"
+#   git push origin v1.0.0
+#
+# This workflow will:
+#   1. Build the installer using PyInstaller and Inno Setup
+#   2. Calculate SHA256 checksum
+#   3. Create GitHub Release with installer attached
+#
+# ============================================================================
+
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'  # Trigger on version tags like v1.0.0, v1.2.3, etc.
+      - 'v*.*.*-*'  # Trigger on prerelease tags like v1.0.0-beta.1
+
+  # Allow manual trigger from GitHub Actions tab
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version tag to create (e.g., v1.0.0)'
+        required: true
+        type: string
+
+permissions:
+  contents: write  # Required to create releases
+
+jobs:
+  build:
+    name: Build Installer
+    runs-on: windows-latest
+    
+    steps:
+      # ========================================
+      # Checkout and Setup
+      # ========================================
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          lfs: true
+
+      - name: Get version from tag
+        id: version
+        shell: pwsh
+        run: |
+          if ("${{ github.event_name }}" -eq "workflow_dispatch") {
+            $version = "${{ inputs.version }}"
+          } else {
+            $version = "${{ github.ref_name }}"
+          }
+          $versionNumber = $version -replace '^v', ''
+          $isPrerelease = if ($versionNumber.Contains('-')) { 'true' } else { 'false' }
+          echo "VERSION=$version" >> $env:GITHUB_OUTPUT
+          echo "VERSION_NUMBER=$versionNumber" >> $env:GITHUB_OUTPUT
+          echo "IS_PRERELEASE=$isPrerelease" >> $env:GITHUB_OUTPUT
+          echo "Building version: $version ($versionNumber)"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      # ========================================
+      # Install Dependencies
+      # ========================================
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Install Inno Setup
+        shell: pwsh
+        run: |
+          # Download Inno Setup
+          $url = "https://jrsoftware.org/download.php/is.exe"
+          $output = "$env:TEMP\innosetup.exe"
+          
+          Write-Host "Downloading Inno Setup..."
+          Invoke-WebRequest -Uri $url -OutFile $output -UseBasicParsing
+          
+          Write-Host "Installing Inno Setup silently..."
+          Start-Process -FilePath $output -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART" -Wait
+          
+          # Add to PATH
+          $innoPath = "C:\Program Files (x86)\Inno Setup 6"
+          echo "$innoPath" >> $env:GITHUB_PATH
+          
+          Write-Host "Inno Setup installed at: $innoPath"
+
+      # ========================================
+      # Download Required Files
+      # ========================================
+      - name: Download whisper.cpp binaries
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path "runtime\bin" -Force | Out-Null
+
+          # Check if whisper-cli.exe exists, if not download from whisper.cpp releases
+          if (-not (Test-Path "runtime\bin\whisper-cli.exe")) {
+            Write-Host "whisper-cli.exe not found, downloading from whisper.cpp..."
+            
+            # Download latest whisper.cpp Windows release
+            $releaseUrl = "https://api.github.com/repos/ggerganov/whisper.cpp/releases/latest"
+            $release = Invoke-RestMethod -Uri $releaseUrl
+            
+            # Prefer CUDA x64 builds, then BLAS x64, then plain x64.
+            $asset = $release.assets | Where-Object { $_.name -like "whisper-cublas-*-bin-x64.zip" } | Select-Object -First 1
+            if (-not $asset) {
+              $asset = $release.assets | Where-Object { $_.name -like "whisper-blas-bin-x64.zip" } | Select-Object -First 1
+            }
+            if (-not $asset) {
+              $asset = $release.assets | Where-Object { $_.name -like "whisper-bin-x64.zip" } | Select-Object -First 1
+            }
+            
+            if ($asset) {
+              Write-Host "Downloading: $($asset.name)"
+              Invoke-WebRequest -Uri $asset.browser_download_url -OutFile "whisper-release.zip"
+              Expand-Archive -Path "whisper-release.zip" -DestinationPath "whisper-temp" -Force
+              
+              # Copy required files
+              Get-ChildItem -Path "whisper-temp" -Recurse -Include "*.exe", "*.dll" | 
+                ForEach-Object { Copy-Item $_.FullName -Destination "runtime\bin" -Force }
+              
+              Remove-Item "whisper-release.zip", "whisper-temp" -Recurse -Force
+            } else {
+              Write-Warning "Could not find a compatible x64 Windows whisper.cpp release asset"
+              exit 1
+            }
+          }
+          
+          # List available files
+          Write-Host "`nFiles in runtime\bin:"
+          Get-ChildItem "runtime\bin" -Filter "*.exe" | ForEach-Object { Write-Host "  EXE: $($_.Name)" }
+          Get-ChildItem "runtime\bin" -Filter "*.dll" | ForEach-Object { Write-Host "  DLL: $($_.Name)" }
+
+      - name: Download AI models
+        shell: pwsh
+        run: |
+          # Create models directory
+          New-Item -ItemType Directory -Path "runtime\models" -Force | Out-Null
+          
+          $models = @{
+            "ggml-base.en.bin" = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin"
+            "ggml-medium.en.bin" = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-medium.en.bin"
+            "ggml-large-v3.bin" = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3.bin"
+          }
+          
+          foreach ($model in $models.GetEnumerator()) {
+            $path = "runtime\models\$($model.Key)"
+            if (-not (Test-Path $path)) {
+              Write-Host "Downloading $($model.Key)..."
+              # Use aria2c for faster downloads if available, otherwise Invoke-WebRequest
+              try {
+                Invoke-WebRequest -Uri $model.Value -OutFile $path -UseBasicParsing
+                $size = (Get-Item $path).Length / 1MB
+                $sizeText = "{0:N0} MB" -f $size
+                Write-Host "  Downloaded: $($model.Key) ($sizeText)"
+              } catch {
+              Write-Warning "Failed to download $($model.Key): $_"
+              exit 1
+              }
+            } else {
+              Write-Host "Model already exists: $($model.Key)"
+            }
+          }
+
+      - name: Validate release runtime assets
+        shell: pwsh
+        run: |
+          $requiredFiles = @(
+            "runtime\bin\whisper-cli.exe",
+            "runtime\bin\ggml-base.dll",
+            "runtime\bin\ggml-cpu.dll",
+            "runtime\bin\ggml.dll",
+            "runtime\bin\whisper.dll",
+            "runtime\models\ggml-base.en.bin",
+            "runtime\models\ggml-medium.en.bin",
+            "runtime\models\ggml-large-v3.bin"
+          )
+
+          foreach ($path in $requiredFiles) {
+            if (-not (Test-Path $path)) {
+              Write-Error "Missing required release asset: $path"
+              exit 1
+            }
+          }
+
+          Write-Host "Runtime asset validation passed."
+
+      # ========================================
+      # Update Version Numbers
+      # ========================================
+      - name: Update version in files
+        shell: pwsh
+        run: |
+          $version = "${{ steps.version.outputs.VERSION_NUMBER }}"
+
+          # Update installer.iss version
+          $issPath = "scripts\release\installer.iss"
+          $issContent = Get-Content $issPath -Raw
+          $issContent = $issContent -replace '#define MyAppVersion ".*"', "#define MyAppVersion `"$version`""
+          Set-Content $issPath $issContent
+
+          # Update bootstrap_installer.iss version
+          $bootstrapIssPath = "scripts\release\bootstrap_installer.iss"
+          $bootstrapIssContent = Get-Content $bootstrapIssPath -Raw
+          $bootstrapIssContent = $bootstrapIssContent -replace '#define MyAppVersion ".*"', "#define MyAppVersion `"$version`""
+          Set-Content $bootstrapIssPath $bootstrapIssContent
+
+          # Update build_config.spec version
+          $specPath = "scripts\release\build_config.spec"
+          $specContent = Get-Content $specPath -Raw
+          $specContent = $specContent -replace "APP_VERSION = '.*'", "APP_VERSION = '$version'"
+          Set-Content $specPath $specContent
+
+          Write-Host "Updated version to: $version"
+
+      # ========================================
+      # Build
+      # ========================================
+      - name: Build with PyInstaller
+        shell: pwsh
+        env:
+          WHISPER_TELEMETRY_TOKEN: ${{ secrets.WHISPER_TELEMETRY_TOKEN }}
+        run: |
+          Write-Host "Building WhisperLocal with PyInstaller..."
+          python -m PyInstaller --clean --noconfirm --distpath dist --workpath build scripts\release\build_config.spec
+          
+          # Verify output
+          if (Test-Path "dist\WhisperLocal\WhisperLocal.exe") {
+            $size = (Get-Item "dist\WhisperLocal\WhisperLocal.exe").Length / 1MB
+            $sizeText = "Build successful! Size: {0:N1} MB" -f $size
+            Write-Host $sizeText
+          } else {
+            Write-Error "Build failed - WhisperLocal.exe not found"
+            exit 1
+          }
+
+      - name: Build installer with Inno Setup
+        shell: pwsh
+        run: |
+          Write-Host "Building installer with Inno Setup..."
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" /Q scripts\release\installer.iss
+          
+          # Find and verify installer
+          $installer = Get-ChildItem -Path "dist" -Filter "WhisperLocal-Setup-*.exe" | 
+            Sort-Object LastWriteTime -Descending | Select-Object -First 1
+          
+          if ($installer) {
+            $size = $installer.Length / 1GB
+            $sizeText = "{0:N2} GB" -f $size
+            Write-Host "Installer created: $($installer.Name) ($sizeText)"
+            echo "INSTALLER_NAME=$($installer.Name)" >> $env:GITHUB_OUTPUT
+            echo "INSTALLER_PATH=$($installer.FullName)" >> $env:GITHUB_OUTPUT
+          } else {
+            Write-Error "Installer build failed - no installer found in dist/"
+            exit 1
+          }
+        id: installer
+
+      - name: Generate bootstrap payload manifest
+        if: ${{ secrets.WHISPER_BOOTSTRAP_BASE_URL != '' }}
+        shell: pwsh
+        env:
+          WHISPER_BOOTSTRAP_BASE_URL: ${{ secrets.WHISPER_BOOTSTRAP_BASE_URL }}
+        run: |
+          & .\scripts\release\generate_bootstrap_payload.ps1 `
+            -BaseUrl $env:WHISPER_BOOTSTRAP_BASE_URL `
+            -Version "${{ steps.version.outputs.VERSION_NUMBER }}"
+
+      - name: Build bootstrap installer with Inno Setup
+        if: ${{ secrets.WHISPER_BOOTSTRAP_BASE_URL != '' }}
+        shell: pwsh
+        run: |
+          Write-Host "Building bootstrap installer with Inno Setup..."
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" /Q scripts\release\bootstrap_installer.iss
+
+          $installer = Get-ChildItem -Path "dist" -Filter "WhisperLocal-Bootstrap-Setup-*.exe" |
+            Sort-Object LastWriteTime -Descending | Select-Object -First 1
+
+          if ($installer) {
+            $size = $installer.Length / 1MB
+            $sizeText = "{0:N1} MB" -f $size
+            Write-Host "Bootstrap installer created: $($installer.Name) ($sizeText)"
+            echo "INSTALLER_NAME=$($installer.Name)" >> $env:GITHUB_OUTPUT
+            echo "INSTALLER_PATH=$($installer.FullName)" >> $env:GITHUB_OUTPUT
+          } else {
+            Write-Error "Bootstrap installer build failed - no installer found in dist/"
+            exit 1
+          }
+        id: bootstrap_installer
+
+      - name: Calculate checksums
+        shell: pwsh
+        run: |
+          $installer = Get-ChildItem -Path "dist" -Filter "WhisperLocal-Setup-*.exe" | 
+            Sort-Object LastWriteTime -Descending | Select-Object -First 1
+          
+          $hash = (Get-FileHash -Path $installer.FullName -Algorithm SHA256).Hash.ToLower()
+          $hashFile = "dist\$($installer.BaseName).sha256"
+          
+          "$hash *$($installer.Name)" | Out-File -FilePath $hashFile -Encoding ascii
+          
+          Write-Host "SHA256: $hash"
+          echo "CHECKSUM=$hash" >> $env:GITHUB_OUTPUT
+          echo "CHECKSUM_FILE=$hashFile" >> $env:GITHUB_OUTPUT
+        id: checksum
+
+      - name: Calculate bootstrap checksum
+        if: ${{ secrets.WHISPER_BOOTSTRAP_BASE_URL != '' }}
+        shell: pwsh
+        run: |
+          $installer = Get-ChildItem -Path "dist" -Filter "WhisperLocal-Bootstrap-Setup-*.exe" |
+            Sort-Object LastWriteTime -Descending | Select-Object -First 1
+
+          $hash = (Get-FileHash -Path $installer.FullName -Algorithm SHA256).Hash.ToLower()
+          $hashFile = "dist\$($installer.BaseName).sha256"
+
+          "$hash *$($installer.Name)" | Out-File -FilePath $hashFile -Encoding ascii
+
+          Write-Host "SHA256: $hash"
+          echo "CHECKSUM=$hash" >> $env:GITHUB_OUTPUT
+          echo "CHECKSUM_FILE=$hashFile" >> $env:GITHUB_OUTPUT
+        id: bootstrap_checksum
+
+      # ========================================
+      # Create Release
+      # ========================================
+      - name: Create Release
+        if: ${{ secrets.WHISPER_BOOTSTRAP_BASE_URL == '' }}
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.VERSION }}
+          name: WhisperLocal ${{ steps.version.outputs.VERSION }}
+          body: |
+            ## WhisperLocal ${{ steps.version.outputs.VERSION }}
+            
+            Privacy-focused, GPU-accelerated speech-to-text dictation for Windows.
+            
+            ### Installation
+            
+            1. Download `WhisperLocal-Setup-${{ steps.version.outputs.VERSION_NUMBER }}.exe`
+            2. Download every matching `WhisperLocal-Setup-${{ steps.version.outputs.VERSION_NUMBER }}-*.bin` part
+            3. Put all downloaded files in the same folder
+            4. Run the installer `.exe`
+            5. Keep the `.bin` files beside the installer until setup finishes
+            6. Start dictating with `WIN + CTRL`!
+            
+            ### System Requirements
+            
+            - Windows 10 or 11 (64-bit)
+            - 4 GB RAM minimum (8 GB recommended)
+            - 4 GB disk space
+            - NVIDIA GPU with CUDA recommended (CPU also works)
+            
+            ### Checksum
+            
+            - Installer EXE SHA256: `${{ steps.checksum.outputs.CHECKSUM }}`
+            
+            ### What's New
+            
+            See [CHANGELOG.md](https://github.com/Izayauh/whisper/blob/main/CHANGELOG.md) for details.
+            
+          files: |
+            dist/WhisperLocal-Setup-*.exe
+            dist/WhisperLocal-Setup-*.bin
+            dist/WhisperLocal-Setup-*.sha256
+          draft: false
+          prerelease: ${{ steps.version.outputs.IS_PRERELEASE }}
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create Release With Bootstrap Installer
+        if: ${{ secrets.WHISPER_BOOTSTRAP_BASE_URL != '' }}
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.VERSION }}
+          name: WhisperLocal ${{ steps.version.outputs.VERSION }}
+          body: |
+            ## WhisperLocal ${{ steps.version.outputs.VERSION }}
+
+            Privacy-focused, GPU-accelerated speech-to-text dictation for Windows.
+
+            ### Recommended Installation
+
+            1. Download `WhisperLocal-Bootstrap-Setup-${{ steps.version.outputs.VERSION_NUMBER }}.exe`
+            2. Run the installer and stay online while setup downloads the runtime/model payload
+            3. Start dictating with `WIN + CTRL`
+
+            ### Fallback Installation
+
+            If the bootstrap installer is unavailable on your network, use the split GitHub release assets instead:
+
+            1. Download `WhisperLocal-Setup-${{ steps.version.outputs.VERSION_NUMBER }}.exe`
+            2. Download every matching `WhisperLocal-Setup-${{ steps.version.outputs.VERSION_NUMBER }}-*.bin` part
+            3. Put all downloaded files in the same folder
+            4. Run the installer `.exe`
+            5. Keep the `.bin` files beside the installer until setup finishes
+
+            ### Hosted Bootstrap Payload
+
+            - Upload the files listed in `WhisperLocal-Bootstrap-Payload-${{ steps.version.outputs.VERSION_NUMBER }}.json` to `${{ secrets.WHISPER_BOOTSTRAP_BASE_URL }}`
+            - The manifest includes SHA256 checksums for each hosted payload file
+
+            ### Checksums
+
+            - Bootstrap installer SHA256: `${{ steps.bootstrap_checksum.outputs.CHECKSUM }}`
+            - Split installer EXE SHA256: `${{ steps.checksum.outputs.CHECKSUM }}`
+
+            ### What's New
+
+            See [CHANGELOG.md](https://github.com/Izayauh/whisper/blob/main/CHANGELOG.md) for details.
+
+          files: |
+            dist/WhisperLocal-Bootstrap-Setup-*.exe
+            dist/WhisperLocal-Bootstrap-Setup-*.sha256
+            dist/WhisperLocal-Bootstrap-Payload-*.json
+            dist/WhisperLocal-Setup-*.exe
+            dist/WhisperLocal-Setup-*.bin
+            dist/WhisperLocal-Setup-*.sha256
+          draft: false
+          prerelease: ${{ steps.version.outputs.IS_PRERELEASE }}
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Summary
+        shell: pwsh
+        run: |
+          Write-Host ""
+          Write-Host "=============================================="
+          Write-Host " Release Created Successfully!"
+          Write-Host "=============================================="
+          Write-Host ""
+          Write-Host "Version: ${{ steps.version.outputs.VERSION }}"
+          Write-Host "Installer: ${{ steps.installer.outputs.INSTALLER_NAME }}"
+          Write-Host "Installer SHA256: ${{ steps.checksum.outputs.CHECKSUM }}"
+          if ("${{ secrets.WHISPER_BOOTSTRAP_BASE_URL }}" -ne "") {
+            Write-Host "Bootstrap installer: ${{ steps.bootstrap_installer.outputs.INSTALLER_NAME }}"
+            Write-Host "Bootstrap SHA256: ${{ steps.bootstrap_checksum.outputs.CHECKSUM }}"
+          }
+          Write-Host ""
+          Write-Host "Release page:"
+          Write-Host "  https://github.com/Izayauh/whisper/releases/tag/${{ steps.version.outputs.VERSION }}"
+          Write-Host ""
