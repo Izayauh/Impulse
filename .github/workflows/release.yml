@@ -397,7 +397,7 @@ jobs:
             1. Download `WhisperLocal-Bootstrap-Setup-${{ steps.version.outputs.VERSION_NUMBER }}.exe`
             2. Run the installer and stay online while setup downloads the runtime/model payload
             3. Start dictating with `WIN + CTRL`
-
+            
             ### Fallback Installation
 
             If the bootstrap installer is unavailable on your network, use the split GitHub release assets instead:
