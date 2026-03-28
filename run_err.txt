@@ -1,0 +1,1 @@
+completed	failure	Fix Start Menu interference, fallback license delivery, bump to v1.0.5	.github/workflows/release.yml	main	push	23677310654	0s	2026-03-28T04:18:42Z
