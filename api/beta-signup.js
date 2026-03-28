@@ -16,10 +16,16 @@ module.exports = async function handler(req, res) {
     const { lead } = await createSignupLead(normalizedEmail, {
       source: typeof source === 'string' && source.trim() ? source.trim() : 'website-beta',
     });
-    await sendSequenceEmail('welcome', lead);
+    // Send the welcome email (don't fail the whole request if email fails)
+    try {
+      await sendSequenceEmail('welcome', lead);
+    } catch (e) {
+      console.warn('Beta welcome email failed:', e);
+    }
 
     return res.status(200).json({
       success: true,
+      licenseKey: lead.license_key,
       lead: {
         email: lead.email,
         created_at: lead.created_at,
