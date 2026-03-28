@@ -5222,6 +5222,20 @@ def run_whisper_main_loop():
                 if (not down) and was_down and (now - last_edge_ts) * 1000 > EDGE_COOLDOWN_MS:
                     last_edge_ts = now
                     log_line("[HOTKEY] Release detected — stopping recording")
+                    
+                    # Prevent Windows Start Menu from popping up after releasing hotkeys with Windows key
+                    if any(k in active_hotkey_keys for k in ["windows", "win"]):
+                        try:
+                            inputs = (INPUT * 2)()
+                            inputs[0].type = INPUT_KEYBOARD
+                            inputs[0].ki.wVk = 0xFF  # VK_NONAME
+                            inputs[1].type = INPUT_KEYBOARD
+                            inputs[1].ki.wVk = 0xFF
+                            inputs[1].ki.dwFlags = KEYEVENTF_KEYUP
+                            ctypes.windll.user32.SendInput(2, ctypes.byref(inputs), ctypes.sizeof(INPUT))
+                        except Exception as e:
+                            log_line(f"[HOTKEY] Start menu suppression failed: {e}", "warning")
+                            
                     threading.Thread(target=stop_recording_and_transcribe, daemon=True).start()
             was_down = down
 

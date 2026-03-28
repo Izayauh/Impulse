@@ -1,4 +1,4 @@
-export const RELEASE_TAG = 'v1.0.1';
+export const RELEASE_TAG = 'v1.0.5';
 export const RELEASE_PAGE_URL = 'https://github.com/Izayauh/whisper/releases/latest';
 export const DOWNLOAD_URL = import.meta.env.VITE_PUBLIC_DOWNLOAD_URL || RELEASE_PAGE_URL;
 export const CHANGELOG_URL = 'https://github.com/Izayauh/whisper/blob/main/CHANGELOG.md';
