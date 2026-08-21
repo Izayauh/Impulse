@@ -103,7 +103,7 @@ class TestStylize:
 
         mock_urlopen.side_effect = [tags_resp, gen_resp]
 
-        s = TextStylizer()
+        s = TextStylizer(min_words=1)
         result = s.stylize("um yeah so it works", "polished")
         assert result == "It works."
 
@@ -120,9 +120,9 @@ class TestStylize:
 
         mock_urlopen.side_effect = [tags_resp, gen_resp]
 
-        s = TextStylizer()
-        result = s.stylize("hello world", "polished")
-        assert result == "hello world"
+        s = TextStylizer(min_words=1)
+        result = s.stylize("hello world again", "polished")
+        assert result == "hello world again"
 
 
     def test_clean_skips_ollama(self):
@@ -132,6 +132,32 @@ class TestStylize:
         assert result == "hello world this is a test"
         # Verify no Ollama check was triggered
         assert s._ollama_available_checked is False
+
+    def test_polished_skips_short_text_without_ollama(self):
+        """Short transcripts should never wait on Ollama just to polish."""
+        s = TextStylizer()
+        result = s.stylize("hello world", "polished")
+        assert result == "hello world"
+        assert s._ollama_available_checked is False
+
+    @patch("whisper_local.processing.text_stylizer.request.urlopen")
+    def test_timeout_is_bounded(self, mock_urlopen):
+        tags_resp = MagicMock()
+        tags_resp.__enter__ = MagicMock(return_value=tags_resp)
+        tags_resp.__exit__ = MagicMock(return_value=False)
+
+        gen_resp = MagicMock()
+        gen_resp.__enter__ = MagicMock(return_value=gen_resp)
+        gen_resp.__exit__ = MagicMock(return_value=False)
+        gen_resp.read.return_value = json.dumps({"response": "This is a longer polished response."}).encode("utf-8")
+
+        mock_urlopen.side_effect = [tags_resp, gen_resp]
+
+        s = TextStylizer(timeout_sec=2, min_words=1)
+        result = s.stylize("this is a longer sentence that should call ollama", "polished")
+        assert result == "This is a longer polished response."
+        assert mock_urlopen.call_args_list[0].kwargs["timeout"] <= 1.0
+        assert mock_urlopen.call_args_list[1].kwargs["timeout"] == 2
 
 
 # ---------------------------------------------------------------------------

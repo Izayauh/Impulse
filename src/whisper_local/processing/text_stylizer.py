@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 from typing import Dict
 from urllib import error, request
 
@@ -66,11 +67,13 @@ class TextStylizer:
         self,
         model: str = "llama3.2:3b",
         endpoint: str = "http://127.0.0.1:11434",
-        timeout_sec: int = 60,
+        timeout_sec: int | None = None,
+        min_words: int | None = None,
     ) -> None:
         self.model = model
         self.endpoint = endpoint.rstrip("/")
-        self.timeout_sec = timeout_sec
+        self.timeout_sec = timeout_sec if timeout_sec is not None else _env_int("WHISPER_STYLIZE_TIMEOUT_SEC", 8)
+        self.min_words = min_words if min_words is not None else _env_int("WHISPER_STYLIZE_MIN_WORDS", 12)
         self._ollama_available_checked = False
         self._ollama_available = False
 
@@ -88,6 +91,14 @@ class TextStylizer:
 
         profile_def = PROFILES.get(profile)
         if not profile_def or not profile_def.get("prompt"):
+            return text
+
+        if len(text.split()) < self.min_words:
+            logger.info(
+                "Stylization skipped for short transcript (%s words < %s).",
+                len(text.split()),
+                self.min_words,
+            )
             return text
 
         if not self._is_ollama_available():
@@ -116,7 +127,8 @@ class TextStylizer:
             "stream": False,
             "options": {
                 "temperature": 0.15,
-                "num_ctx": 4096,
+                "num_ctx": 1024,
+                "num_predict": 160,
             },
         }
         body = json.dumps(payload).encode("utf-8")
@@ -144,7 +156,7 @@ class TextStylizer:
                 f"{self.endpoint}/api/tags",
                 method="GET",
             )
-            with request.urlopen(req, timeout=3):
+            with request.urlopen(req, timeout=min(1.0, float(self.timeout_sec))):
                 pass
             self._ollama_available = True
         except Exception:
@@ -155,3 +167,10 @@ class TextStylizer:
         """Force re-check of Ollama availability on next call."""
         self._ollama_available_checked = False
         self._ollama_available = False
+
+
+def _env_int(name: str, default: int) -> int:
+    try:
+        return max(1, int(os.environ.get(name, str(default))))
+    except ValueError:
+        return default

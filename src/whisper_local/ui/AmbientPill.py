@@ -13,7 +13,7 @@ from whisper_local.settings_manager import SettingsManager
 # CONFIGURATION
 # ============================================================================
 IDLE_DIMENSIONS = (10, 10)
-ACTIVE_DIMENSIONS = (150, 48) # Sleek dynamic sizing will adjust this if text is present
+ACTIVE_DIMENSIONS = (166, 48)
 ANIMATION_SPEED_MS = 250
 SENSITIVITY = 14.0
 SMOOTHING_FACTOR = 0.20
@@ -368,6 +368,7 @@ if is_qt_available():
                 self._glow = 0.2
                 self._animate_size(*ACTIVE_DIMENSIONS, duration_ms=ANIMATION_SPEED_MS)
                 self._animate_color(QtGui.QColor(self._base_hover))
+                self.setWindowOpacity(1.0)
                 self._start_processing_breathing()
                 return
 
@@ -377,10 +378,14 @@ if is_qt_available():
 
         def _on_audio_tick(self):
             if self._state != PillState.RECORDING:
-                # Decay internal state, but skip repaint when hidden — no GPU work needed.
                 self._audio_level_display *= 0.85
-                self._glow *= 0.9
-                self._wave_levels = [max(0.08, w * 0.86) for w in self._wave_levels]
+                if self._state == PillState.PROCESSING:
+                    self._wave_phase += 0.45
+                    self._glow = 0.28 + (0.18 * (math.sin(self._wave_phase) * 0.5 + 0.5))
+                    self._wave_levels = [0.35 for _ in self._wave_levels]
+                else:
+                    self._glow *= 0.9
+                    self._wave_levels = [max(0.08, w * 0.86) for w in self._wave_levels]
                 if self.isVisible():
                     self.update()
                 return
@@ -637,8 +642,8 @@ if is_qt_available():
                 font.setPixelSize(13)
                 font.setWeight(QtGui.QFont.Weight.Medium)
                 painter.setFont(font)
-                rect = QtCore.QRectF(start_x, center_y - 10, middle_width + 50, 20)
-                painter.drawText(rect, QtCore.Qt.AlignmentFlag.AlignLeft | QtCore.Qt.AlignmentFlag.AlignVCenter, "Stylizing...")
+                rect = QtCore.QRectF(start_x, center_y - 10, middle_width + 44, 20)
+                painter.drawText(rect, QtCore.Qt.AlignmentFlag.AlignLeft | QtCore.Qt.AlignmentFlag.AlignVCenter, "Processing...")
 
             start_x += middle_width + 8
             

@@ -16,6 +16,7 @@ from whisper_local.model_selection import (
     refresh_auto_state,
     save_state as save_model_selection_state,
 )
+from whisper_local.faster_whisper_backend import preload_model_with_fallback
 
 
 class TranscriptionController:
@@ -50,9 +51,11 @@ class TranscriptionController:
     def _build_payload(self, state: Dict[str, Any], auto_switched: bool) -> Dict[str, Any]:
         vram_total_mb = float(state.get("vram_total_mb", 0.0) or 0.0)
         return {
-            "mode": state.get("mode", "auto"),
-            "manualModel": state.get("manual_model", "base"),
-            "activeModel": state.get("active_model", "base"),
+            "mode": state.get("mode", "turbo"),
+            "manualModel": state.get("manual_model", "turbo"),
+            "activeModel": state.get("active_model", "turbo"),
+            "engine": "faster-whisper",
+            "profile": "turbo",
             "vramTotalMb": vram_total_mb,
             "vramTotalGb": round(vram_total_mb / 1024.0, 2) if vram_total_mb > 0 else 0.0,
             "autoSwitched": bool(auto_switched),
@@ -72,10 +75,14 @@ class TranscriptionController:
         updated, auto_switched = apply_mode(current, mode, self._get_vram())
         self._save_state(updated)
         if self._settings_mgr:
-            self._settings_mgr.update_setting(
-                "whisper_model", updated.get("active_model", "base")
-            )
-        return self._build_payload(updated, auto_switched)
+            self._settings_mgr.update_setting("whisper_model", "turbo")
+        payload = self._build_payload(updated, auto_switched)
+        print(
+            "[Dashboard] model_mode_set "
+            f"requested={mode} mode={payload['mode']} active={payload['activeModel']} "
+            f"engine={payload['engine']} profile={payload['profile']}"
+        )
+        return payload
 
     def load_model(self, model_name: str) -> Dict[str, Any]:
         """Fire-and-forget model load (Research §3.3).
@@ -98,29 +105,18 @@ class TranscriptionController:
 
     def _load_model_task(self, model_name: str) -> None:
         try:
-            # VRAM pre-check
             vram_mb = self._get_vram()
-            requirements_mb = {
-                "tiny": 1024, "base": 1024, "small": 2048,
-                "medium": 5120, "large": 10240,
-            }
-            req = requirements_mb.get(model_name, 1024)
-            if vram_mb > 0 and vram_mb < req:
-                self._emit_error(
-                    f"Insufficient VRAM. {model_name.title()} requires "
-                    f"~{req // 1024}GB, but you have {vram_mb / 1024:.1f}GB."
-                )
-                return
-
-            # Simulate progress stages (real model load would go here)
-            stages = [10, 30, 50, 70, 90, 100]
-            for pct in stages:
+            for pct in [10, 25]:
                 if self.stop_event.is_set():
                     return
                 self._emit_progress(pct)
 
-            # Apply mode change
-            result = self.set_model_mode(model_name)
+            self._emit_progress(45)
+            preload_model_with_fallback("turbo", vram_mb > 0)
+            self._emit_progress(85)
+
+            result = self.set_model_mode("turbo")
+            self._emit_progress(100)
             self._emit_model_loaded(result.get("activeModel", model_name))
 
         except Exception as exc:

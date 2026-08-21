@@ -8,8 +8,8 @@ from typing import Any, Dict, Tuple
 
 
 AUTO_VRAM_THRESHOLD_MB = 8 * 1024
-VALID_MODES = {"auto", "base", "small", "medium"}
-VALID_ACTIVE_MODELS = {"base", "small", "medium", "large"}
+VALID_MODES = {"turbo"}
+VALID_ACTIVE_MODELS = {"turbo"}
 
 
 def model_selection_file(user_data_dir: str) -> str:
@@ -17,25 +17,25 @@ def model_selection_file(user_data_dir: str) -> str:
 
 
 def _normalize_mode(value: Any) -> str:
-    mode = str(value or "").strip().lower()
-    return mode if mode in VALID_MODES else "auto"
+    _ = value
+    return "turbo"
 
 
 def _normalize_manual_model(value: Any) -> str:
-    model = str(value or "").strip().lower()
-    return model if model in {"base", "small", "medium"} else "base"
+    _ = value
+    return "turbo"
 
 
 def _normalize_active_model(value: Any) -> str:
-    model = str(value or "").strip().lower()
-    return model if model in VALID_ACTIVE_MODELS else "base"
+    _ = value
+    return "turbo"
 
 
 def default_state() -> Dict[str, Any]:
     return {
-        "mode": "auto",
-        "manual_model": "base",
-        "active_model": "base",
+        "mode": "turbo",
+        "manual_model": "turbo",
+        "active_model": "turbo",
         "vram_total_mb": 0.0,
     }
 
@@ -79,33 +79,29 @@ def save_state(path: str, state: Dict[str, Any]) -> bool:
 
 
 def auto_model_for_vram(vram_total_mb: Any) -> str:
-    vram_mb = _safe_float(vram_total_mb)
-    return "large" if vram_mb >= AUTO_VRAM_THRESHOLD_MB else "base"
+    _ = vram_total_mb
+    return "turbo"
 
 
 def apply_mode(state: Dict[str, Any], requested_mode: str, vram_total_mb: Any) -> Tuple[Dict[str, Any], bool]:
     current = normalize_state(state)
     previous_active = current["active_model"]
+    _ = requested_mode
 
-    mode = _normalize_mode(requested_mode)
-    current["mode"] = mode
-    if mode == "auto":
-        current["vram_total_mb"] = _safe_float(vram_total_mb)
-        current["active_model"] = auto_model_for_vram(vram_total_mb)
-    else:
-        current["manual_model"] = mode
-        current["active_model"] = mode
+    current["mode"] = "turbo"
+    current["manual_model"] = "turbo"
+    current["vram_total_mb"] = _safe_float(vram_total_mb)
+    current["active_model"] = "turbo"
 
-    auto_switched = mode == "auto" and current["active_model"] != previous_active
+    auto_switched = current["active_model"] != previous_active
     return current, auto_switched
 
 
 def refresh_auto_state(state: Dict[str, Any], vram_total_mb: Any) -> Tuple[Dict[str, Any], bool]:
     current = normalize_state(state)
-    if current["mode"] != "auto":
-        return current, False
-
     previous_active = current["active_model"]
+    current["mode"] = "turbo"
+    current["manual_model"] = "turbo"
     current["vram_total_mb"] = _safe_float(vram_total_mb)
-    current["active_model"] = auto_model_for_vram(vram_total_mb)
+    current["active_model"] = "turbo"
     return current, current["active_model"] != previous_active

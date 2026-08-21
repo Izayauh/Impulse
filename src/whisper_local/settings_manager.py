@@ -29,7 +29,7 @@ class TranscriptionSettings(BaseModel):
 
 class AppSettings(BaseModel):
     """Top-level settings schema with validation."""
-    whisper_model: str = "base"
+    whisper_model: str = "turbo"
     input_device: str = "default"
     theme: Literal["hot_pink", "neon_dark", "midnight_green"] = "hot_pink"
     vad_enabled: bool = True

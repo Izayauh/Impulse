@@ -63,6 +63,12 @@ from whisper_local.model_selection import (
     refresh_auto_state,
     save_state as save_model_selection_state,
 )
+from whisper_local.faster_whisper_backend import (
+    model_name_for_mode as _faster_whisper_model_name,
+    preload_model_with_fallback as _faster_whisper_preload_model_with_fallback,
+    runtime_for_gpu as _faster_whisper_runtime_for_gpu,
+    transcribe_with_fallback as _faster_whisper_transcribe_with_fallback,
+)
 from whisper_local.settings_manager import SettingsManager
 from whisper_local.hotkey_settings import hotkey_tokens, load_hotkey, settings_file
 from whisper_local.snippets import apply_snippets, snippets_file
@@ -3449,57 +3455,20 @@ def startup_diagnostics():
     return True
 
 
-# Global flag to track if CUDA warmup is done
-_cuda_warmed_up = False
+# Global flag to track if the transcription model has been warmed.
+_turbo_warmed_up = False
 
 def cuda_warmup():
-    """Pre-load base model into GPU memory by running a tiny transcription."""
-    global _cuda_warmed_up
-    if _cuda_warmed_up:
+    """Compatibility wrapper: pre-load the single turbo model."""
+    global _turbo_warmed_up
+    if _turbo_warmed_up:
         return
-    
-    if resolved_whisper_bin is None or not os.path.exists(MODEL_PATH_BASE):
-        log_line("[warmup] Skipping - missing binary or base model")
-        return
-    
+
     try:
-        log_line("[warmup] Starting CUDA warmup...")
-        
-        # Create a tiny 0.5s silent audio file for warmup
-        warmup_wav = os.path.join(tempfile.gettempdir(), "whisper_warmup.wav")
-        warmup_samples = int(SAMPLE_RATE * 0.5)
-        warmup_audio = np.zeros((warmup_samples, CHANNELS), dtype=np.float32)
-        # Add tiny noise so it's not completely silent
-        warmup_audio += np.random.randn(*warmup_audio.shape).astype(np.float32) * 0.001
-        sf.write(warmup_wav, warmup_audio, SAMPLE_RATE)
-        
-        # Run whisper with minimal processing to just load the base model
-        exe = os.path.abspath(_resolve_whisper_exe(resolved_whisper_bin))
-        workdir = os.path.dirname(exe) or "."
-        
-        cmd = [
-            exe, "-m", MODEL_PATH_BASE,
-            "-l", "en", "-nt",
-            "-bs", "1",  # Minimal batch size for warmup
-            warmup_wav
-        ]
-        
-        env = os.environ.copy()
-        env["GGML_CUDA_FORCE_CUBLAS"] = "1"
-        env["CUDA_LAUNCH_BLOCKING"] = "0"
-        
-        # Run silently (CREATE_NO_WINDOW prevents console popup)
-        subprocess.run(cmd, cwd=workdir, env=env, capture_output=True, timeout=30, creationflags=CREATE_NO_WINDOW)
-        
-        # Cleanup
-        try:
-            os.remove(warmup_wav)
-        except Exception:
-            pass
-        
-        _cuda_warmed_up = True
-        log_line("[warmup] CUDA warmup complete - GPU model loaded")
-        
+        log_line("[warmup] Starting turbo model preload...")
+        _turbo_warmed_up = bool(preload_turbo_model())
+        if _turbo_warmed_up:
+            log_line("[warmup] Turbo preload complete")
     except Exception as e:
         log_line(f"[warmup] Warmup failed (non-critical): {e}")
 
@@ -3802,8 +3771,61 @@ _gpu_consecutive_failures = 0
 # After this many consecutive GPU failures the engine falls back to CPU permanently.
 _GPU_FAILURE_THRESHOLD = int(os.environ.get("WHISPER_GPU_FAILURE_THRESHOLD", "3"))
 _gpu_skip_flash_attention = False  # Set True if GPU works without -fa but fails with it
+_faster_whisper_unavailable_reason = None
 
-def run_whisper(filename, bin_path, model_path=None):
+
+def _faster_whisper_runtime():
+    use_cuda = bool(GPU_AVAILABLE and gpu_monitor.is_nvidia_gpu())
+    return _faster_whisper_runtime_for_gpu(use_cuda)
+
+
+def preload_turbo_model():
+    """Load the single production transcription model before first dictation."""
+    try:
+        has_gpu = bool(GPU_AVAILABLE and gpu_monitor.is_nvidia_gpu())
+        preferred_device, preferred_compute = _faster_whisper_runtime()
+        safe_print(
+            f"[faster-whisper] preloading turbo preferred_device={preferred_device} "
+            f"preferred_compute={preferred_compute}"
+        )
+        _model, _name, device, compute_type = _faster_whisper_preload_model_with_fallback("turbo", has_gpu)
+        safe_print(f"[faster-whisper] turbo preload complete device={device} compute={compute_type}")
+        return True
+    except Exception as exc:
+        safe_print(f"[faster-whisper] turbo preload failed (will lazy-load/fallback): {exc}")
+        return False
+
+
+def run_faster_whisper(filename, model_name="turbo", speed_profile="turbo"):
+    """Run local transcription through faster-whisper/CTranslate2."""
+    global _faster_whisper_unavailable_reason
+
+    try:
+        import faster_whisper  # noqa: F401
+    except Exception as exc:
+        _faster_whisper_unavailable_reason = f"faster-whisper unavailable: {exc}"
+        return 1, "", _faster_whisper_unavailable_reason
+
+    ct2_model = _faster_whisper_model_name(model_name)
+    has_gpu = bool(GPU_AVAILABLE and gpu_monitor.is_nvidia_gpu())
+    try:
+        _ = speed_profile
+        beam_size = 1
+        text, ct2_model, device, compute_type = _faster_whisper_transcribe_with_fallback(
+            filename,
+            ct2_model,
+            has_gpu,
+            beam_size=beam_size,
+            initial_prompt=_build_dynamic_initial_prompt(),
+        )
+        safe_print(f"[faster-whisper] model={ct2_model} device={device} compute={compute_type} beam={beam_size}")
+        return 0, text, ""
+    except Exception as exc:
+        _faster_whisper_unavailable_reason = str(exc)
+        safe_print(f"[faster-whisper] failed: {_faster_whisper_unavailable_reason}")
+        return 1, "", _faster_whisper_unavailable_reason
+
+def run_whisper(filename, bin_path, model_path=None, speed_profile="standard"):
     """Run whisper transcription with specified model.
 
     Args:
@@ -3854,7 +3876,10 @@ def run_whisper(filename, bin_path, model_path=None):
     except Exception:
         duration_sec = None
 
-    batch_size, best_of, mode_desc = _select_whisper_params(duration_sec)
+    if str(speed_profile or "").strip().lower() == "fast":
+        batch_size, best_of, mode_desc = 1, None, "fastest"
+    else:
+        batch_size, best_of, mode_desc = _select_whisper_params(duration_sec)
     initial_prompt = _build_dynamic_initial_prompt()
     
     # GPU mode: Use fewer threads (GPU does the heavy lifting)
@@ -4102,6 +4127,12 @@ def _load_effective_model_selection():
 
 def _resolve_model_path(model_name: str):
     model_key = str(model_name or "").strip().lower()
+    if model_key == "turbo":
+        if os.path.exists(MODEL_PATH_LARGE):
+            return MODEL_PATH_LARGE, "large-v3"
+        return MODEL_PATH_BASE, "base"
+    if model_key == "fast":
+        return MODEL_PATH_BASE, "base"
     if model_key == "base":
         return MODEL_PATH_BASE, "base"
     if model_key == "small":
@@ -4120,49 +4151,34 @@ def _resolve_model_path(model_name: str):
 
 def _run_fixed_model_transcription(filename: str, bin_path: str):
     selection = _load_effective_model_selection()
-    mode = str(selection.get("mode", "auto")).lower()
-    active_model = str(selection.get("active_model", "base")).lower()
+    if selection.get("mode") != "turbo" or selection.get("active_model") != "turbo":
+        updated, _ = apply_model_mode(selection, "turbo", _current_vram_total_mb())
+        save_model_selection_state(MODEL_SELECTION_STATE_FILE, updated)
 
-    if mode == "auto":
-        selected_model = active_model
-    else:
-        selected_model = mode
-        # Keep active model synchronized for dashboard polling/toasts.
-        if selection.get("active_model") != selected_model:
-            updated, _ = apply_model_mode(selection, selected_model, _current_vram_total_mb())
-            save_model_selection_state(MODEL_SELECTION_STATE_FILE, updated)
+    model_path, model_used = _resolve_model_path("turbo")
+    rc, text, err = run_faster_whisper(filename, "turbo", speed_profile="turbo")
+    if rc == 0:
+        return rc, text, err, f"faster-whisper-{_faster_whisper_model_name('turbo')}"
 
-    model_path, model_used = _resolve_model_path(selected_model)
-    rc, text, err = run_whisper(filename, bin_path, model_path=model_path)
-    return rc, text, err, model_used
+    safe_print(f"[whisper-smart] faster-whisper unavailable; falling back to whisper.cpp ({err})")
+    rc, text, err = run_whisper(filename, bin_path, model_path=model_path, speed_profile="fast")
+    return rc, text, err, f"{model_used} (whisper.cpp fallback)"
 
 
 def run_whisper_smart(filename, bin_path):
     """Run transcription with user-selected model mode.
 
     Modes come from ``state/model_selection.json``:
-    - ``base``, ``small``, ``medium``: manual single-pass model selection
-    - ``auto``: choose ``large`` when VRAM > 8 GB, else ``base``
-
-    Legacy two-pass load-aware logic remains as a fallback for unknown modes.
+    - ``turbo``: faster-whisper turbo via CTranslate2
     """
     start_time = time.time()
 
     selection = _load_effective_model_selection()
     configured_mode = str(selection.get("mode", "auto")).lower()
-    if configured_mode in {"auto", "base", "small", "medium"}:
-        if configured_mode == "auto":
-            vram_total_mb = float(selection.get("vram_total_mb", 0.0) or 0.0)
-            safe_print(
-                f"[whisper-smart] Auto mode enabled: VRAM={vram_total_mb / 1024.0:.2f}GB -> "
-                f"{str(selection.get('active_model', 'base')).lower()}"
-            )
-        else:
-            safe_print(f"[whisper-smart] Manual model override: {configured_mode}")
-
-        rc, text, err, model_used = _run_fixed_model_transcription(filename, bin_path)
-        total_time = time.time() - start_time
-        return rc, text, err, model_used, total_time
+    safe_print(f"[whisper-smart] Single model route: faster-whisper turbo (requested={configured_mode})")
+    rc, text, err, model_used = _run_fixed_model_transcription(filename, bin_path)
+    total_time = time.time() - start_time
+    return rc, text, err, model_used, total_time
     
     # Check GPU load status
     gpu_load_status = gpu_monitor.get_load_status_text()
@@ -4938,16 +4954,17 @@ def run_whisper_main_loop():
 
     startup_diagnostics()
     
-    # Only start GPU features if a CUDA-capable GPU was detected at startup.
+    threading.Thread(target=cuda_warmup, daemon=True).start()
+
+    # Only start GPU monitoring if a CUDA-capable GPU was detected at startup.
     # GPU monitoring polls nvidia-smi (now every 10s instead of 2s to reduce fan noise).
     if GPU_AVAILABLE:
-        safe_print("[startup] GPU detected — enabling GPU monitoring and CUDA warmup")
+        safe_print("[startup] GPU detected — enabling GPU monitoring and turbo preload")
         gpu_monitor.start_monitoring()
-        threading.Thread(target=cuda_warmup, daemon=True).start()
         # Pause polling after initial detection — resume only during transcription
         gpu_monitor.pause_monitoring()
     else:
-        safe_print("[startup] No GPU detected — running in CPU-only mode")
+        safe_print("[startup] No GPU detected — preloading turbo on CPU")
     
     try:
         device_lines = devices_summary_text()
@@ -4962,27 +4979,17 @@ def run_whisper_main_loop():
         if GPU_AVAILABLE and is_nvidia:
             gpu_status = gpu_monitor.get_load_status_text()
             safe_print(f"✅ GPU acceleration: ENABLED - {gpu_status}")
-            safe_print(f"✅ Dynamic model selection (load-aware):")
-            safe_print(f"   • GPU idle/low load:")
-            safe_print(f"     - <{WORD_THRESHOLD_BASE} words → base.en (fastest)")
-            safe_print(f"     - {WORD_THRESHOLD_BASE}-{WORD_THRESHOLD_MEDIUM} words → medium.en")
-            safe_print(f"     - {WORD_THRESHOLD_MEDIUM}+ words → large-v3 (best quality)")
-            safe_print(f"   • GPU busy (70%+ load): Skip large-v3, use base/medium only")
-            safe_print(f"   • GPU critical (85%+ load): Base.en only for speed")
-            safe_print("🔥 CUDA warmup running in background...")
+            safe_print("✅ Transcription model: faster-whisper turbo")
+            safe_print("🔥 Turbo preload running in background...")
             safe_print("📊 GPU load monitoring: ACTIVE")
         elif GPU_AVAILABLE and not is_nvidia:
             safe_print(f"✅ Non-NVIDIA GPU detected: {gpu_vendor.upper()}")
-            safe_print(f"✅ Smart model selection (compatibility-optimized):")
-            safe_print(f"   • <50 words → base.en (fast)")
-            safe_print(f"   • 50+ words → medium.en (balanced)")
-            safe_print(f"   • Large-v3 disabled (poor non-NVIDIA compatibility)")
+            safe_print("✅ Transcription model: faster-whisper turbo")
+            safe_print("🔥 Turbo preload running in background...")
         else:
-            safe_print("✅ Running in CPU mode (speed-optimized)")
-            safe_print(f"✅ Smart model selection (CPU-optimized):")
-            safe_print(f"   • <50 words → base.en (fast)")
-            safe_print(f"   • 50+ words → medium.en (balanced)")
-            safe_print(f"   • Large-v3 disabled for performance")
+            safe_print("✅ Running in CPU mode")
+            safe_print("✅ Transcription model: faster-whisper turbo")
+            safe_print("🔥 Turbo preload running in background...")
         
         safe_print(f"✅ Whisper binary: {resolved_whisper_bin}")
         safe_print("=" * 60)
