@@ -59,9 +59,20 @@ async function kvRequest(method, path, body) {
   return response.json();
 }
 
+function parseKvValue(raw) {
+  // kvSet stores values via JSON.stringify, and Upstash returns them as raw
+  // strings — without parsing, object fields like `active` read as undefined.
+  if (typeof raw !== 'string') return raw;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return raw;
+  }
+}
+
 async function kvGet(key) {
   const body = await kvRequest('GET', `/get/${encodeURIComponent(key)}`);
-  return body.result ?? null;
+  return parseKvValue(body.result ?? null);
 }
 
 async function kvSet(key, value) {
