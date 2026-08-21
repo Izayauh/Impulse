@@ -114,10 +114,10 @@ for exe, dest in exe_files:
 
 # Data files to bundle
 datas = [
-    # Models directory with all model files
+    # Offline fallback model only. faster-whisper "turbo" (the primary engine)
+    # downloads on first run; base.en keeps whisper.cpp fallback dictation
+    # working with no network. Medium/large GGML models are no longer bundled.
     (os.path.join(ROOT_DIR, 'runtime', 'models', 'ggml-base.en.bin'), 'models'),
-    (os.path.join(ROOT_DIR, 'runtime', 'models', 'ggml-medium.en.bin'), 'models'),
-    (os.path.join(ROOT_DIR, 'runtime', 'models', 'ggml-large-v3.bin'), 'models'),
     # Application icon
     (os.path.join(ROOT_DIR, 'src', 'whisper_local', 'Whisper.ico'), '.'),
     # Include package static assets

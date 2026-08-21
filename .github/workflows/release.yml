@@ -149,10 +149,10 @@ jobs:
           # Create models directory
           New-Item -ItemType Directory -Path "runtime\models" -Force | Out-Null
           
+          # Only the small offline-fallback model is bundled. The primary
+          # faster-whisper "turbo" model downloads on first run.
           $models = @{
             "ggml-base.en.bin" = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin"
-            "ggml-medium.en.bin" = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-medium.en.bin"
-            "ggml-large-v3.bin" = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3.bin"
           }
           
           foreach ($model in $models.GetEnumerator()) {
@@ -183,9 +183,7 @@ jobs:
             "runtime\bin\ggml-cpu.dll",
             "runtime\bin\ggml.dll",
             "runtime\bin\whisper.dll",
-            "runtime\models\ggml-base.en.bin",
-            "runtime\models\ggml-medium.en.bin",
-            "runtime\models\ggml-large-v3.bin"
+            "runtime\models\ggml-base.en.bin"
           )
 
           foreach ($path in $requiredFiles) {
