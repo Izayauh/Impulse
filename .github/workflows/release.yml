@@ -181,7 +181,6 @@ jobs:
           $requiredFiles = @(
             "runtime\bin\whisper-cli.exe",
             "runtime\bin\ggml-base.dll",
-            "runtime\bin\ggml-cpu.dll",
             "runtime\bin\ggml.dll",
             "runtime\bin\whisper.dll",
             "runtime\models\ggml-base.en.bin"
@@ -193,6 +192,15 @@ jobs:
               exit 1
             }
           }
+
+          # Modern whisper.cpp ships per-arch CPU DLLs (ggml-cpu-*.dll) instead
+          # of a single ggml-cpu.dll; require at least one CPU variant.
+          $cpuDlls = Get-ChildItem "runtime\bin" -Filter "ggml-cpu*.dll"
+          if (-not $cpuDlls) {
+            Write-Error "No ggml-cpu*.dll found in runtime\bin"
+            exit 1
+          }
+          Write-Host "CPU DLL variants: $($cpuDlls.Count)"
 
           Write-Host "Runtime asset validation passed."
 

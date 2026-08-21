@@ -69,13 +69,14 @@ hidden_imports += collect_submodules('PIL')
 hidden_imports += collect_submodules('faster_whisper')
 hidden_imports += collect_submodules('ctranslate2')
 
-# DLLs to bundle (whisper.cpp dependencies)
+# DLLs to bundle (whisper.cpp dependencies). Modern whisper.cpp releases
+# ship per-CPU-arch variants (ggml-cpu-haswell.dll etc.) instead of one
+# ggml-cpu.dll, so glob the whole family rather than naming files.
+import glob as _glob
 dll_files = [
-    (os.path.join('runtime', 'bin', 'ggml-base.dll'), '.'),
-    (os.path.join('runtime', 'bin', 'ggml-cpu.dll'), '.'),
-    (os.path.join('runtime', 'bin', 'ggml-cuda.dll'), '.'),
-    (os.path.join('runtime', 'bin', 'ggml.dll'), '.'),
-    (os.path.join('runtime', 'bin', 'whisper.dll'), '.'),
+    (os.path.relpath(p, ROOT_DIR), '.')
+    for pattern in ('ggml*.dll', 'whisper.dll')
+    for p in sorted(_glob.glob(os.path.join(ROOT_DIR, 'runtime', 'bin', pattern)))
 ]
 
 # Executables to bundle
