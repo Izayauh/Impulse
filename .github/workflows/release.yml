@@ -37,7 +37,11 @@ jobs:
   build:
     name: Build Installer
     runs-on: windows-latest
-    
+    env:
+      # secrets context is not allowed in step-level `if:` expressions;
+      # hoist it here so steps can gate on env.BOOTSTRAP_BASE_URL instead.
+      BOOTSTRAP_BASE_URL: ${{ secrets.WHISPER_BOOTSTRAP_BASE_URL }}
+
     steps:
       # ========================================
       # Checkout and Setup
@@ -267,7 +271,7 @@ jobs:
         id: installer
 
       - name: Generate bootstrap payload manifest
-        if: ${{ secrets.WHISPER_BOOTSTRAP_BASE_URL != '' }}
+        if: ${{ env.BOOTSTRAP_BASE_URL != '' }}
         shell: pwsh
         env:
           WHISPER_BOOTSTRAP_BASE_URL: ${{ secrets.WHISPER_BOOTSTRAP_BASE_URL }}
@@ -277,7 +281,7 @@ jobs:
             -Version "${{ steps.version.outputs.VERSION_NUMBER }}"
 
       - name: Build bootstrap installer with Inno Setup
-        if: ${{ secrets.WHISPER_BOOTSTRAP_BASE_URL != '' }}
+        if: ${{ env.BOOTSTRAP_BASE_URL != '' }}
         shell: pwsh
         run: |
           Write-Host "Building bootstrap installer with Inno Setup..."
@@ -315,7 +319,7 @@ jobs:
         id: checksum
 
       - name: Calculate bootstrap checksum
-        if: ${{ secrets.WHISPER_BOOTSTRAP_BASE_URL != '' }}
+        if: ${{ env.BOOTSTRAP_BASE_URL != '' }}
         shell: pwsh
         run: |
           $installer = Get-ChildItem -Path "dist" -Filter "WhisperLocal-Bootstrap-Setup-*.exe" |
@@ -335,7 +339,7 @@ jobs:
       # Create Release
       # ========================================
       - name: Create Release
-        if: ${{ secrets.WHISPER_BOOTSTRAP_BASE_URL == '' }}
+        if: ${{ env.BOOTSTRAP_BASE_URL == '' }}
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.version.outputs.VERSION }}
@@ -380,7 +384,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Create Release With Bootstrap Installer
-        if: ${{ secrets.WHISPER_BOOTSTRAP_BASE_URL != '' }}
+        if: ${{ env.BOOTSTRAP_BASE_URL != '' }}
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.version.outputs.VERSION }}
