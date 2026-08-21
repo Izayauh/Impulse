@@ -405,6 +405,9 @@ class AppApi:
         return self.settings.get_all()
 
     def update_user_setting(self, key: str, value: Any) -> Dict[str, Any]:
+        normalized_key = str(key or "").strip().lower()
+        if normalized_key in {"model", "model_mode", "whisper_model"}:
+            return self.set_model_mode(str(value or "auto"))
         return self.settings.update(key, value)
 
     def get_vocabulary(self) -> List[str]:

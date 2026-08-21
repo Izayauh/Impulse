@@ -27,6 +27,7 @@ deepmultilingualpunctuation==1.0.1
 language-tool-python==2.8.1
 ollama==0.4.7
 psutil==5.9.8
+faster-whisper==1.2.1
 
 # Optional: Windows notifications (graceful fallback if unavailable)
 winotify==1.1.0

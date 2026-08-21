@@ -16,7 +16,7 @@ const allAchievements = [
   { id: 11, name: 'Vocabulary King', description: 'Use 500 unique words', icon: Star, rarity: 'rare', xp: 150, unlocked: false, progress: 67, color: 'teal' },
   { id: 12, name: 'Ironman', description: '100K total words', icon: Trophy, rarity: 'legendary', xp: 1000, unlocked: false, progress: 55, color: 'amber' },
   { id: 13, name: 'Quick Draw', description: 'First dictation under 5 seconds', icon: Zap, rarity: 'common', xp: 15, unlocked: true, color: 'cyan' },
-  { id: 14, name: 'Explorer', description: 'Try all 4 models', icon: Target, rarity: 'uncommon', xp: 50, unlocked: false, progress: 50, color: 'violet' },
+  { id: 14, name: 'Quick Start', description: 'First turbo dictation', icon: Target, rarity: 'uncommon', xp: 50, unlocked: false, progress: 50, color: 'violet' },
 ];
 
 const colorMap: Record<string, { bg: string; text: string; glow: string; border: string }> = {

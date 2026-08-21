@@ -220,6 +220,31 @@ class TestWhisperRuntimeArgs(unittest.TestCase):
         cmd = mock_run.call_args_list[0][0][0]
         self.assertIn("-ngl", cmd)
 
+    @patch("whisper_local.flow_local_dictation.subprocess.run")
+    @patch("whisper_local.flow_local_dictation._resolve_whisper_exe")
+    @patch("whisper_local.flow_local_dictation.sf.info")
+    def test_run_whisper_fast_profile_uses_single_beam(self, mock_sf_info, mock_resolve_exe, mock_run):
+        """Fast profile should favor minimum decode latency."""
+        from whisper_local.flow_local_dictation import run_whisper
+
+        mock_sf_info.return_value = Mock(samplerate=16000, frames=16000)
+        mock_resolve_exe.return_value = "whisper-cli.exe"
+        mock_run.return_value = subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr="")
+
+        run_whisper("dummy.wav", "whisper-cli.exe", model_path="dummy-model.bin", speed_profile="fast")
+
+        cmd = mock_run.call_args_list[0][0][0]
+        self.assertEqual(cmd[cmd.index("-bs") + 1], "1")
+        self.assertNotIn("-bo", cmd)
+
+    def test_faster_whisper_model_name_maps_turbo(self):
+        from whisper_local.flow_local_dictation import _faster_whisper_model_name
+
+        self.assertEqual(_faster_whisper_model_name("turbo"), "turbo")
+        self.assertEqual(_faster_whisper_model_name("large-v3-turbo"), "turbo")
+        self.assertEqual(_faster_whisper_model_name("large"), "turbo")
+        self.assertEqual(_faster_whisper_model_name("base"), "turbo")
+
 
 class TestInputValidation(unittest.TestCase):
     """Tests for input validation constants."""
