@@ -85,20 +85,17 @@ jobs:
       - name: Install Inno Setup
         shell: pwsh
         run: |
-          # Download Inno Setup
-          $url = "https://jrsoftware.org/download.php/is.exe"
-          $output = "$env:TEMP\innosetup.exe"
-          
-          Write-Host "Downloading Inno Setup..."
-          Invoke-WebRequest -Uri $url -OutFile $output -UseBasicParsing
-          
-          Write-Host "Installing Inno Setup silently..."
-          Start-Process -FilePath $output -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART" -Wait
-          
-          # Add to PATH
+          # jrsoftware.org's download.php serves a redirect page that corrupts
+          # direct downloads on runners; use Chocolatey (preinstalled) instead.
+          choco install innosetup -y --no-progress
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+
           $innoPath = "C:\Program Files (x86)\Inno Setup 6"
+          if (-not (Test-Path (Join-Path $innoPath "ISCC.exe"))) {
+            Write-Error "ISCC.exe not found at $innoPath after install"
+            exit 1
+          }
           echo "$innoPath" >> $env:GITHUB_PATH
-          
           Write-Host "Inno Setup installed at: $innoPath"
 
       # ========================================
