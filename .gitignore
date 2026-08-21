@@ -65,3 +65,4 @@ pytest_out*.txt
 
 # Auto-generated build config (contains baked secrets)
 src/whisper_local/_build_config.py
+ui-ux-pro-max-skill/
