@@ -167,7 +167,7 @@ class TestDashboardRealtimeRefreshPath(unittest.TestCase):
                     saved = f.read()
                 self.assertIn('"daily_100"', saved)
 
-    def test_dashboard_model_mode_manual_and_auto_switch(self):
+    def test_dashboard_model_mode_always_uses_turbo(self):
         import whisper_local.ui.gui_host as gui_host
 
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -184,15 +184,17 @@ class TestDashboardRealtimeRefreshPath(unittest.TestCase):
             ), patch.object(gui_host, "gpu_monitor", MagicMock(get_gpu_info=MagicMock(return_value=high_vram_info))):
                 api = gui_host.DashboardAPI()
 
-                manual = api.set_model_mode("medium")
-                self.assertEqual(manual["mode"], "medium")
-                self.assertEqual(manual["activeModel"], "medium")
-                self.assertFalse(manual["autoSwitched"])
+                for requested in ("medium", "fast", "turbo", "base", "auto"):
+                    payload = api.set_model_mode(requested)
+                    self.assertEqual(payload["mode"], "turbo")
+                    self.assertEqual(payload["manualModel"], "turbo")
+                    self.assertEqual(payload["activeModel"], "turbo")
+                    self.assertEqual(payload["engine"], "faster-whisper")
+                    self.assertEqual(payload["profile"], "turbo")
 
-                auto = api.set_model_mode("auto")
-                self.assertEqual(auto["mode"], "auto")
-                self.assertEqual(auto["activeModel"], "large")
-                self.assertTrue(auto["autoSwitched"])
+                legacy = api.update_user_setting("whisper_model", "base")
+                self.assertEqual(legacy["mode"], "turbo")
+                self.assertEqual(legacy["activeModel"], "turbo")
 
     def test_dashboard_vocabulary_add_word_persists(self):
         import whisper_local.ui.gui_host as gui_host

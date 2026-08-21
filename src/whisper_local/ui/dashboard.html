@@ -210,7 +210,7 @@
       return series.reduce((total, day) => total + (Number(day.words) || 0), 0);
     };
     const modelLabel = (m) => {
-      const map = { auto: 'Auto', base: 'Base', small: 'Small', medium: 'Medium', large: 'Large' };
+      const map = { auto: 'Auto', turbo: 'Turbo', fast: 'Fast', base: 'Base', small: 'Small', medium: 'Medium', large: 'Large' };
       return map[String(m || '').toLowerCase()] || 'Base';
     };
     const hotkeyPartLabel = (part) => {
@@ -761,8 +761,10 @@
       }
       if (settingsTab === 'models') {
         const rows = [
-          { id: 'auto', title: 'Auto', desc: 'Use VRAM-aware selection: Large when VRAM > 8GB, otherwise Base.' },
-          { id: 'base', title: 'Base', desc: 'Fastest turnaround.' },
+          { id: 'auto', title: 'Auto', desc: 'Use faster Whisper Turbo.' },
+          { id: 'turbo', title: 'Turbo', desc: 'Faster Whisper large-v3-turbo.' },
+          { id: 'fast', title: 'Fast', desc: 'Turbo with lowest-latency decoding.' },
+          { id: 'base', title: 'Base', desc: 'Legacy whisper.cpp fallback.' },
           { id: 'small', title: 'Small', desc: 'Higher accuracy at medium cost.' },
           { id: 'medium', title: 'Medium', desc: 'Best quality for complex dictation.' }
         ];

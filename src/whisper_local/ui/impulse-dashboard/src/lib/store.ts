@@ -66,9 +66,13 @@ interface AppState {
     isReady: boolean;
     activePage: PageId;
     settings: AppSettings;
+    modelLoading: string | null;
+    modelLoaded: string | null;
+    modelLoadError: string | null;
     toast: ToastState;
     setActivePage: (page: PageId) => void;
     updateSettings: (partial: Partial<AppSettings>) => void;
+    setModelMode: (model: string) => Promise<void>;
     showToast: (message: string) => void;
     copyToClipboard: (text: string) => Promise<boolean>;
     addSnippet: (trigger: string, replacement: string) => Promise<void>;
@@ -92,6 +96,10 @@ const getPyWebViewApi = (): any | null => {
     }
 };
 
+const getModelBridge = (api: any): any | null => {
+    return api?.set_model_mode ? api : (api?.transcription?.set_model_mode ? api.transcription : null);
+};
+
 export const useAppStore = create<AppState>((set, get) => ({
     stats: null,
     achievements: [],
@@ -100,17 +108,24 @@ export const useAppStore = create<AppState>((set, get) => ({
     isReady: false,
     activePage: 'home',
     settings: {
-        model: 'base',
+        model: 'turbo',
         vadSensitivity: 65,
         silenceTimeout: 700,
         commandMode: true,
         autoCopy: true,
     },
+    modelLoading: null,
+    modelLoaded: null,
+    modelLoadError: null,
     toast: { message: '', visible: false },
 
     setActivePage: (page) => set({ activePage: page }),
 
     updateSettings: (partial) => {
+        if (typeof partial.model === 'string') {
+            get().setModelMode('turbo');
+            return;
+        }
         set((state) => ({
             settings: { ...state.settings, ...partial }
         }));
@@ -120,11 +135,72 @@ export const useAppStore = create<AppState>((set, get) => ({
         if (api) {
             for (const [key, value] of Object.entries(partial)) {
                 try {
-                    api.update_user_setting(key, value);
+                    const modelBridge = getModelBridge(api);
+                    if (key === 'model' && typeof value === 'string' && modelBridge) {
+                        modelBridge.set_model_mode(value).then((payload: any) => {
+                            if (payload?.mode) {
+                                set((state) => ({
+                                    settings: { ...state.settings, model: payload.mode }
+                                }));
+                            }
+                        }).catch((e: unknown) => {
+                            console.warn('Failed to sync model mode:', e);
+                        });
+                    } else if (api.update_user_setting) {
+                        api.update_user_setting(key, value);
+                    }
                 } catch (e) {
                     console.warn(`Failed to sync setting ${key}:`, e);
                 }
             }
+        }
+    },
+
+    setModelMode: async (_model) => {
+        const model = 'turbo';
+        set((state) => ({
+            settings: { ...state.settings, model },
+            modelLoading: model,
+            modelLoadError: null,
+        }));
+
+        const api = getPyWebViewApi();
+        const modelBridge = api ? getModelBridge(api) : null;
+        try {
+            if (modelBridge?.load_model) {
+                const queued = await modelBridge.load_model(model);
+                if (queued?.status === 'error') {
+                    throw new Error(queued.message || 'Model load failed');
+                }
+                if (modelBridge.get_loading_status) {
+                    for (let i = 0; i < 240; i++) {
+                        const status = await modelBridge.get_loading_status();
+                        if (!status?.isLoading) break;
+                        await new Promise(resolve => setTimeout(resolve, 250));
+                    }
+                }
+                if (modelBridge.get_model_mode) {
+                    const payload = await modelBridge.get_model_mode();
+                    if (payload?.mode) {
+                        set((state) => ({ settings: { ...state.settings, model: payload.mode } }));
+                    }
+                }
+            } else if (modelBridge?.set_model_mode) {
+                const payload = await modelBridge.set_model_mode(model);
+                if (payload?.mode) {
+                    set((state) => ({ settings: { ...state.settings, model: payload.mode } }));
+                }
+            }
+            set({ modelLoaded: 'turbo', modelLoadError: null });
+            get().showToast('Turbo model loaded');
+        } catch (e) {
+            const message = e instanceof Error ? e.message : 'Model load failed';
+            set({ modelLoadError: message });
+            get().showToast(message);
+        } finally {
+            set((state) => ({
+                modelLoading: state.modelLoading === model ? null : state.modelLoading,
+            }));
         }
     },
 
@@ -334,15 +410,24 @@ export const useAppStore = create<AppState>((set, get) => ({
             try {
                 const api = getPyWebViewApi();
                 if (api?.get_user_settings) {
-                    const settings = await api.get_user_settings();
+                    const result = await api.get_user_settings();
+                    const settings = result?.settings || result;
                     if (settings) {
                         set((state) => ({
                             settings: {
                                 ...state.settings,
-                                model: settings.model_mode || settings.model || state.settings.model,
                                 commandMode: settings.command_mode ?? settings.commandMode ?? state.settings.commandMode,
                                 autoCopy: settings.auto_copy ?? settings.autoCopy ?? state.settings.autoCopy,
                             }
+                        }));
+                    }
+                }
+                const modelBridge = getModelBridge(api);
+                if (modelBridge?.get_model_mode) {
+                    const modelPayload = await modelBridge.get_model_mode();
+                    if (modelPayload?.mode) {
+                        set((state) => ({
+                            settings: { ...state.settings, model: modelPayload.mode }
                         }));
                     }
                 }

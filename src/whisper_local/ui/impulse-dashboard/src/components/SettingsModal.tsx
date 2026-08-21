@@ -11,7 +11,7 @@ interface SettingsModalProps {
 const tabs = [
   { id: 'general', label: 'General', icon: Layout },
   { id: 'audio', label: 'Audio', icon: Volume2 },
-  { id: 'models', label: 'Models', icon: Cpu },
+  { id: 'models', label: 'Model', icon: Cpu },
   { id: 'data', label: 'Data', icon: Database },
   { id: 'license', label: 'License', icon: FileKey },
 ];
@@ -19,6 +19,10 @@ const tabs = [
 export const SettingsModal = ({ isOpen, onClose }: SettingsModalProps) => {
   const settings = useAppStore(state => state.settings);
   const updateSettings = useAppStore(state => state.updateSettings);
+  const setModelMode = useAppStore(state => state.setModelMode);
+  const modelLoading = useAppStore(state => state.modelLoading);
+  const modelLoaded = useAppStore(state => state.modelLoaded);
+  const modelLoadError = useAppStore(state => state.modelLoadError);
   const [localTab, setLocalTab] = useState('general');
 
   if (!isOpen) return null;
@@ -170,29 +174,27 @@ export const SettingsModal = ({ isOpen, onClose }: SettingsModalProps) => {
             
             {localTab === 'models' && (
               <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-300">
-                <h3 className="text-2xl font-display font-semibold mb-6">Transcription Models</h3>
-                <div className="grid grid-cols-2 gap-4">
-                  {[
-                    { id: 'auto', title: 'Auto', desc: 'VRAM-aware selection' },
-                    { id: 'base', title: 'Base', desc: 'Fastest turnaround.' },
-                    { id: 'small', title: 'Small', desc: 'Higher accuracy.' },
-                    { id: 'medium', title: 'Medium', desc: 'Best for complex dictations.' }
-                  ].map(model => (
-                    <button
-                      key={model.id}
-                      onClick={() => updateSettings({ model: model.id })}
-                      className={cn(
-                        "p-5 rounded-xl border cursor-pointer transition-all text-left focus-visible:ring-2 focus-visible:ring-pink-500/50 focus-visible:outline-none",
-                        settings.model === model.id
-                          ? "bg-pink-500/10 border-pink-500/30 shadow-[0_0_15px_rgba(236,72,153,0.15)]"
-                          : "bg-white/[0.02] border-white/[0.08] hover:border-white/20"
-                      )}
-                    >
-                      <h4 className="font-bold mb-1 text-white">{model.title}</h4>
-                      <p className="text-sm text-white/50">{model.desc}</p>
-                    </button>
-                  ))}
-                </div>
+                <h3 className="text-2xl font-display font-semibold mb-6">Transcription Model</h3>
+                <button
+                  onClick={() => setModelMode('turbo')}
+                  disabled={modelLoading !== null}
+                  className={cn(
+                    "w-full p-5 rounded-xl border cursor-pointer transition-all text-left focus-visible:ring-2 focus-visible:ring-pink-500/50 focus-visible:outline-none disabled:cursor-wait disabled:opacity-70",
+                    "bg-pink-500/10 border-pink-500/30 shadow-[0_0_15px_rgba(236,72,153,0.15)]"
+                  )}
+                >
+                  <div className="flex items-center justify-between gap-3 mb-1">
+                    <h4 className="font-bold text-white">Turbo</h4>
+                    {modelLoading === 'turbo' && <span className="text-xs text-cyan-300">Loading</span>}
+                    {!modelLoading && (modelLoaded === 'turbo' || settings.model === 'turbo') && (
+                      <span className="text-xs text-emerald-300">Active</span>
+                    )}
+                  </div>
+                  <p className="text-sm text-white/50">Faster Whisper Turbo is used for every transcription.</p>
+                  {modelLoadError && (
+                    <p className="text-xs text-red-300 mt-3">{modelLoadError}</p>
+                  )}
+                </button>
               </div>
             )}
             
@@ -271,5 +273,3 @@ export const SettingsModal = ({ isOpen, onClose }: SettingsModalProps) => {
     </div>
   );
 };
-
-

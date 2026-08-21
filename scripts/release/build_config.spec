@@ -6,7 +6,7 @@ Bundles the dictation system with all dependencies, DLLs, and models.
 
 import os
 import sys
-from PyInstaller.utils.hooks import collect_data_files, collect_submodules
+from PyInstaller.utils.hooks import collect_data_files, collect_dynamic_libs, collect_submodules
 
 # Get the directory where this spec file is located
 SPEC_DIR = os.path.dirname(os.path.abspath(SPEC))
@@ -66,6 +66,8 @@ hidden_imports += collect_submodules('sounddevice')
 hidden_imports += collect_submodules('soundfile')
 hidden_imports += collect_submodules('pystray')
 hidden_imports += collect_submodules('PIL')
+hidden_imports += collect_submodules('faster_whisper')
+hidden_imports += collect_submodules('ctranslate2')
 
 # DLLs to bundle (whisper.cpp dependencies)
 dll_files = [
@@ -83,6 +85,19 @@ exe_files = [
 
 # Build binaries list - filter to only existing files
 binaries = []
+
+def _safe_collect_dynamic_libs(package_name):
+    try:
+        return collect_dynamic_libs(package_name)
+    except Exception as exc:
+        print(f"Warning: dynamic libs not collected for {package_name}: {exc}")
+        return []
+
+binaries += _safe_collect_dynamic_libs('ctranslate2')
+binaries += _safe_collect_dynamic_libs('nvidia.cublas')
+binaries += _safe_collect_dynamic_libs('nvidia.cuda_nvrtc')
+binaries += _safe_collect_dynamic_libs('nvidia.cudnn')
+
 for dll, dest in dll_files:
     dll_path = os.path.join(ROOT_DIR, dll)
     if os.path.exists(dll_path):
