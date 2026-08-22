@@ -202,6 +202,29 @@ class TestDashboardRealtimeRefreshPath(unittest.TestCase):
                 self.assertEqual(payload["activeModel"], "base")
                 self.assertEqual(payload["profile"], "base")
 
+    def test_vram_reports_zero_when_cuda_unusable(self):
+        """A card whose CUDA path is dead must not attract the heavy model.
+
+        Reporting raw VRAM here pinned turbo onto machines that then ran it
+        on CPU - the slowest possible configuration.
+        """
+        import whisper_local.ui.gui_host as gui_host
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            gpu_info = type("GpuInfo", (), {"memory_total_mb": 8192.0})()
+            with patch.object(gui_host, "get_user_data_dir", return_value=tmp_dir), patch.object(
+                gui_host, "get_app_dir", return_value=tmp_dir
+            ), patch.object(
+                gui_host, "gpu_monitor", MagicMock(get_gpu_info=MagicMock(return_value=gpu_info))
+            ):
+                api = gui_host.DashboardAPI()
+
+                with patch("whisper_local.faster_whisper_backend.gpu_is_usable", return_value=False):
+                    self.assertEqual(api._get_vram_total_mb(), 0.0)
+
+                with patch("whisper_local.faster_whisper_backend.gpu_is_usable", return_value=True):
+                    self.assertEqual(api._get_vram_total_mb(), 8192.0)
+
     def test_dashboard_model_mode_auto_picks_base_without_gpu(self):
         import whisper_local.ui.gui_host as gui_host
 

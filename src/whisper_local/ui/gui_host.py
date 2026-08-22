@@ -183,9 +183,14 @@ class AppApi:
     # -- VRAM helper -------------------------------------------------------
 
     def _get_vram_total_mb(self) -> float:
+        """VRAM the transcription engine can actually use (0 if CUDA is unusable)."""
         if gpu_monitor is None:
             return 0.0
         try:
+            from whisper_local.faster_whisper_backend import gpu_is_usable
+
+            if not gpu_is_usable():
+                return 0.0
             info = gpu_monitor.get_gpu_info()
             if info is None:
                 return 0.0

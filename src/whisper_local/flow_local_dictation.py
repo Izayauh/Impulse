@@ -66,6 +66,7 @@ from whisper_local.model_selection import (
 from whisper_local.faster_whisper_backend import (
     model_name_for_mode as _faster_whisper_model_name,
     preload_model_with_fallback as _faster_whisper_preload_model_with_fallback,
+    gpu_is_usable as _faster_whisper_gpu_is_usable,
     runtime_for_gpu as _faster_whisper_runtime_for_gpu,
     transcribe_with_fallback as _faster_whisper_transcribe_with_fallback,
 )
@@ -4135,7 +4136,14 @@ def run_whisper(filename, bin_path, model_path=None, speed_profile="standard"):
 
 
 def _current_vram_total_mb() -> float:
+    """VRAM the transcription engine can actually use, in MB.
+
+    Reports 0 when the CUDA path is unusable so auto selection cannot pin a
+    GPU-class model to a machine that would end up running it on CPU.
+    """
     try:
+        if not _faster_whisper_gpu_is_usable():
+            return 0.0
         info = gpu_monitor.get_gpu_info()
         if info is None:
             return 0.0

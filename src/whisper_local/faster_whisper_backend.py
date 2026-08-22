@@ -5,6 +5,7 @@ from __future__ import annotations
 import ctypes
 import os
 import site
+import sys
 import threading
 from typing import Dict, List, Tuple
 
@@ -33,14 +34,37 @@ def runtime_for_gpu(has_gpu: bool) -> Tuple[str, str]:
     return "cpu", "int8"
 
 
+def gpu_is_usable() -> bool:
+    """Public capability probe for model selection.
+
+    Model choice must follow what the machine can actually accelerate, not
+    what a VRAM reading suggests: picking the heavy model on a card whose
+    CUDA path is unusable is the slowest possible outcome.
+    """
+    return _cuda_runtime_available()
+
+
 def _cuda_runtime_available() -> bool:
-    if os.name != "nt":
-        return True
-    _configure_cuda_dll_paths()
+    """Report whether CTranslate2 can actually run on the GPU here.
+
+    A VRAM reading only proves a card exists. The authority on whether the
+    CUDA path works is CTranslate2 itself, so preload the DLLs best-effort
+    (helps it find them) and then ask it. Hardcoded DLL versions used to
+    decide this, which silently forced CPU whenever the CUDA major version
+    moved (e.g. cublas64_12 -> _13) and left heavy models running on CPU.
+    """
+    if os.name == "nt":
+        _configure_cuda_dll_paths()
+        try:
+            _preload_cuda_dlls()
+        except OSError:
+            pass  # advisory only; CTranslate2 may still resolve them itself
+
     try:
-        _preload_cuda_dlls()
-        return True
-    except OSError:
+        import ctranslate2
+
+        return ctranslate2.get_cuda_device_count() > 0
+    except Exception:
         return False
 
 
@@ -82,40 +106,41 @@ def _configure_cuda_dll_paths() -> None:
             pass
 
 
-def _find_cuda_dll(name: str) -> str | None:
+def _find_cuda_dlls(pattern: str) -> List[str]:
+    """Find CUDA DLLs by glob across nvidia wheels and the frozen bundle."""
+    import glob
+
+    search_dirs = []
     for base in _candidate_site_package_dirs():
         nvidia_dir = os.path.join(base, "nvidia")
         for package_name in ("cudnn", "cublas", "cuda_nvrtc"):
-            candidate = os.path.join(nvidia_dir, package_name, "bin", name)
-            if os.path.isfile(candidate):
-                return candidate
-    return None
+            search_dirs.append(os.path.join(nvidia_dir, package_name, "bin"))
+    # PyInstaller lays bundled DLLs beside the executable's _internal dir.
+    search_dirs.append(os.path.dirname(os.path.abspath(__file__)))
+    if getattr(sys, "frozen", False):
+        search_dirs.append(getattr(sys, "_MEIPASS", ""))
+
+    found = []
+    for directory in search_dirs:
+        if directory and os.path.isdir(directory):
+            found.extend(glob.glob(os.path.join(directory, pattern)))
+    return found
 
 
 def _preload_cuda_dlls() -> None:
     if _CUDA_DLL_HANDLES:
         return
 
-    names = (
-        "cublas64_12.dll",
-        "cublasLt64_12.dll",
-        "cudnn64_9.dll",
-        "cudnn_adv64_9.dll",
-        "cudnn_cnn64_9.dll",
-        "cudnn_engines_precompiled64_9.dll",
-        "cudnn_engines_runtime_compiled64_9.dll",
-        "cudnn_graph64_9.dll",
-        "cudnn_heuristic64_9.dll",
-        "cudnn_ops64_9.dll",
-    )
+    # Discover by pattern, not by pinned version: CUDA/cuDNN majors move
+    # (cublas64_12 -> _13, cudnn64_9 -> ...) and a stale literal name here
+    # silently demotes GPU machines to CPU.
     loaded = []
-    try:
-        for name in names:
-            path = _find_cuda_dll(name) or name
-            loaded.append(ctypes.WinDLL(path))
-    except OSError:
-        loaded.clear()
-        raise
+    for pattern in ("cublas64_*.dll", "cublasLt64_*.dll", "cudnn*64_*.dll"):
+        for path in _find_cuda_dlls(pattern):
+            try:
+                loaded.append(ctypes.WinDLL(path))
+            except OSError:
+                pass
     _CUDA_DLL_HANDLES.extend(loaded)
 
 
