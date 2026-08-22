@@ -20,15 +20,17 @@ $log  = Join-Path $work 'report.txt'
 function Step($msg) {
   $line = "[{0}] {1}" -f (Get-Date -Format 'HH:mm:ss'), $msg
   Write-Host $line -ForegroundColor Cyan
-  Add-Content -Path $log -Value $line
+  Add-Content -Path $log -Value $line -Encoding UTF8
 }
 
 try {
   # --- 0. Find the newest release (prereleases included) --------------------
   $rel = $null
   try {
-    $rel = @(Invoke-RestMethod 'https://api.github.com/repos/Izayauh/Impulse/releases?per_page=5' `
-             -Headers @{ 'User-Agent' = 'impulse-qa' } -TimeoutSec 30)[0]
+    # Pipe to Select-Object: Windows PowerShell 5.1 returns the whole JSON
+    # array as ONE object, so @(...)[0] yields the array, not the first item.
+    $rel = Invoke-RestMethod 'https://api.github.com/repos/Izayauh/Impulse/releases?per_page=5' `
+             -Headers @{ 'User-Agent' = 'impulse-qa' } -TimeoutSec 30 | Select-Object -First 1
   } catch {
     Step "Releases API failed ($($_.Exception.Message)); falling back to /releases/latest"
     $rel = Invoke-RestMethod 'https://api.github.com/repos/Izayauh/Impulse/releases/latest' `
@@ -68,9 +70,18 @@ try {
   }
 
   # --- 3. Silent install ------------------------------------------------------
+  # A previous test run may have left the app running; the installer cannot
+  # overwrite files that are in use (exit code 5).
+  $running = Get-Process -Name 'WhisperLocal' -ErrorAction SilentlyContinue
+  if ($running) {
+    Step "Stopping running WhisperLocal instance from a previous test..."
+    $running | Stop-Process -Force
+    Start-Sleep -Seconds 2
+  }
+
   Step "Installing silently (per-user, no admin prompt expected)..."
   $p = Start-Process -FilePath (Join-Path $work "$setup.exe") `
-    -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART' -Wait -PassThru
+    -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/FORCECLOSEAPPLICATIONS' -Wait -PassThru
   if ($p.ExitCode -ne 0) { throw "installer exit code $($p.ExitCode)" }
 
   $appDir = @(
@@ -95,7 +106,7 @@ try {
   Step "Launching WhisperLocal for first run..."
   Start-Process -FilePath (Join-Path $appDir 'WhisperLocal.exe') -WorkingDirectory $appDir
 
-  @"
+  $checklist = @"
 
 ============================= YOUR 60-SECOND PART =============================
  1. If a first-run wizard appears: pick your microphone, click through it.
@@ -108,13 +119,15 @@ try {
  If ANYTHING fails or looks broken, send back the contents of:
    $log
 ===============================================================================
-"@ | Tee-Object -Append -FilePath $log
+"@
+  Write-Host $checklist -ForegroundColor Green
+  Add-Content -Path $log -Value $checklist -Encoding UTF8
 
 } catch {
   $script:failed = $true
   $err = "FAIL: $($_.Exception.Message)"
   Write-Host $err -ForegroundColor Red
-  Add-Content -Path $log -Value $err
+  Add-Content -Path $log -Value $err -Encoding UTF8
   Write-Host "Report saved to $log - send its contents back." -ForegroundColor Yellow
 }
 
