@@ -63,6 +63,10 @@ def _cuda_runtime_available() -> bool:
     if _CUDA_VERIFIED is not None:
         return _CUDA_VERIFIED
 
+    persisted = _load_persisted_cuda_verdict()
+    if persisted is not None:
+        return persisted
+
     if os.name == "nt":
         _configure_cuda_dll_paths()
         try:
@@ -90,11 +94,70 @@ def _cudnn_present() -> bool:
     return bool(_find_cuda_dlls("cudnn*.dll"))
 
 
+def _capability_signature() -> str:
+    """Identify the CUDA environment, so a stored verdict self-invalidates.
+
+    If the user installs cuDNN or upgrades CTranslate2, the signature changes
+    and the stored verdict is ignored rather than pinning them to CPU forever.
+    """
+    try:
+        import ctranslate2
+
+        version = getattr(ctranslate2, "__version__", "?")
+    except Exception:
+        version = "?"
+    dlls = sorted(os.path.basename(p) for p in _find_cuda_dlls("cudnn*.dll"))
+    return f"{version}|{','.join(dlls)}"
+
+
+def _capability_file() -> str:
+    from whisper_local.config import get_user_data_dir
+
+    return os.path.join(get_user_data_dir(), "state", "gpu_capability.json")
+
+
+def _load_persisted_cuda_verdict():
+    try:
+        import json
+
+        with open(_capability_file(), "r", encoding="utf-8") as f:
+            data = json.load(f)
+        if data.get("signature") != _capability_signature():
+            return None
+        verdict = data.get("cuda_ok")
+        return verdict if isinstance(verdict, bool) else None
+    except Exception:
+        return None
+
+
+def _persist_cuda_verdict(succeeded: bool) -> None:
+    try:
+        import json
+
+        path = _capability_file()
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump({"cuda_ok": succeeded, "signature": _capability_signature()}, f, indent=2)
+    except Exception:
+        pass
+
+
 def _record_cuda_outcome(device: str, succeeded: bool) -> None:
-    """Remember what a real CUDA attempt proved, so selection self-corrects."""
+    """Remember what a real CUDA attempt proved, so selection self-corrects.
+
+    Persisted, because the prediction is optimistic and a fresh process would
+    otherwise repeat the same wrong guess on every launch: the app would pick
+    the heavy model, fail over to CPU, and stay slow forever.
+    """
     global _CUDA_VERIFIED
-    if device == "cuda":
-        _CUDA_VERIFIED = succeeded
+    if device != "cuda":
+        return
+    changed = _CUDA_VERIFIED != succeeded
+    _CUDA_VERIFIED = succeeded
+    if changed:
+        _persist_cuda_verdict(succeeded)
+        if not succeeded:
+            print("[faster-whisper] CUDA unusable here; future runs will select the CPU-friendly model")
 
 
 def _candidate_site_package_dirs() -> List[str]:

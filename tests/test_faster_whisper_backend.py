@@ -54,6 +54,44 @@ class TestCudaCapabilityProbe(unittest.TestCase):
         with patch("ctranslate2.get_cuda_device_count", return_value=0):
             self.assertTrue(backend.gpu_is_usable())
 
+    def test_failure_verdict_persists_across_processes(self):
+        # A fresh process must not repeat the optimistic guess, or the app
+        # picks the heavy model and fails over to CPU on every single launch.
+        import json
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            path = os.path.join(tmp_dir, "state", "gpu_capability.json")
+            with patch.object(backend, "_capability_file", return_value=path):
+                backend._record_cuda_outcome("cuda", False)
+                with open(path, encoding="utf-8") as f:
+                    self.assertFalse(json.load(f)["cuda_ok"])
+
+                # Simulate a restart: in-process memory cleared, verdict stands.
+                backend._CUDA_VERIFIED = None
+                with patch.object(backend, "_cudnn_present", return_value=True), patch(
+                    "ctranslate2.get_cuda_device_count", return_value=1
+                ):
+                    self.assertFalse(backend.gpu_is_usable())
+
+    def test_stored_verdict_ignored_when_environment_changes(self):
+        # Installing cuDNN must not leave the user pinned to CPU forever.
+        import json
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            path = os.path.join(tmp_dir, "state", "gpu_capability.json")
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump({"cuda_ok": False, "signature": "stale-signature"}, f)
+
+            with patch.object(backend, "_capability_file", return_value=path):
+                backend._CUDA_VERIFIED = None
+                with patch.object(backend, "_cudnn_present", return_value=True), patch(
+                    "ctranslate2.get_cuda_device_count", return_value=1
+                ):
+                    self.assertTrue(backend.gpu_is_usable())
+
     def test_cpu_outcomes_do_not_change_cuda_verdict(self):
         backend._record_cuda_outcome("cpu", True)
         self.assertIsNone(backend._CUDA_VERIFIED)
