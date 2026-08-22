@@ -102,6 +102,25 @@ try {
   if (-not $key) { throw "signup succeeded but returned no licenseKey" }
   Step "License key issued: $key"
 
+  # --- 4b. Ensure the WebView2 runtime (dashboard/activation needs it) --------
+  $wv2 = $false
+  foreach ($hive in 'HKLM:\SOFTWARE\WOW6432Node', 'HKCU:\SOFTWARE') {
+    try {
+      $pv = (Get-ItemProperty "$hive\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}" -ErrorAction Stop).pv
+      if ($pv -and $pv -ne '0.0.0.0') { $wv2 = $true; break }
+    } catch {}
+  }
+  if (-not $wv2) {
+    Step "WebView2 runtime missing - installing (approve the prompt if one appears)..."
+    $wv2exe = Join-Path $work 'MicrosoftEdgeWebview2Setup.exe'
+    & curl.exe -L --fail --retry 3 -o $wv2exe 'https://go.microsoft.com/fwlink/p/?LinkId=2124703'
+    if ($LASTEXITCODE -ne 0) { throw "WebView2 bootstrapper download failed" }
+    $wp = Start-Process -FilePath $wv2exe -ArgumentList '/install' -Wait -PassThru
+    Step "WebView2 installer finished (exit $($wp.ExitCode))"
+  } else {
+    Step "WebView2 runtime present"
+  }
+
   # --- 5. Launch the app -------------------------------------------------------
   Step "Launching WhisperLocal for first run..."
   Start-Process -FilePath (Join-Path $appDir 'WhisperLocal.exe') -WorkingDirectory $appDir

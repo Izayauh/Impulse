@@ -175,6 +175,21 @@ jobs:
             }
           }
 
+      - name: Download WebView2 bootstrapper
+        shell: pwsh
+        run: |
+          # The dashboard (and license activation) requires the WebView2
+          # runtime; the installer runs this bootstrapper when it's missing.
+          New-Item -ItemType Directory -Path "runtime\prereq" -Force | Out-Null
+          Invoke-WebRequest -Uri "https://go.microsoft.com/fwlink/p/?LinkId=2124703" `
+            -OutFile "runtime\prereq\MicrosoftEdgeWebview2Setup.exe" -UseBasicParsing
+          $sizeKB = (Get-Item "runtime\prereq\MicrosoftEdgeWebview2Setup.exe").Length / 1KB
+          if ($sizeKB -lt 500) {
+            Write-Error "WebView2 bootstrapper suspiciously small ($([int]$sizeKB) KB)"
+            exit 1
+          }
+          Write-Host "WebView2 bootstrapper: $([int]$sizeKB) KB"
+
       - name: Validate release runtime assets
         shell: pwsh
         run: |

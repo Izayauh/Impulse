@@ -73,6 +73,11 @@ Name: "quicklaunchicon"; Description: "{cm:CreateQuickLaunchIcon}"; GroupDescrip
 ; Main application and dependencies from PyInstaller build
 Source: "..\..\dist\WhisperLocal\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
+; WebView2 evergreen bootstrapper (the dashboard requires the WebView2
+; runtime; fresh Windows 10 machines often lack it). Downloaded at build
+; time by CI; skipped gracefully if absent in local builds.
+Source: "..\..\runtime\prereq\MicrosoftEdgeWebview2Setup.exe"; DestDir: "{tmp}"; Flags: deleteafterinstall skipifsourcedoesntexist
+
 ; Additional files if needed
 Source: "..\..\README.md"; DestDir: "{app}"; Flags: ignoreversion; DestName: "README.txt"
 Source: "..\..\USER_GUIDE.md"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist; DestName: "User Guide.txt"
@@ -90,6 +95,26 @@ Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: de
 
 ; Quick Launch shortcut (if selected)
 Name: "{userappdata}\Microsoft\Internet Explorer\Quick Launch\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: quicklaunchicon
+
+[Run]
+; Install the WebView2 runtime when missing - without it the dashboard
+; (including license activation) cannot render. Shows the bootstrapper's
+; own small UI so per-machine elevation can prompt if needed.
+Filename: "{tmp}\MicrosoftEdgeWebview2Setup.exe"; Parameters: "/install"; StatusMsg: "Installing Microsoft WebView2 runtime (required for the dashboard)..."; Check: WebView2Missing; Flags: skipifdoesntexist
+
+[Code]
+function WebView2Missing: Boolean;
+var
+  Version: String;
+begin
+  Result := True;
+  { Per-machine install }
+  if RegQueryStringValue(HKLM, 'SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}', 'pv', Version) and (Version <> '') and (Version <> '0.0.0.0') then
+    Result := False;
+  { Per-user install }
+  if Result and RegQueryStringValue(HKCU, 'SOFTWARE\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}', 'pv', Version) and (Version <> '') and (Version <> '0.0.0.0') then
+    Result := False;
+end;
 
 [Registry]
 ; Auto-start on Windows login (if selected)
