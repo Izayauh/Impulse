@@ -16,8 +16,13 @@ _CUDA_DLL_HANDLES = []
 
 
 def model_name_for_mode(model_name: str) -> str:
-    """Map a selection-state model to its faster-whisper/CT2 model id."""
-    if str(model_name or "").strip().lower() == "base":
+    """Map a selection-state model to its faster-whisper/CT2 model id.
+
+    Idempotent: both callers and preload_model apply it, so CT2 ids must
+    map to themselves ("base.en" -> "base.en", not back to turbo).
+    """
+    name = str(model_name or "").strip().lower()
+    if name in ("base", "base.en"):
         return "base.en"
     return "turbo"
 

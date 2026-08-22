@@ -245,6 +245,16 @@ class TestWhisperRuntimeArgs(unittest.TestCase):
         self.assertEqual(_faster_whisper_model_name("large"), "turbo")
         self.assertEqual(_faster_whisper_model_name("base"), "base.en")
 
+    def test_faster_whisper_model_name_is_idempotent(self):
+        # preload_model re-applies the mapper to already-mapped CT2 ids;
+        # a non-idempotent mapper silently swaps base.en back to turbo.
+        from whisper_local.flow_local_dictation import _faster_whisper_model_name
+
+        self.assertEqual(_faster_whisper_model_name("base.en"), "base.en")
+        self.assertEqual(
+            _faster_whisper_model_name(_faster_whisper_model_name("base")), "base.en"
+        )
+
 
 class TestInputValidation(unittest.TestCase):
     """Tests for input validation constants."""

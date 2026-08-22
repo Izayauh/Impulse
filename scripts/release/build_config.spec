@@ -14,7 +14,7 @@ ROOT_DIR = os.path.abspath(os.path.join(SPEC_DIR, '..', '..'))
 
 # Application metadata
 APP_NAME = 'WhisperLocal'
-APP_VERSION = '1.0.0-beta.1'
+APP_VERSION = '1.0.5-beta.4-dev'
 MAIN_SCRIPT = os.path.join(ROOT_DIR, 'main.py')
 
 # Bake telemetry token into the frozen build so it works without
@@ -125,6 +125,11 @@ datas = [
     (os.path.join(ROOT_DIR, 'src', 'whisper_local', 'message-send.mp3'), '.'),
     (os.path.join(ROOT_DIR, 'src', 'whisper_local', 'ui', 'dashboard.html'), '.'),
     (os.path.join(ROOT_DIR, 'src', 'whisper_local', 'ui', 'dashboard_stats.js'), '.'),
+    # gui_host resolves the dashboard relative to its own module dir
+    # (_internal/whisper_local/ui), so the UI files must also live there.
+    (os.path.join(ROOT_DIR, 'src', 'whisper_local', 'ui', 'dashboard.html'), os.path.join('whisper_local', 'ui')),
+    (os.path.join(ROOT_DIR, 'src', 'whisper_local', 'ui', 'dashboard_stats.js'), os.path.join('whisper_local', 'ui')),
+    (os.path.join(ROOT_DIR, 'src', 'whisper_local', 'ui', 'styles.css'), os.path.join('whisper_local', 'ui')),
 ]
 
 # Filter datas to only existing files
@@ -133,6 +138,9 @@ datas = [(src, dest) for src, dest in datas if os.path.exists(src)]
 # Collect additional data files from packages
 datas += collect_data_files('sounddevice')
 datas += collect_data_files('soundfile')
+# pywebview injects window.pywebview from its bundled JS assets (webview/js);
+# without them the dashboard renders but every api call silently fails.
+datas += collect_data_files('webview')
 
 # Analysis configuration
 a = Analysis(
