@@ -96,7 +96,48 @@ class ContextAwareAgent:
         return raw_text, False, f"unknown_intent:{intent}"
 
 
+def _run_selftest(wav_path: str) -> int:
+    """Transcribe one WAV through the production route and print a JSON report.
+
+    Lets any machine verify install, model routing, and engine speed headlessly:
+        WhisperLocal.exe --selftest C:\\path\\to\\sample.wav
+    """
+    import contextlib
+    import json
+    import os
+    import time
+    import wave
+
+    wav_path = os.path.abspath(wav_path) if wav_path else ""
+    if not wav_path or not os.path.isfile(wav_path):
+        print(json.dumps({"ok": False, "error": f"sample not found: {wav_path}"}))
+        return 2
+
+    duration_sec = 0.0
+    with contextlib.suppress(Exception):
+        with wave.open(wav_path, "rb") as w:
+            duration_sec = round(w.getnframes() / float(w.getframerate() or 1), 2)
+
+    from whisper_local import flow_local_dictation as flow
+
+    bin_path = flow.resolved_whisper_bin or flow.WHISPER_BIN
+    start = time.time()
+    rc, text, err, model_used, _total = flow.run_whisper_smart(wav_path, bin_path)
+    print(json.dumps({
+        "ok": rc == 0,
+        "model": model_used,
+        "audio_sec": duration_sec,
+        "processing_sec": round(time.time() - start, 2),
+        "transcript": text,
+        "error": err or None,
+    }))
+    return 0 if rc == 0 else 1
+
+
 def main() -> int:
+    if len(sys.argv) > 1 and sys.argv[1] == "--selftest":
+        return _run_selftest(sys.argv[2] if len(sys.argv) > 2 else "")
+
     from whisper_local.flow_local_dictation import (
         _acquire_single_instance,
         run_whisper_main_loop,

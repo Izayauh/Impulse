@@ -761,12 +761,9 @@
       }
       if (settingsTab === 'models') {
         const rows = [
-          { id: 'auto', title: 'Auto', desc: 'Use faster Whisper Turbo.' },
-          { id: 'turbo', title: 'Turbo', desc: 'Faster Whisper large-v3-turbo.' },
-          { id: 'fast', title: 'Fast', desc: 'Turbo with lowest-latency decoding.' },
-          { id: 'base', title: 'Base', desc: 'Legacy whisper.cpp fallback.' },
-          { id: 'small', title: 'Small', desc: 'Higher accuracy at medium cost.' },
-          { id: 'medium', title: 'Medium', desc: 'Best quality for complex dictation.' }
+          { id: 'auto', title: 'Auto', desc: 'Picks the best model for this machine (recommended).' },
+          { id: 'turbo', title: 'Turbo', desc: 'Highest accuracy. Needs a GPU to stay fast.' },
+          { id: 'base', title: 'Base', desc: 'Fast and light. Best on machines without a GPU.' }
         ];
         const grid = rows.map((m) => `<button class="model-card ${settingsState.modelMode === m.id ? 'active' : ''}" onclick="selectModel('${m.id}')"><h4>${m.title}</h4><p>${m.desc}</p>${m.id === 'auto' ? `<span class="model-meta">Current: ${modelLabel(settingsState.activeModel)}${settingsState.vramTotalGb > 0 ? ` (${settingsState.vramTotalGb.toFixed(1)} GB VRAM)` : ''}</span>` : ''}</button>`).join('');
         panel.innerHTML = `<h3>Models</h3><div class="model-grid model-grid-4">${grid}</div>`;

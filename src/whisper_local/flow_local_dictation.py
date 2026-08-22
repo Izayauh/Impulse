@@ -167,7 +167,7 @@ def play_recording_stop_sound():
 # APPLICATION METADATA
 # ============================================================================
 APP_NAME = "WhisperLocal"
-APP_VERSION = "1.0.0-beta.1"
+from whisper_local.config import APP_VERSION  # single source of truth for the version banner
 APP_AUTHOR = "WhisperLocal"
 
 # ============================================================================
@@ -339,7 +339,8 @@ def get_user_data_dir():
         # Use AppData/Local for user-specific data
         appdata = os.environ.get('LOCALAPPDATA', os.path.expanduser('~'))
         data_dir = os.path.join(appdata, APP_NAME)
-        os.makedirs(data_dir, exist_ok=True)
+        for rel in ("logs", "audio", "transcripts", "state"):
+            os.makedirs(os.path.join(data_dir, rel), exist_ok=True)
         debug_print(f"[DEBUG] get_user_data_dir (flow_local_dictation.py): {data_dir}")
         return data_dir
     result = os.path.join(get_app_dir(), "output")
@@ -3804,19 +3805,21 @@ def _faster_whisper_runtime():
 
 
 def preload_turbo_model():
-    """Load the single production transcription model before first dictation."""
+    """Load the selected transcription model before first dictation."""
     try:
+        selection = _load_effective_model_selection()
+        active_model = str(selection.get("active_model", "turbo"))
         has_gpu = bool(GPU_AVAILABLE and gpu_monitor.is_nvidia_gpu())
         preferred_device, preferred_compute = _faster_whisper_runtime()
         safe_print(
-            f"[faster-whisper] preloading turbo preferred_device={preferred_device} "
+            f"[faster-whisper] preloading {active_model} preferred_device={preferred_device} "
             f"preferred_compute={preferred_compute}"
         )
-        _model, _name, device, compute_type = _faster_whisper_preload_model_with_fallback("turbo", has_gpu)
-        safe_print(f"[faster-whisper] turbo preload complete device={device} compute={compute_type}")
+        _model, _name, device, compute_type = _faster_whisper_preload_model_with_fallback(active_model, has_gpu)
+        safe_print(f"[faster-whisper] {active_model} preload complete device={device} compute={compute_type}")
         return True
     except Exception as exc:
-        safe_print(f"[faster-whisper] turbo preload failed (will lazy-load/fallback): {exc}")
+        safe_print(f"[faster-whisper] model preload failed (will lazy-load/fallback): {exc}")
         return False
 
 
@@ -4175,14 +4178,12 @@ def _resolve_model_path(model_name: str):
 
 def _run_fixed_model_transcription(filename: str, bin_path: str):
     selection = _load_effective_model_selection()
-    if selection.get("mode") != "turbo" or selection.get("active_model") != "turbo":
-        updated, _ = apply_model_mode(selection, "turbo", _current_vram_total_mb())
-        save_model_selection_state(MODEL_SELECTION_STATE_FILE, updated)
+    active_model = str(selection.get("active_model", "turbo"))
 
-    model_path, model_used = _resolve_model_path("turbo")
-    rc, text, err = run_faster_whisper(filename, "turbo", speed_profile="turbo")
+    model_path, model_used = _resolve_model_path(active_model)
+    rc, text, err = run_faster_whisper(filename, active_model, speed_profile=active_model)
     if rc == 0:
-        return rc, text, err, f"faster-whisper-{_faster_whisper_model_name('turbo')}"
+        return rc, text, err, f"faster-whisper-{_faster_whisper_model_name(active_model)}"
 
     safe_print(f"[whisper-smart] faster-whisper unavailable; falling back to whisper.cpp ({err})")
     rc, text, err = run_whisper(filename, bin_path, model_path=model_path, speed_profile="fast")
@@ -4199,7 +4200,8 @@ def run_whisper_smart(filename, bin_path):
 
     selection = _load_effective_model_selection()
     configured_mode = str(selection.get("mode", "auto")).lower()
-    safe_print(f"[whisper-smart] Single model route: faster-whisper turbo (requested={configured_mode})")
+    active_model = str(selection.get("active_model", "turbo"))
+    safe_print(f"[whisper-smart] Route: faster-whisper {active_model} (mode={configured_mode})")
     rc, text, err, model_used = _run_fixed_model_transcription(filename, bin_path)
     total_time = time.time() - start_time
     return rc, text, err, model_used, total_time

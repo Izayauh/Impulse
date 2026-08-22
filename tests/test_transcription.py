@@ -237,13 +237,13 @@ class TestWhisperRuntimeArgs(unittest.TestCase):
         self.assertEqual(cmd[cmd.index("-bs") + 1], "1")
         self.assertNotIn("-bo", cmd)
 
-    def test_faster_whisper_model_name_maps_turbo(self):
+    def test_faster_whisper_model_name_maps_modes(self):
         from whisper_local.flow_local_dictation import _faster_whisper_model_name
 
         self.assertEqual(_faster_whisper_model_name("turbo"), "turbo")
         self.assertEqual(_faster_whisper_model_name("large-v3-turbo"), "turbo")
         self.assertEqual(_faster_whisper_model_name("large"), "turbo")
-        self.assertEqual(_faster_whisper_model_name("base"), "turbo")
+        self.assertEqual(_faster_whisper_model_name("base"), "base.en")
 
 
 class TestInputValidation(unittest.TestCase):

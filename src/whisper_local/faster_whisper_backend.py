@@ -16,7 +16,9 @@ _CUDA_DLL_HANDLES = []
 
 
 def model_name_for_mode(model_name: str) -> str:
-    _ = model_name
+    """Map a selection-state model to its faster-whisper/CT2 model id."""
+    if str(model_name or "").strip().lower() == "base":
+        return "base.en"
     return "turbo"
 
 

@@ -51,11 +51,11 @@ class TranscriptionController:
     def _build_payload(self, state: Dict[str, Any], auto_switched: bool) -> Dict[str, Any]:
         vram_total_mb = float(state.get("vram_total_mb", 0.0) or 0.0)
         return {
-            "mode": state.get("mode", "turbo"),
+            "mode": state.get("mode", "auto"),
             "manualModel": state.get("manual_model", "turbo"),
             "activeModel": state.get("active_model", "turbo"),
             "engine": "faster-whisper",
-            "profile": "turbo",
+            "profile": state.get("active_model", "turbo"),
             "vramTotalMb": vram_total_mb,
             "vramTotalGb": round(vram_total_mb / 1024.0, 2) if vram_total_mb > 0 else 0.0,
             "autoSwitched": bool(auto_switched),
@@ -75,7 +75,7 @@ class TranscriptionController:
         updated, auto_switched = apply_mode(current, mode, self._get_vram())
         self._save_state(updated)
         if self._settings_mgr:
-            self._settings_mgr.update_setting("whisper_model", "turbo")
+            self._settings_mgr.update_setting("whisper_model", updated.get("active_model", "turbo"))
         payload = self._build_payload(updated, auto_switched)
         print(
             "[Dashboard] model_mode_set "
@@ -112,10 +112,10 @@ class TranscriptionController:
                 self._emit_progress(pct)
 
             self._emit_progress(45)
-            preload_model_with_fallback("turbo", vram_mb > 0)
+            preload_model_with_fallback(model_name, vram_mb > 0)
             self._emit_progress(85)
 
-            result = self.set_model_mode("turbo")
+            result = self.set_model_mode(model_name)
             self._emit_progress(100)
             self._emit_model_loaded(result.get("activeModel", model_name))
 

@@ -118,7 +118,8 @@ def get_user_data_dir() -> str:
     if is_frozen():
         appdata = os.environ.get('LOCALAPPDATA', os.path.expanduser('~'))
         data_dir = os.path.join(appdata, APP_NAME)
-        os.makedirs(data_dir, exist_ok=True)
+        for rel in ("logs", "audio", "transcripts", "state"):
+            os.makedirs(os.path.join(data_dir, rel), exist_ok=True)
         debug_print(f"[DEBUG] get_user_data_dir (whisper_local/config.py): {data_dir}")
         return data_dir
     # In development, keep runtime outputs isolated from source tree.

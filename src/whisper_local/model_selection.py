@@ -1,4 +1,13 @@
-"""Shared model-selection state and auto-resolution helpers."""
+"""Shared model-selection state and auto-resolution helpers.
+
+Two production models, three modes:
+
+- ``auto``  (default): probe the machine and pick — GPUs with enough VRAM
+  run ``turbo`` (faster-whisper large-v3-turbo); everything else runs
+  ``base`` (faster-whisper base.en), which stays responsive on CPU-only
+  machines.
+- ``turbo`` / ``base``: manual pins that are honored as-is.
+"""
 
 from __future__ import annotations
 
@@ -7,9 +16,10 @@ import os
 from typing import Any, Dict, Tuple
 
 
-AUTO_VRAM_THRESHOLD_MB = 8 * 1024
-VALID_MODES = {"turbo"}
-VALID_ACTIVE_MODELS = {"turbo"}
+# Turbo needs ~1.6 GB VRAM in float16; 4 GB keeps headroom for the desktop.
+AUTO_VRAM_THRESHOLD_MB = 4 * 1024
+VALID_MODES = {"auto", "turbo", "base"}
+VALID_ACTIVE_MODELS = {"turbo", "base"}
 
 
 def model_selection_file(user_data_dir: str) -> str:
@@ -17,23 +27,23 @@ def model_selection_file(user_data_dir: str) -> str:
 
 
 def _normalize_mode(value: Any) -> str:
-    _ = value
-    return "turbo"
+    mode = str(value or "").strip().lower()
+    return mode if mode in VALID_MODES else "auto"
 
 
 def _normalize_manual_model(value: Any) -> str:
-    _ = value
-    return "turbo"
+    model = str(value or "").strip().lower()
+    return model if model in VALID_ACTIVE_MODELS else "turbo"
 
 
 def _normalize_active_model(value: Any) -> str:
-    _ = value
-    return "turbo"
+    model = str(value or "").strip().lower()
+    return model if model in VALID_ACTIVE_MODELS else "turbo"
 
 
 def default_state() -> Dict[str, Any]:
     return {
-        "mode": "turbo",
+        "mode": "auto",
         "manual_model": "turbo",
         "active_model": "turbo",
         "vram_total_mb": 0.0,
@@ -79,19 +89,24 @@ def save_state(path: str, state: Dict[str, Any]) -> bool:
 
 
 def auto_model_for_vram(vram_total_mb: Any) -> str:
-    _ = vram_total_mb
-    return "turbo"
+    return "turbo" if _safe_float(vram_total_mb) >= AUTO_VRAM_THRESHOLD_MB else "base"
+
+
+def _resolve_active(state: Dict[str, Any]) -> str:
+    if state["mode"] == "auto":
+        return auto_model_for_vram(state["vram_total_mb"])
+    return state["mode"]
 
 
 def apply_mode(state: Dict[str, Any], requested_mode: str, vram_total_mb: Any) -> Tuple[Dict[str, Any], bool]:
     current = normalize_state(state)
     previous_active = current["active_model"]
-    _ = requested_mode
 
-    current["mode"] = "turbo"
-    current["manual_model"] = "turbo"
+    current["mode"] = _normalize_mode(requested_mode)
     current["vram_total_mb"] = _safe_float(vram_total_mb)
-    current["active_model"] = "turbo"
+    if current["mode"] != "auto":
+        current["manual_model"] = current["mode"]
+    current["active_model"] = _resolve_active(current)
 
     auto_switched = current["active_model"] != previous_active
     return current, auto_switched
@@ -100,8 +115,6 @@ def apply_mode(state: Dict[str, Any], requested_mode: str, vram_total_mb: Any) -
 def refresh_auto_state(state: Dict[str, Any], vram_total_mb: Any) -> Tuple[Dict[str, Any], bool]:
     current = normalize_state(state)
     previous_active = current["active_model"]
-    current["mode"] = "turbo"
-    current["manual_model"] = "turbo"
     current["vram_total_mb"] = _safe_float(vram_total_mb)
-    current["active_model"] = "turbo"
+    current["active_model"] = _resolve_active(current)
     return current, current["active_model"] != previous_active

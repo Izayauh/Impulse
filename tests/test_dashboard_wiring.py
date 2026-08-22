@@ -167,7 +167,7 @@ class TestDashboardRealtimeRefreshPath(unittest.TestCase):
                     saved = f.read()
                 self.assertIn('"daily_100"', saved)
 
-    def test_dashboard_model_mode_always_uses_turbo(self):
+    def test_dashboard_model_mode_is_hardware_aware(self):
         import whisper_local.ui.gui_host as gui_host
 
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -184,17 +184,45 @@ class TestDashboardRealtimeRefreshPath(unittest.TestCase):
             ), patch.object(gui_host, "gpu_monitor", MagicMock(get_gpu_info=MagicMock(return_value=high_vram_info))):
                 api = gui_host.DashboardAPI()
 
-                for requested in ("medium", "fast", "turbo", "base", "auto"):
+                # Retired modes coerce to auto; a 12 GB GPU resolves auto to turbo.
+                for requested in ("medium", "fast", "auto"):
                     payload = api.set_model_mode(requested)
-                    self.assertEqual(payload["mode"], "turbo")
-                    self.assertEqual(payload["manualModel"], "turbo")
+                    self.assertEqual(payload["mode"], "auto")
                     self.assertEqual(payload["activeModel"], "turbo")
                     self.assertEqual(payload["engine"], "faster-whisper")
-                    self.assertEqual(payload["profile"], "turbo")
 
-                legacy = api.update_user_setting("whisper_model", "base")
-                self.assertEqual(legacy["mode"], "turbo")
-                self.assertEqual(legacy["activeModel"], "turbo")
+                # Manual pins are honored as-is.
+                payload = api.set_model_mode("turbo")
+                self.assertEqual(payload["mode"], "turbo")
+                self.assertEqual(payload["activeModel"], "turbo")
+
+                payload = api.set_model_mode("base")
+                self.assertEqual(payload["mode"], "base")
+                self.assertEqual(payload["manualModel"], "base")
+                self.assertEqual(payload["activeModel"], "base")
+                self.assertEqual(payload["profile"], "base")
+
+    def test_dashboard_model_mode_auto_picks_base_without_gpu(self):
+        import whisper_local.ui.gui_host as gui_host
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            canonical_stats = os.path.join(tmp_dir, "state", "whisper_stats.json")
+            os.makedirs(os.path.dirname(canonical_stats), exist_ok=True)
+            with open(canonical_stats, "w", encoding="utf-8") as f:
+                f.write('{"total_words": 1, "daily_words": {"2026-02-08": 1}}')
+
+            no_gpu_info = type("GpuInfo", (), {"memory_total_mb": 0.0})()
+            with patch.object(gui_host, "get_user_data_dir", return_value=tmp_dir), patch.object(
+                gui_host, "get_app_dir", return_value=tmp_dir
+            ), patch.object(gui_host, "STATS_FILE", canonical_stats), patch.object(
+                gui_host, "_migration_completed", False
+            ), patch.object(gui_host, "gpu_monitor", MagicMock(get_gpu_info=MagicMock(return_value=no_gpu_info))):
+                api = gui_host.DashboardAPI()
+
+                payload = api.set_model_mode("auto")
+                self.assertEqual(payload["mode"], "auto")
+                self.assertEqual(payload["activeModel"], "base")
+                self.assertEqual(payload["profile"], "base")
 
     def test_dashboard_vocabulary_add_word_persists(self):
         import whisper_local.ui.gui_host as gui_host
