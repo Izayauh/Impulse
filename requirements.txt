@@ -39,3 +39,6 @@ packaging==24.2
 # Build tools (for development/building)
 pyinstaller==6.3.0
 
+
+# PyInstaller 6.3.0 pkg_resources hook breaks with setuptools >= 70 (jaraco/extern)
+setuptools<70
