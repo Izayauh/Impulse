@@ -15,6 +15,10 @@ _MODEL_CACHE_LOCK = threading.Lock()
 _DLL_DIRECTORY_HANDLES = []
 _CUDA_DLL_HANDLES = []
 
+# What a real CUDA attempt taught us: None = untried, True/False = observed.
+# Device visibility alone is not proof the GPU can run inference here.
+_CUDA_VERIFIED = None
+
 
 def model_name_for_mode(model_name: str) -> str:
     """Map a selection-state model to its faster-whisper/CT2 model id.
@@ -45,14 +49,20 @@ def gpu_is_usable() -> bool:
 
 
 def _cuda_runtime_available() -> bool:
-    """Report whether CTranslate2 can actually run on the GPU here.
+    """Report whether CTranslate2 can actually run inference on the GPU here.
 
-    A VRAM reading only proves a card exists. The authority on whether the
-    CUDA path works is CTranslate2 itself, so preload the DLLs best-effort
-    (helps it find them) and then ask it. Hardcoded DLL versions used to
-    decide this, which silently forced CPU whenever the CUDA major version
-    moved (e.g. cublas64_12 -> _13) and left heavy models running on CPU.
+    Three things are distinct and were previously conflated:
+      1. a card exists (a VRAM reading),
+      2. CUDA can see a device (``get_cuda_device_count``),
+      3. inference can actually run, which additionally needs cuDNN.
+
+    Only (3) should attract the heavy model; selecting on (1) or (2) leaves
+    turbo running on CPU, the slowest pairing available. An observed result
+    from a real attempt always wins over any prediction made here.
     """
+    if _CUDA_VERIFIED is not None:
+        return _CUDA_VERIFIED
+
     if os.name == "nt":
         _configure_cuda_dll_paths()
         try:
@@ -63,9 +73,28 @@ def _cuda_runtime_available() -> bool:
     try:
         import ctranslate2
 
-        return ctranslate2.get_cuda_device_count() > 0
+        if ctranslate2.get_cuda_device_count() <= 0:
+            return False
     except Exception:
         return False
+
+    # cuDNN is required for Whisper inference on CUDA. If it is not present
+    # (e.g. not shipped in a frozen bundle), the CUDA path will fail at model
+    # load and silently demote to CPU, so do not claim the GPU is usable.
+    return _cudnn_present()
+
+
+def _cudnn_present() -> bool:
+    if os.name != "nt":
+        return True
+    return bool(_find_cuda_dlls("cudnn*.dll"))
+
+
+def _record_cuda_outcome(device: str, succeeded: bool) -> None:
+    """Remember what a real CUDA attempt proved, so selection self-corrects."""
+    global _CUDA_VERIFIED
+    if device == "cuda":
+        _CUDA_VERIFIED = succeeded
 
 
 def _candidate_site_package_dirs() -> List[str]:
@@ -115,6 +144,9 @@ def _find_cuda_dlls(pattern: str) -> List[str]:
         nvidia_dir = os.path.join(base, "nvidia")
         for package_name in ("cudnn", "cublas", "cuda_nvrtc"):
             search_dirs.append(os.path.join(nvidia_dir, package_name, "bin"))
+        # torch and ctranslate2 ship their own CUDA runtimes.
+        search_dirs.append(os.path.join(base, "torch", "lib"))
+        search_dirs.append(os.path.join(base, "ctranslate2"))
     # PyInstaller lays bundled DLLs beside the executable's _internal dir.
     search_dirs.append(os.path.dirname(os.path.abspath(__file__)))
     if getattr(sys, "frozen", False):
@@ -168,8 +200,10 @@ def preload_model_with_fallback(model_name: str, has_gpu: bool):
     for device, compute_type in runtime_candidates(has_gpu):
         try:
             model, ct2_model = preload_model(model_name, device, compute_type)
+            _record_cuda_outcome(device, True)
             return model, ct2_model, device, compute_type
         except Exception as exc:
+            _record_cuda_outcome(device, False)
             errors.append(f"{device}/{compute_type}: {exc}")
     raise RuntimeError("; ".join(errors))
 
@@ -215,7 +249,9 @@ def transcribe_with_fallback(
                 beam_size=beam_size,
                 initial_prompt=initial_prompt,
             )
+            _record_cuda_outcome(device, True)
             return text, ct2_model, device, compute_type
         except Exception as exc:
+            _record_cuda_outcome(device, False)
             errors.append(f"{device}/{compute_type}: {exc}")
     raise RuntimeError("; ".join(errors))
