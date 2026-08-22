@@ -86,6 +86,22 @@ class TestModelSelectionHelpers(unittest.TestCase):
             self.assertEqual(loaded["mode"], "base")
             self.assertEqual(loaded["active_model"], "base")
 
+    def test_legacy_unstamped_turbo_state_migrates_to_auto(self):
+        # Pre-schema builds force-wrote mode="turbo" for everyone; treat it as
+        # unpinned so CPU machines recover the hardware-aware default.
+        from whisper_local.model_selection import normalize_state
+
+        legacy = {"mode": "turbo", "manual_model": "turbo", "active_model": "turbo", "vram_total_mb": 0.0}
+        state = normalize_state(legacy)
+        self.assertEqual(state["mode"], "auto")
+
+    def test_stamped_turbo_pin_is_respected(self):
+        pinned, _ = apply_mode(default_state(), "turbo", 0)
+        from whisper_local.model_selection import normalize_state
+
+        state = normalize_state(pinned)
+        self.assertEqual(state["mode"], "turbo")
+
 
 if __name__ == "__main__":
     unittest.main()

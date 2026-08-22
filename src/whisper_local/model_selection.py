@@ -41,8 +41,12 @@ def _normalize_active_model(value: Any) -> str:
     return model if model in VALID_ACTIVE_MODELS else "turbo"
 
 
+STATE_SCHEMA = 2
+
+
 def default_state() -> Dict[str, Any]:
     return {
+        "schema": STATE_SCHEMA,
         "mode": "auto",
         "manual_model": "turbo",
         "active_model": "turbo",
@@ -61,6 +65,11 @@ def normalize_state(data: Any) -> Dict[str, Any]:
     base = default_state()
     payload = data if isinstance(data, dict) else {}
     state = {**base, **payload}
+    # Migration: pre-schema builds force-wrote mode="turbo" for everyone, so an
+    # unstamped turbo pin is legacy noise, not a user choice — restore auto.
+    if "schema" not in payload and str(state.get("mode", "")).lower() == "turbo":
+        state["mode"] = "auto"
+    state["schema"] = STATE_SCHEMA
     state["mode"] = _normalize_mode(state.get("mode"))
     state["manual_model"] = _normalize_manual_model(state.get("manual_model"))
     state["active_model"] = _normalize_active_model(state.get("active_model"))
