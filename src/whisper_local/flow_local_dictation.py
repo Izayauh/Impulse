@@ -2313,10 +2313,27 @@ def res_path(rel):
     return os.path.join(base, rel)
 
 # Resolve model paths after res_path is defined
-MODEL_PATH_BASE = res_path(MODEL_BASE)
-MODEL_PATH_SMALL = res_path(os.path.join("runtime", "models", "ggml-small.en.bin"))
-MODEL_PATH_MEDIUM = res_path(MODEL_MEDIUM)
-MODEL_PATH_LARGE = res_path(MODEL_LARGE)
+def _resolve_bundled_model(filename):
+    """Find a GGML model across the layouts different builds have used.
+
+    Dev tree and pre-CI installs keep models under runtime/models/; the
+    PyInstaller spec bundles them to models/ inside the app bundle. Return
+    the first existing candidate, else the legacy path (callers treat a
+    missing file as 'model unavailable').
+    """
+    candidates = [
+        res_path(os.path.join("runtime", "models", filename)),
+        res_path(os.path.join("models", filename)),
+    ]
+    for candidate in candidates:
+        if os.path.exists(candidate):
+            return candidate
+    return candidates[0]
+
+MODEL_PATH_BASE = _resolve_bundled_model("ggml-base.en.bin")
+MODEL_PATH_SMALL = _resolve_bundled_model("ggml-small.en.bin")
+MODEL_PATH_MEDIUM = _resolve_bundled_model("ggml-medium.en.bin")
+MODEL_PATH_LARGE = _resolve_bundled_model("ggml-large-v3.bin")
 MODEL_PATH = MODEL_PATH_LARGE  # Legacy fallback
 MODEL_SELECTION_STATE_FILE = model_selection_file(get_user_data_dir())
 model_info_logged = False
@@ -3386,7 +3403,14 @@ def startup_diagnostics():
             models_missing.append(model_name)
     
     if not models_found:
-        critical_issues.append(("no_models", "No model files found in expected locations"))
+        # GGML models only back the whisper.cpp fallback engine. The primary
+        # engine (faster-whisper turbo) downloads its own model on first use,
+        # so their absence is only fatal when faster-whisper is missing too.
+        try:
+            import faster_whisper  # noqa: F401
+            log_line("No bundled GGML models; faster-whisper available (model downloads on first use)")
+        except Exception:
+            critical_issues.append(("no_models", "No model files found in expected locations"))
     else:
         log_line(f"✓ Models available: {', '.join(models_found)}")
         if models_missing:

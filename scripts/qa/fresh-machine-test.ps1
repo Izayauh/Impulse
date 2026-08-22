@@ -7,8 +7,14 @@
 # ============================================================================
 
 $ErrorActionPreference = 'Stop'
-$tag   = 'v1.0.5-beta.1'
-$setup = "WhisperLocal-Setup-1.0.5-beta.1"
+# Always test the newest release (prereleases included) so a re-run after a
+# fix automatically picks up the new build.
+$rel   = @(Invoke-RestMethod 'https://api.github.com/repos/Izayauh/Impulse/releases?per_page=5')[0]
+$tag   = $rel.tag_name
+$setupAsset = $rel.assets | Where-Object { $_.name -like '*-Setup-*.exe' } | Select-Object -First 1
+if (-not $setupAsset) { throw "release $tag has no setup exe asset" }
+$setup = $setupAsset.name -replace '\.exe$', ''
+$assetNames = @($rel.assets | Where-Object { $_.name -like "$setup*" } | ForEach-Object { $_.name })
 $base  = "https://github.com/Izayauh/Impulse/releases/download/$tag"
 $work  = Join-Path $env:TEMP 'impulse-qa'
 New-Item -ItemType Directory -Force -Path $work | Out-Null
@@ -28,7 +34,7 @@ function Fail($msg) {
 Step "Impulse fresh-machine QA starting ($tag) on $env:COMPUTERNAME"
 
 # --- 1. Download release assets (curl.exe ships with Windows 10+) -----------
-foreach ($name in @("$setup.exe", "$setup-1.bin", "$setup.sha256")) {
+foreach ($name in $assetNames) {
   $dest = Join-Path $work $name
   if ((Test-Path $dest) -and ((Get-Item $dest).Length -gt 0)) {
     Step "Already downloaded: $name"
