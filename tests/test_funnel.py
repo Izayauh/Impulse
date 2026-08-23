@@ -98,3 +98,17 @@ class TestFunnelEvents(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestSettingsBomTolerance(unittest.TestCase):
+    def test_settings_with_bom_still_load(self):
+        # Notepad's "UTF-8" writes a BOM; that must not wipe settings.
+        from whisper_local import settings_manager
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            path = os.path.join(tmp_dir, "state", "user_settings.json")
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            with open(path, "wb") as f:
+                f.write(b'\xef\xbb\xbf{"telemetry_enabled": true}')
+            sm = settings_manager.SettingsManager(user_data_dir=tmp_dir)
+            self.assertTrue(sm.get_setting("telemetry_enabled"))

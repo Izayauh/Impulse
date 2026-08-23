@@ -80,7 +80,10 @@ class SettingsManager:
         if not os.path.exists(self.path):
             return AppSettings()
         try:
-            with open(self.path, "r", encoding="utf-8") as f:
+            # utf-8-sig: tolerate a BOM (Notepad's "UTF-8" saves one) so a
+            # hand-edited file degrades to nothing instead of silently
+            # resetting every setting to defaults.
+            with open(self.path, "r", encoding="utf-8-sig") as f:
                 raw = json.load(f)
             if not isinstance(raw, dict):
                 return AppSettings()
