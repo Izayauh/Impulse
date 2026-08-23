@@ -3382,6 +3382,15 @@ def resolve_input_device():
         selected_input_device_name = None
 
 
+def _fire_funnel(event, props=None):
+    """Best-effort anonymous setup-funnel event (no-op unless opted in)."""
+    try:
+        from whisper_local.funnel import record_funnel_event
+        record_funnel_event(event, props)
+    except Exception:
+        pass
+
+
 def startup_diagnostics():
     """Run preflight checks and print a concise summary.
     
@@ -4566,6 +4575,7 @@ def _transcribe_and_paste(wav_path):
                 pending_status_timer = threading.Timer(1.5, lambda: set_status_safe("🎤 Ready", Theme.BG_ELEVATED, Theme.TEXT_PRIMARY, Theme.PINK_PRIMARY))
                 pending_status_timer.start()
                 safe_print("Pasted OK")
+                _fire_funnel("first_dictation")
             else:
                 raise Exception("instant_paste failed")
     except Exception as e:
@@ -4928,6 +4938,7 @@ def run_whisper_main_loop():
     startup_license = _get_runtime_license_status(force_refresh=True)
     if startup_license.get("is_valid"):
         log_line(f"[LICENSE] Startup status OK ({startup_license.get('reason', 'valid')})")
+        _fire_funnel("activated")
         beta_days = startup_license.get("beta_expiry_days")
         if beta_days is not None and beta_days <= 7:
             expiry_msg = (
@@ -4943,6 +4954,7 @@ def run_whisper_main_loop():
         reason = startup_license.get("reason", "unlicensed")
         message = startup_license.get("message", "License required.")
         log_line(f"[LICENSE] Startup blocked reason={reason} message={message}", "warning")
+        _fire_funnel("license_blocked", {"reason": reason})
         try:
             notify(f"🔒 {message}")
         except Exception:
@@ -4969,6 +4981,8 @@ def run_whisper_main_loop():
     if is_first_run():
         safe_print("First run detected - marking as complete...")
         mark_first_run_complete()
+
+    _fire_funnel("first_launch")
 
     # Initialize FloatingPill GUI (required for event loop and hotkey polling)
     global gui

@@ -480,6 +480,7 @@ module.exports = {
   dueForSequence,
   isValidEmail,
   kvGet,
+  kvSadd,
   kvSet,
   kvSmembers,
   leadDefaults,

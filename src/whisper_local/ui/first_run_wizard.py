@@ -1006,7 +1006,7 @@ Your voice never leaves your machine."""
         # Telemetry opt-in
         telemetry_check = tk.Checkbutton(
             options_frame,
-            text="Help improve Impulse (send anonymous crash reports)",
+            text="Help improve Impulse (anonymous crash reports & setup progress)",
             variable=self.telemetry_consent,
             font=(Theme.FONT_FAMILY, Theme.FONT_SIZE_SM),
             fg=Theme.TEXT_SECONDARY,
