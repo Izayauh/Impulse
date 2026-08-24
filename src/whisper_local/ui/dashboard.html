@@ -35,7 +35,7 @@
     <aside class="sidebar">
       <div class="sidebar-brand">
         <div class="brand-logo"
-          style="display: flex; align-items: center; justify-content: center; width: 36px; height: 36px; margin-right: 4px; border-radius: 12px; background: linear-gradient(135deg, var(--bg) 0%, rgba(20, 20, 26, 0.8) 100%); border: 1px solid var(--accent-border); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1), 0 0 15px var(--accent-glow);">
+          style="display: flex; align-items: center; justify-content: center; width: 36px; height: 36px; margin-right: 4px; border-radius: 12px; background: linear-gradient(135deg, var(--bg) 0%, rgba(20, 20, 26, 0.8) 100%); border: 1px solid var(--accent-border); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);">
           <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
             style="color: var(--accent); filter: drop-shadow(0 0 4px var(--accent));">
@@ -71,7 +71,7 @@
 
       <div class="sidebar-footer">
         <div class="profile-card">
-          <div class="profile-avatar">WL</div>
+          <div class="profile-avatar">I</div>
           <div class="profile-meta">
             <div>Rank: <span id="rank" data-bind="stats.rank">Word Warrior</span></div>
             <div><span id="header-xp-display" data-bind="stats.totalWords">0</span> XP</div>
@@ -474,13 +474,12 @@
       const weeklyTotal = weekWords();
       return `
     <header class="card home-header WelcomeHeader" data-source="Bridge.stats.get" data-update-fn="renderWelcomeHeader" style="position:relative;">
-      <div style="position:absolute; top:-50px; right:-50px; width:150px; height:150px; background:var(--accent-glow); filter:blur(40px); border-radius:50%; pointer-events:none; animation:pulse-glow 4s infinite;"></div>
       <div class="welcome-row WelcomeHeader__row">
         <div>
           <h2 style="display:flex; align-items:center; gap:12px;">
-            <div style="width:48px; height:48px; border-radius:12px; background:linear-gradient(135deg, var(--bg) 0%, #1a1a20 100%); display:flex; align-items:center; justify-content:center; border:1px solid var(--accent-border); box-shadow:0 0 15px var(--accent-glow); position:relative;">
-              <span style="font-size:18px; color:var(--text);">WL</span>
-              <span style="position:absolute; bottom:-6px; right:-6px; background:linear-gradient(90deg, var(--accent), var(--accent-light)); font-size:9px; padding:2px 6px; border-radius:99px; box-shadow:0 0 10px var(--accent);">PRO</span>
+            <div style="width:48px; height:48px; border-radius:12px; background:linear-gradient(135deg, var(--bg) 0%, #1a1a20 100%); display:flex; align-items:center; justify-content:center; border:1px solid var(--accent-border); box-shadow:none; position:relative;">
+              <span style="font-size:18px; color:var(--text); font-weight:700;">I</span>
+              <span style="position:absolute; bottom:-6px; right:-6px; background:linear-gradient(90deg, var(--accent), var(--accent-light)); font-size:9px; padding:2px 6px; border-radius:99px; box-shadow:none;">PRO</span>
             </div>
             Welcome back, ${esc(stats.userName || 'Writer')}
           </h2>
@@ -497,7 +496,7 @@
         </div>
       </div>
       <div class="xp-block XpProgress">
-        <div class="xp-meta"><span style="text-transform:uppercase; letter-spacing:0.1em; font-weight:700; color:var(--text);">Current Rank Progress</span><span style="color:var(--accent-light); font-weight:bold; drop-shadow:0 0 5px var(--accent-glow);">${Number(stats.xp || 0).toLocaleString()} / ${Number(stats.xpToNextLevel || 0).toLocaleString()}</span></div>
+        <div class="xp-meta"><span style="text-transform:uppercase; letter-spacing:0.1em; font-weight:700; color:var(--text);">Current Rank Progress</span><span style="color:var(--accent-light); font-weight:bold;">${Number(stats.xp || 0).toLocaleString()} / ${Number(stats.xpToNextLevel || 0).toLocaleString()}</span></div>
         <div class="xp-track XpProgress__track"><div class="xp-fill XpProgress__fill" data-bind="stats.xp / stats.xpToNextLevel" style="width:${xpPct()}%"></div></div>
       </div>
     </header>`;
@@ -516,20 +515,19 @@
         const words = Number(s.words) || 0;
         const heightPx = words === 0 ? 2 : Math.max(4, Math.round((words / m) * barMaxPx));
         return `<div class="mini-bar-col ActivityGraph__bar ${i === series.length - 1 ? 'is-today ActivityGraph__bar--today' : ''}" data-bind="stats.last7Days[${i}].words" title="${esc(s.day)}: ${words.toLocaleString()} words">
-          <div class="mini-bar-value ActivityGraph__value" style="font-weight:600; text-shadow:0 0 4px var(--accent-glow);">${words > 0 ? words.toLocaleString() : ''}</div>
-          <div class="mini-bar" style="height:${heightPx}px; border-radius:4px; box-shadow:0 0 10px ${i === series.length - 1 ? 'rgba(3,218,198,0.5)' : 'var(--accent-glow)'}; background:${i === series.length - 1 ? 'linear-gradient(180deg, rgba(3,218,198,0.9), rgba(3,218,198,0.2))' : 'linear-gradient(180deg, var(--accent), var(--accent-bg-strong))'}; transition:all 0.4s ease;"></div>
+          <div class="mini-bar-value ActivityGraph__value" style="font-weight:600;">${words > 0 ? words.toLocaleString() : ''}</div>
+          <div class="mini-bar" style="height:${heightPx}px; border-radius:4px; background:${i === series.length - 1 ? 'linear-gradient(180deg, rgba(3,218,198,0.9), rgba(3,218,198,0.2))' : 'linear-gradient(180deg, var(--accent), var(--accent-bg-strong))'}; transition:all 0.4s ease;"></div>
           <span class="mini-day ActivityGraph__label" style="font-weight:500;">${esc(s.day)}</span>
         </div>`;
       }).join('');
       return `
     <section class="card home-right-chart ActivityGraph" data-source="Bridge.stats.get" data-update-fn="renderActivityGraph" style="position:relative; overflow:hidden;">
-      <div style="position:absolute; bottom:-50px; left:-50px; width:150px; height:150px; background:var(--accent-glow); filter:blur(40px); border-radius:50%; pointer-events:none;"></div>
       <div class="hero-card" style="position:relative; z-index:2; margin-bottom:16px;">
         <div>
           <h3 style="font-weight:800; font-size:22px;">Velocity</h3>
           <p style="color:var(--muted); font-size:13px;">Words transcribed last 7 days</p>
         </div>
-        <div style="font-size:28px; filter:drop-shadow(0 0 10px var(--accent-glow));">📈</div>
+        <div style="font-size:28px; ">📈</div>
       </div>
       <div class="mini-bars" style="position:relative; z-index:2; height:140px; align-items:flex-end;">${bars}</div>
     </section>`;
@@ -554,7 +552,6 @@
       </article>`).join('');
       return `
     <section class="activity-section RecentTimeline" data-source="Bridge.stats.getHistory" data-update-fn="renderRecentTimeline" style="position:relative; overflow:hidden;">
-      <div style="position:absolute; top:-20px; right:-20px; width:100px; height:100px; background:var(--accent-bg-strong); filter:blur(30px); border-radius:50%; pointer-events:none;"></div>
       <div class="section-head" style="position:relative; z-index:2; margin-bottom:16px;">
         <div style="display:flex; flex-direction:column;">
           <h3 style="font-size:20px; font-weight:800; color:var(--text);">Live Feed</h3>
@@ -640,11 +637,10 @@
     }
 
     function renderChallenges() {
-      const daily = dailyChallenges.map((c) => { const p = challengeProgress(c, 'daily'); const pct = Math.max(0, Math.min(100, (p / c.target) * 100)); const ok = p >= c.target; return `<article class="challenge-card ${ok ? 'complete' : ''}" style="background:linear-gradient(135deg, rgba(255,255,255,0.02), transparent); border:1px solid rgba(255,255,255,0.05); padding:16px; border-radius:12px; position:relative; overflow:hidden;"><div style="position:absolute; inset:0; background:linear-gradient(90deg, transparent, rgba(255,255,255,0.02)); pointer-events:none;"></div><div class="challenge-head" style="position:relative; z-index:2;"><h4 style="color:var(--text); font-weight:700;">${esc(c.name)}</h4><span style="color:var(--accent); font-weight:bold; drop-shadow:0 0 4px var(--accent-glow);">+${c.xp} XP ${ok ? '✅' : ''}</span></div><div class="challenge-bar" style="background:rgba(0,0,0,0.5); border:1px solid rgba(255,255,255,0.05); box-shadow:inset 0 1px 3px rgba(0,0,0,0.5); border-radius:99px; height:8px; margin:10px 0; overflow:hidden;"><span style="width:${pct}%; background:linear-gradient(90deg, var(--accent), var(--accent-light)); box-shadow:0 0 10px var(--accent-glow); position:relative;"><div style="position:absolute; inset:0; background:linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent); animation:shimmer 2s infinite;"></div></span></div><p style="color:var(--muted); font-size:12px; position:relative; z-index:2;">${Number(p).toLocaleString()} / ${c.target.toLocaleString()} ${esc(c.unit)}</p></article>`; }).join('');
-      const weekly = weeklyChallenges.map((c) => { const p = challengeProgress(c, 'weekly'); const pct = Math.max(0, Math.min(100, (p / c.target) * 100)); const ok = p >= c.target; return `<article class="challenge-card ${ok ? 'complete' : ''}" style="background:linear-gradient(135deg, rgba(255,255,255,0.02), transparent); border:1px solid rgba(255,255,255,0.05); padding:16px; border-radius:12px; position:relative; overflow:hidden;"><div style="position:absolute; inset:0; background:linear-gradient(90deg, transparent, rgba(255,255,255,0.02)); pointer-events:none;"></div><div class="challenge-head" style="position:relative; z-index:2;"><h4 style="color:var(--text); font-weight:700;">${esc(c.name)}</h4><span style="color:var(--accent); font-weight:bold; drop-shadow:0 0 4px var(--accent-glow);">+${c.xp} XP ${ok ? '✅' : ''}</span></div><div class="challenge-bar" style="background:rgba(0,0,0,0.5); border:1px solid rgba(255,255,255,0.05); box-shadow:inset 0 1px 3px rgba(0,0,0,0.5); border-radius:99px; height:8px; margin:10px 0; overflow:hidden;"><span style="width:${pct}%; background:linear-gradient(90deg, var(--accent), var(--accent-light)); box-shadow:0 0 10px var(--accent-glow); position:relative;"><div style="position:absolute; inset:0; background:linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent); animation:shimmer 2s infinite;"></div></span></div><p style="color:var(--muted); font-size:12px; position:relative; z-index:2;">${Number(p).toLocaleString()} / ${c.target.toLocaleString()} ${esc(c.unit)}</p></article>`; }).join('');
+      const daily = dailyChallenges.map((c) => { const p = challengeProgress(c, 'daily'); const pct = Math.max(0, Math.min(100, (p / c.target) * 100)); const ok = p >= c.target; return `<article class="challenge-card ${ok ? 'complete' : ''}" style="background:linear-gradient(135deg, rgba(255,255,255,0.02), transparent); border:1px solid rgba(255,255,255,0.05); padding:16px; border-radius:12px; position:relative; overflow:hidden;"><div style="position:absolute; inset:0; background:linear-gradient(90deg, transparent, rgba(255,255,255,0.02)); pointer-events:none;"></div><div class="challenge-head" style="position:relative; z-index:2;"><h4 style="color:var(--text); font-weight:700;">${esc(c.name)}</h4><span style="color:var(--accent); font-weight:bold;">+${c.xp} XP ${ok ? '✅' : ''}</span></div><div class="challenge-bar" style="background:rgba(0,0,0,0.5); border:1px solid rgba(255,255,255,0.05); box-shadow:inset 0 1px 3px rgba(0,0,0,0.5); border-radius:99px; height:8px; margin:10px 0; overflow:hidden;"><span style="width:${pct}%; background:linear-gradient(90deg, var(--accent), var(--accent-light)); position:relative;"><div style="position:absolute; inset:0; background:linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent); animation:shimmer 2s infinite;"></div></span></div><p style="color:var(--muted); font-size:12px; position:relative; z-index:2;">${Number(p).toLocaleString()} / ${c.target.toLocaleString()} ${esc(c.unit)}</p></article>`; }).join('');
+      const weekly = weeklyChallenges.map((c) => { const p = challengeProgress(c, 'weekly'); const pct = Math.max(0, Math.min(100, (p / c.target) * 100)); const ok = p >= c.target; return `<article class="challenge-card ${ok ? 'complete' : ''}" style="background:linear-gradient(135deg, rgba(255,255,255,0.02), transparent); border:1px solid rgba(255,255,255,0.05); padding:16px; border-radius:12px; position:relative; overflow:hidden;"><div style="position:absolute; inset:0; background:linear-gradient(90deg, transparent, rgba(255,255,255,0.02)); pointer-events:none;"></div><div class="challenge-head" style="position:relative; z-index:2;"><h4 style="color:var(--text); font-weight:700;">${esc(c.name)}</h4><span style="color:var(--accent); font-weight:bold;">+${c.xp} XP ${ok ? '✅' : ''}</span></div><div class="challenge-bar" style="background:rgba(0,0,0,0.5); border:1px solid rgba(255,255,255,0.05); box-shadow:inset 0 1px 3px rgba(0,0,0,0.5); border-radius:99px; height:8px; margin:10px 0; overflow:hidden;"><span style="width:${pct}%; background:linear-gradient(90deg, var(--accent), var(--accent-light)); position:relative;"><div style="position:absolute; inset:0; background:linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent); animation:shimmer 2s infinite;"></div></span></div><p style="color:var(--muted); font-size:12px; position:relative; z-index:2;">${Number(p).toLocaleString()} / ${c.target.toLocaleString()} ${esc(c.unit)}</p></article>`; }).join('');
       return `<section class="challenges-view">
         <header class="view-header card" style="position:relative; overflow:hidden;">
-          <div style="position:absolute; right:-50px; bottom:-50px; width:200px; height:200px; background:var(--accent-glow); filter:blur(40px); border-radius:50%; pointer-events:none;"></div>
           <div style="position:relative; z-index:2;"><h2>Active Challenges</h2><p>Daily and weekly targets with gamified XP rewards.</p></div>
         </header>
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">

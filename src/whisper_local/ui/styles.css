@@ -4,12 +4,12 @@
    ================================================================ */
 :root,
 [data-theme="hot_pink"] {
-  --bg: #0D0D0D;
-  --sidebar: #111116;
-  --card: #1A1A1A;
-  --text: #f5f6ff;
-  --muted: #a6a7bf;
-  --border: #2a2a2a;
+  --bg: #0A0A0C;
+  --sidebar: #101014;
+  --card: #17171B;
+  --text: #FAFAFC;
+  --muted: #9C9DB2;
+  --border: #33333C;
   --accent: #FF1493;
   --accent-light: #FF69B4;
   --accent-glow: rgba(255, 20, 147, 0.14);
@@ -21,6 +21,14 @@
   --red: #FF5252;
   /* Legacy alias so existing var(--purple) refs pick up the theme accent */
   --purple: #FF1493;
+}
+
+/* Light type on a dark ground is what subpixel antialiasing handles worst;
+   greyscale AA keeps the stems from smearing into colour fringes. */
+html {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
 /* Theme: Neon Dark — purple/teal neon (the previous default) */
@@ -211,7 +219,7 @@ body.modal-open {
   height: 12px;
   border-radius: 999px;
   background: radial-gradient(circle at 35% 30%, #fff, var(--accent) 45%, color-mix(in srgb, var(--accent) 60%, #000) 100%);
-  box-shadow: 0 0 6px var(--accent-border);
+  box-shadow: inset 0 0 0 1px var(--accent-border);
 }
 
 .sidebar-nav {
@@ -284,7 +292,7 @@ body.modal-open {
   background: linear-gradient(135deg, var(--accent), var(--accent-light));
   color: #fff;
   font-weight: 800;
-  box-shadow: 0 0 10px var(--accent-glow);
+  box-shadow: inset 0 0 0 1px var(--accent-border);
   position: relative;
 }
 
@@ -459,35 +467,35 @@ body.modal-open {
   background: var(--accent-bg-strong);
   font-size: 13px;
   font-weight: 600;
-  box-shadow: 0 0 15px var(--accent-glow);
+  box-shadow: inset 0 0 0 1px var(--accent-border);
   transition: all 0.3s ease;
   cursor: default;
 }
 
 .metric-chip:hover {
   transform: translateY(-2px) scale(1.05);
-  box-shadow: 0 0 20px var(--accent-hover);
+  box-shadow: inset 0 0 0 1px var(--accent-hover);
 }
 
 .metric-chip-xp {
   border-color: rgba(3, 218, 198, 0.4);
   background: rgba(3, 218, 198, 0.15);
   color: #03dac6;
-  box-shadow: 0 0 15px rgba(3, 218, 198, 0.2);
+  box-shadow: inset 0 0 0 1px rgba(3, 218, 198, 0.45);
 }
 
 .metric-chip-streak {
   border-color: rgba(255, 107, 107, 0.4);
   background: rgba(255, 107, 107, 0.15);
   color: #ff6b6b;
-  box-shadow: 0 0 15px rgba(255, 107, 107, 0.2);
+  box-shadow: inset 0 0 0 1px rgba(255, 107, 107, 0.45);
 }
 
 .metric-chip-week {
   border-color: rgba(255, 171, 0, 0.4);
   background: rgba(255, 171, 0, 0.15);
   color: #ffab00;
-  box-shadow: 0 0 15px rgba(255, 171, 0, 0.2);
+  box-shadow: inset 0 0 0 1px rgba(255, 171, 0, 0.45);
 }
 
 .xp-block,
@@ -520,7 +528,7 @@ body.modal-open {
   background: linear-gradient(90deg, var(--accent), var(--green), var(--accent-light));
   background-size: 200% 100%;
   border-radius: 999px;
-  box-shadow: 0 0 20px var(--accent-glow);
+  box-shadow: inset 0 0 0 1px var(--accent-border);
   transition: width 1s ease-out;
   position: relative;
   overflow: hidden;
