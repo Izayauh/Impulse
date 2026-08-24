@@ -120,7 +120,7 @@ datas = [
     # working with no network. Medium/large GGML models are no longer bundled.
     (os.path.join(ROOT_DIR, 'runtime', 'models', 'ggml-base.en.bin'), 'models'),
     # Application icon
-    (os.path.join(ROOT_DIR, 'src', 'whisper_local', 'Whisper.ico'), '.'),
+    (os.path.join(ROOT_DIR, 'src', 'whisper_local', 'Impulse.ico'), '.'),
     # Include package static assets
     (os.path.join(ROOT_DIR, 'src', 'whisper_local', 'message-send.mp3'), '.'),
     (os.path.join(ROOT_DIR, 'src', 'whisper_local', 'ui', 'dashboard.html'), '.'),
@@ -130,6 +130,9 @@ datas = [
     (os.path.join(ROOT_DIR, 'src', 'whisper_local', 'ui', 'dashboard.html'), os.path.join('whisper_local', 'ui')),
     (os.path.join(ROOT_DIR, 'src', 'whisper_local', 'ui', 'dashboard_stats.js'), os.path.join('whisper_local', 'ui')),
     (os.path.join(ROOT_DIR, 'src', 'whisper_local', 'ui', 'styles.css'), os.path.join('whisper_local', 'ui')),
+    # start_tray resolves this via res_path('ui/assets/mic_logo.png'), which is
+    # relative to the bundle root rather than the package dir.
+    (os.path.join(ROOT_DIR, 'src', 'whisper_local', 'ui', 'assets', 'mic_logo.png'), os.path.join('ui', 'assets')),
 ]
 
 # Filter datas to only existing files
@@ -205,7 +208,7 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon=os.path.join(ROOT_DIR, 'src', 'whisper_local', 'Whisper.ico'),
+    icon=os.path.join(ROOT_DIR, 'src', 'whisper_local', 'Impulse.ico'),
     version_info=None,  # Could add version info file here
 )
 

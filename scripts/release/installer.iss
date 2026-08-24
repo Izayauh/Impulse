@@ -31,7 +31,7 @@ DisableProgramGroupPage=yes
 ; Output settings
 OutputDir=..\..\dist
 OutputBaseFilename=Impulse-Setup-{#MyAppVersion}
-SetupIconFile=..\..\src\whisper_local\Whisper.ico
+SetupIconFile=..\..\src\whisper_local\Impulse.ico
 UninstallDisplayIcon={app}\{#MyAppExeName}
 
 ; Enable disk spanning for large installers (>4GB)
