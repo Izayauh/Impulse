@@ -1584,3 +1584,81 @@ body.modal-open {
     gap: 6px;
   }
 }
+/* ---------------------------------------------------------------------------
+   Dictation-first header
+   Replaces the old "Welcome back, <name>" block. The product's primary action
+   is dictating, so the header states the shortcut instead of greeting the user,
+   and it surfaces the hands-free latch, which nothing in the UI mentioned.
+   Styling follows the Live Feed rows: one solid surface, one hairline border,
+   no glow.
+--------------------------------------------------------------------------- */
+.DictateLead__eyebrow {
+  margin: 0 0 6px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.WelcomeHeader h2.DictateLead__primary {
+  margin: 0 0 10px;
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.DictateLead__secondary {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--muted);
+  max-width: 44ch;
+}
+
+/* Physical-key treatment, so the shortcut reads as something you press. */
+.Key {
+  display: inline-flex;
+  align-items: center;
+  font-family: inherit;
+  font-size: 0.95em;
+  font-weight: 600;
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border);
+  border-bottom-color: rgba(0, 0, 0, 0.6);
+  border-radius: 7px;
+  padding: 4px 10px;
+  white-space: nowrap;
+}
+
+.Key--sm {
+  font-size: 0.9em;
+  padding: 2px 7px;
+  border-radius: 6px;
+}
+
+/* The dictation header spans both home columns. */
+.home-view > .WelcomeHeader {
+  grid-column: 1 / -1;
+}
+
+.WelcomeHeader .welcome-row {
+  align-items: center;
+  gap: 24px;
+}
+
+/* Chips sit on one line beside the shortcut rather than stacking into a tower. */
+.WelcomeHeader__metrics {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  justify-content: flex-end;
+}

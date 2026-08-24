@@ -475,23 +475,20 @@
       return `
     <header class="card home-header WelcomeHeader" data-source="Bridge.stats.get" data-update-fn="renderWelcomeHeader" style="position:relative;">
       <div class="welcome-row WelcomeHeader__row">
-        <div>
-          <h2 style="display:flex; align-items:center; gap:12px;">
-            <div style="width:48px; height:48px; border-radius:12px; background:linear-gradient(135deg, var(--bg) 0%, #1a1a20 100%); display:flex; align-items:center; justify-content:center; border:1px solid var(--accent-border); box-shadow:none; position:relative;">
-              <span style="font-size:18px; color:var(--text); font-weight:700;">I</span>
-              <span style="position:absolute; bottom:-6px; right:-6px; background:linear-gradient(90deg, var(--accent), var(--accent-light)); font-size:9px; padding:2px 6px; border-radius:99px; box-shadow:none;">PRO</span>
-            </div>
-            Welcome back, ${esc(stats.userName || 'Writer')}
+        <div class="DictateLead">
+          <p class="DictateLead__eyebrow">Dictate anywhere</p>
+          <h2 class="DictateLead__primary">
+            Hold <kbd class="Key">${esc(hotkeyDisplay(settingsState.hotkey))}</kbd> and talk
           </h2>
-          <p>Voice performance at a glance.</p>
+          <p class="DictateLead__secondary">
+            Or tap <kbd class="Key Key--sm">${esc(hotkeyDisplay(settingsState.hotkey))} + Alt</kbd>
+            once to record hands-free, and again to stop.
+          </p>
         </div>
         <div class="header-metrics WelcomeHeader__metrics">
           <span class="metric-chip WelcomeHeader__chip" data-bind="stats.level">Lvl ${Number(stats.level) || 9}</span>
           <span class="metric-chip metric-chip-xp WelcomeHeader__chip" data-bind="stats.xp">${Number(stats.xp || 0).toLocaleString()} XP</span>
-          <span class="metric-chip metric-chip-streak WelcomeHeader__chip" data-bind="stats.dayStreak" style="position:relative; overflow:hidden;">
-            <div style="position:absolute; inset:0; background:linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent); animation: shimmer 3s infinite;"></div>
-            🔥 ${Number(stats.dayStreak || 0)} Day Streak
-          </span>
+          <span class="metric-chip metric-chip-streak WelcomeHeader__chip" data-bind="stats.dayStreak">🔥 ${Number(stats.dayStreak || 0)} Day Streak</span>
           <span class="metric-chip metric-chip-week WelcomeHeader__chip" data-bind="stats.thisWeek">${Number(weeklyTotal || 0).toLocaleString()} Weekly Words</span>
         </div>
       </div>
@@ -575,9 +572,8 @@
       const weeklyTotal = weekWords();
       return `
     <section class="home-view">
+      ${renderWelcomeHeader()}
       <div class="home-left">
-        ${renderWelcomeHeader()}
-        <section class="card hero-card"><div><h3>Voice dictation in any app</h3><p>Trigger, speak, and keep momentum while stacking XP and streak points.</p></div><button class="primary-btn" onclick="copyLast()">Copy latest</button></section>
         ${renderActivityGraph(series, weeklyTotal)}
       </div>
       <div class="home-right">
