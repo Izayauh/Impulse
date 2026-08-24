@@ -2848,38 +2848,71 @@ def autopunct_and_capitalize(s: str) -> str:
     # If no ending punctuation, don't force one (let user decide)
     return result
 
+# Formatting commands are only honoured at the START of an utterance. The old
+# patterns matched a bare "list" or "bullets" anywhere in the sentence, and the
+# command-stripping regex then deleted everything up to that word. Saying
+# "figure out the list of people to email" therefore lost its first six words
+# and came out as bullets split on every comma and "and".
+_BULLET_COMMAND = re.compile(
+    r"^\s*(?:please\s+)?(?:can\s+you\s+)?"
+    r"(?:"
+    # An imperative: "make a list of ...", "write a bulleted list ..."
+    r"(?:make|write|give\s+me|turn\s+this\s+into|format\s+(?:this\s+)?as)\s+"
+    r"(?:a|an|the)?\s*(?:bullet(?:ed)?(?:\s*point)?s?\s+)?list"
+    r"|"
+    # Or the noun phrase itself, which only reads as a command when the speaker
+    # says "bullet": a bare leading "list"/"the list" is ordinary speech.
+    r"(?:as\s+)?(?:a|an|the)?\s*bullet(?:ed)?(?:\s*point)?s?\s*list"
+    r")"
+    r"(?:\s+(?:of|for|with))?\s*[:,\-]?\s+",
+    re.IGNORECASE,
+)
+
+
+def _split_items(body: str) -> list:
+    items = re.split(r",|\band\b", body)
+    return [it.strip(" .\t\r\n") for it in items if it.strip()]
+
+
 def to_bullets(s: str) -> str:
-    """Convert comma-separated items to bullet list if requested."""
-    # Check if bullet list is explicitly requested
-    if re.search(r"\b(bullets?|bullet\s*list|make\s+a\s+list|as\s+a\s+list|list(?:\s*them)?:?)\b", s, re.IGNORECASE):
-        # Remove the "bullet list" command text
-        s = re.sub(r"^\s*.*?(bullets?|list(?:\s*them)?:?)\s*", "", s, flags=re.IGNORECASE)
-    else:
-        return s  # No bullet list requested
+    """Convert comma-separated items to a bullet list when explicitly asked."""
+    m = _BULLET_COMMAND.match(s)
+    if not m:
+        return s
 
-    # Split by comma or "and"
-    items = re.split(r",|\band\b", s)
-    items = [it.strip(" .\t\r\n") for it in items if it.strip()]
-
+    body = s[m.end():]
+    items = _split_items(body)
     if len(items) <= 1:
-        return s.strip()
+        # Not actually an enumeration, so the leading words were a noun phrase
+        # ("the bulleted list in the docs is stale"), not a command. Return the
+        # utterance untouched: dropping dictated words is far worse than
+        # declining to format.
+        return s
 
     return "\n".join("• " + it.capitalize() for it in items)
 
+_NUMBER_COMMAND = re.compile(
+    r"^\s*(?:please\s+)?(?:can\s+you\s+)?"
+    r"(?:make|write|give\s+me|turn\s+this\s+into|format\s+(?:this\s+)?as|as)?\s*"
+    r"(?:a|an|the)?\s*(?:numbered\s*list|number\s+(?:these|them|the\s+items?))"
+    r"(?:\s+(?:of|for|with))?\s*[:,\-]?\s+",
+    re.IGNORECASE,
+)
+
+
 def to_numbered_list(s: str) -> str:
-    """Convert items to numbered list if requested."""
-    if re.search(r"\b(?:numbered\s*list|number\s*(?:these|them|the\s+items?)?)\b", s, re.IGNORECASE):
-        # Remove the command text
-        s = re.sub(r"^\s*.*?(?:numbered\s*list|number\s*(?:these|them|the\s+items?)?)\s*[,:]?\s*", "", s, flags=re.IGNORECASE)
+    """Convert items to a numbered list when explicitly asked."""
+    m = _NUMBER_COMMAND.match(s)
+    if not m:
+        return s
 
-        # Split by comma or "and"
-        items = re.split(r",|\band\b", s)
-        items = [it.strip(" .\t\r\n") for it in items if it.strip()]
+    body = s[m.end():]
+    items = _split_items(body)
+    if len(items) <= 1:
+        # See to_bullets: a lone item means this was a noun phrase, not a command.
+        return s
 
-        if len(items) > 1:
-            return "\n".join(f"{i+1}. {it.capitalize()}" for i, it in enumerate(items))
-
-    return s
+    return "\n".join(f"{i+1}. {it.capitalize()}" for i, it in enumerate(items))
 
 def clean_spacing(s: str) -> str:
     """Clean up spacing around punctuation."""
