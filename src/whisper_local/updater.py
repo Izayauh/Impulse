@@ -21,7 +21,7 @@ from .config import APP_VERSION, APP_NAME
 
 
 # GitHub API endpoint for releases (no authentication needed for public repos)
-GITHUB_API = "https://api.github.com/repos/Izayauh/whisper/releases/latest"
+GITHUB_API = "https://api.github.com/repos/Izayauh/Impulse/releases/latest"
 UPDATE_CHECK_FILE = "last_update_check.json"
 UPDATE_CA_BUNDLE_ENV = "WHISPER_UPDATE_CA_BUNDLE"
 UPDATE_CERT_PIN_ENV = "WHISPER_UPDATE_CERT_SHA256"

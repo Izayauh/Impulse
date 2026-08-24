@@ -64,7 +64,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 }
 
 async function sendWelcomeEmail(email: string, licenseKey: string) {
-  const downloadUrl = process.env.PUBLIC_DOWNLOAD_URL || 'https://github.com/Izayauh/whisper/releases/latest';
+  const downloadUrl = process.env.PUBLIC_DOWNLOAD_URL || 'https://github.com/Izayauh/Impulse/releases/latest';
 
   await resend.emails.send({
     from: process.env.RESEND_FROM_EMAIL || 'Impulse <beta@impulse-app.com>',

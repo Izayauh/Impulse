@@ -12,7 +12,7 @@ Transform your voice into text instantly — completely offline, using OpenAI's 
 
 ### Option 1: Windows Installer (Recommended for most users)
 
-**[Open the latest Windows release page](https://github.com/Izayauh/whisper/releases/latest)**
+**[Open the latest Windows release page](https://github.com/Izayauh/Impulse/releases/latest)**
 
 1. Download the single Windows bootstrap installer when it is available
 2. Run the installer and stay online while setup downloads the runtime/model payload
@@ -26,7 +26,7 @@ No Python, no configuration, no technical knowledge required.
 
 ```powershell
 # Clone the repository
-git clone https://github.com/Izayauh/whisper.git
+git clone https://github.com/Izayauh/Impulse.git
 cd whisper
 
 # Create and activate virtual environment

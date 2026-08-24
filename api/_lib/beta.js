@@ -35,7 +35,7 @@ function publicBaseUrl() {
 }
 
 function releaseUrl() {
-  return optionalEnv('PUBLIC_DOWNLOAD_URL', 'https://github.com/Izayauh/whisper/releases/latest');
+  return optionalEnv('PUBLIC_DOWNLOAD_URL', 'https://github.com/Izayauh/Impulse/releases/latest');
 }
 
 function upstashHeaders(json = false) {

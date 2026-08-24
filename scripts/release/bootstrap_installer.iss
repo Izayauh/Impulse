@@ -4,7 +4,7 @@
 #define MyAppName "Impulse"
 #define MyAppVersion "1.0.5"
 #define MyAppPublisher "Impulse"
-#define MyAppURL "https://github.com/Izayauh/whisper"
+#define MyAppURL "https://github.com/Izayauh/Impulse"
 #define MyAppExeName "Impulse.exe"
 #define MyAppDescription "Privacy-focused, GPU-accelerated speech-to-text dictation"
 

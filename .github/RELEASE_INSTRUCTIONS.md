@@ -32,12 +32,12 @@ Releases are automated via GitHub Actions. When you push a version tag, the work
    ```
 
 4. **Monitor the build**:
-   - Go to [Actions tab](https://github.com/Izayauh/whisper/actions)
+   - Go to [Actions tab](https://github.com/Izayauh/Impulse/actions)
    - Watch the "Build and Release" workflow
    - Build takes approximately 15-30 minutes (downloading models is the slowest part)
 
 5. **Verify the release**:
-   - Go to [Releases](https://github.com/Izayauh/whisper/releases)
+   - Go to [Releases](https://github.com/Izayauh/Impulse/releases)
    - Download and test the bootstrap installer on a clean Windows machine when present
    - Also verify the split installer fallback still works
 
@@ -89,7 +89,7 @@ If you need to create a release manually:
    ```
 
 3. **Create the release on GitHub**:
-   - Go to https://github.com/Izayauh/whisper/releases/new
+   - Go to https://github.com/Izayauh/Impulse/releases/new
    - Create a new tag (e.g., `v1.0.0`)
    - Add release title: "Impulse v1.0.0"
    - Add release notes
