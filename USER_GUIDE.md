@@ -129,7 +129,7 @@ Opt in or out of anonymous beta usage reporting. See [PRIVACY.md](PRIVACY.md).
 
 ### App won't start / crashes
 
-- Check the log file: `%LOCALAPPDATA%\WhisperLocal\logs\flow.log`
+- Check the log file: `%LOCALAPPDATA%\Impulse\logs\flow.log`
 - Ensure Windows Defender or antivirus hasn't quarantined any DLLs
 - Try reinstalling — the installer is self-contained
 
@@ -167,15 +167,15 @@ Opt in or out of anonymous beta usage reporting. See [PRIVACY.md](PRIVACY.md).
 
 | Path | Contents |
 |------|----------|
-| `%LOCALAPPDATA%\WhisperLocal\logs\flow.log` | Main application log |
-| `%LOCALAPPDATA%\WhisperLocal\state\config.json` | Settings |
-| `%LOCALAPPDATA%\WhisperLocal\state\whisper_stats.json` | Usage statistics |
+| `%LOCALAPPDATA%\Impulse\logs\flow.log` | Main application log |
+| `%LOCALAPPDATA%\Impulse\state\config.json` | Settings |
+| `%LOCALAPPDATA%\Impulse\state\whisper_stats.json` | Usage statistics |
 
 ---
 
 ## Support
 
-1. Check the log: `%LOCALAPPDATA%\WhisperLocal\logs\flow.log`
+1. Check the log: `%LOCALAPPDATA%\Impulse\logs\flow.log`
 2. Open an issue on GitHub
 
 ---

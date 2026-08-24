@@ -1,4 +1,4 @@
-# WhisperLocal Release Package Creator
+# Impulse Release Package Creator
 # Creates a single ZIP package containing installer EXE + disk spanning BIN parts.
 
 param(
@@ -12,7 +12,7 @@ $ProjectRoot = Resolve-Path (Join-Path $ScriptDir "..\..")
 $distDir = Join-Path $ProjectRoot "dist"
 
 Write-Host ("=" * 60)
-Write-Host "WhisperLocal Release Package Creator"
+Write-Host "Impulse Release Package Creator"
 Write-Host ("=" * 60)
 
 if (-not (Test-Path $distDir)) {
@@ -23,7 +23,7 @@ if (-not (Test-Path $distDir)) {
 # Resolve installer EXE either by explicit version or latest build
 $installerExe = $null
 if ($Version -and $Version.Trim().Length -gt 0) {
-    $candidate = Join-Path $distDir ("WhisperLocal-Setup-" + $Version + ".exe")
+    $candidate = Join-Path $distDir ("Impulse-Setup-" + $Version + ".exe")
     if (Test-Path $candidate) {
         $installerExe = Get-Item $candidate
     } else {
@@ -32,7 +32,7 @@ if ($Version -and $Version.Trim().Length -gt 0) {
         exit 1
     }
 } else {
-    $installerExe = Get-ChildItem -Path $distDir -Filter "WhisperLocal-Setup-*.exe" |
+    $installerExe = Get-ChildItem -Path $distDir -Filter "Impulse-Setup-*.exe" |
         Where-Object { $_.Name -notmatch "-Complete\.zip" } |
         Sort-Object LastWriteTime -Descending |
         Select-Object -First 1
@@ -45,7 +45,7 @@ if ($Version -and $Version.Trim().Length -gt 0) {
 }
 
 $baseName = $installerExe.BaseName
-$version = $baseName -replace '^WhisperLocal-Setup-', ''
+$version = $baseName -replace '^Impulse-Setup-', ''
 
 # Find all installer parts for this exact build
 $installerFiles = Get-ChildItem -Path $distDir |
@@ -71,10 +71,10 @@ $checksumFile = $outputZip + ".sha256"
 
 # Build README content dynamically
 $readmeLines = @(
-    "WhisperLocal Installation Instructions",
+    "Impulse Installation Instructions",
     "=======================================",
     "",
-    "Thank you for downloading WhisperLocal!",
+    "Thank you for downloading Impulse!",
     "",
     "INSTALLATION STEPS:",
     "-------------------",
@@ -112,7 +112,7 @@ $readmeLines += @(
     "https://github.com/Izayauh/whisper"
 )
 
-$instructionsFile = Join-Path $env:TEMP "WhisperLocal-README.txt"
+$instructionsFile = Join-Path $env:TEMP "Impulse-README.txt"
 $readmeLines -join "`r`n" | Out-File -FilePath $instructionsFile -Encoding UTF8
 
 # Remove old outputs

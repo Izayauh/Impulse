@@ -1,6 +1,6 @@
-# Release Instructions for WhisperLocal
+# Release Instructions for Impulse
 
-This document explains how to create and publish new releases of WhisperLocal.
+This document explains how to create and publish new releases of Impulse.
 
 ## Automated Releases (Recommended)
 
@@ -82,21 +82,21 @@ If you need to create a release manually:
 2. **Verify the output**:
    ```powershell
    # Check the split installer was created
-   dir dist\WhisperLocal-Setup-*.exe
+   dir dist\Impulse-Setup-*.exe
 
    # Check the bootstrap installer was created when WHISPER_BOOTSTRAP_BASE_URL is set
-   dir dist\WhisperLocal-Bootstrap-Setup-*.exe
+   dir dist\Impulse-Bootstrap-Setup-*.exe
    ```
 
 3. **Create the release on GitHub**:
    - Go to https://github.com/Izayauh/whisper/releases/new
    - Create a new tag (e.g., `v1.0.0`)
-   - Add release title: "WhisperLocal v1.0.0"
+   - Add release title: "Impulse v1.0.0"
    - Add release notes
-   - Upload `dist\WhisperLocal-Bootstrap-Setup-1.0.0.exe` and `dist\WhisperLocal-Bootstrap-Payload-1.0.0.json` when bootstrap hosting is configured
-   - Upload `dist\WhisperLocal-Setup-1.0.0.exe`
-   - Upload every matching `dist\WhisperLocal-Setup-1.0.0-*.bin` file
-   - Upload `dist\WhisperLocal-Setup-1.0.0.sha256`
+   - Upload `dist\Impulse-Bootstrap-Setup-1.0.0.exe` and `dist\Impulse-Bootstrap-Payload-1.0.0.json` when bootstrap hosting is configured
+   - Upload `dist\Impulse-Setup-1.0.0.exe`
+   - Upload every matching `dist\Impulse-Setup-1.0.0-*.bin` file
+   - Upload `dist\Impulse-Setup-1.0.0.sha256`
    - Click "Publish release"
 
 ## Pre-Release Checklist
@@ -115,7 +115,7 @@ Before creating a release, verify:
 
 ## Bootstrap Payload Hosting
 
-Set `WHISPER_BOOTSTRAP_BASE_URL` to a public folder URL that will serve the payload files listed in `dist\WhisperLocal-Bootstrap-Payload-<version>.json`.
+Set `WHISPER_BOOTSTRAP_BASE_URL` to a public folder URL that will serve the payload files listed in `dist\Impulse-Bootstrap-Payload-<version>.json`.
 
 Example layout:
 
@@ -154,7 +154,7 @@ Models are downloaded from Hugging Face. If downloads fail:
 
 ### "Inno Setup failed"
 
-- Ensure all source files exist in `dist\WhisperLocal\`
+- Ensure all source files exist in `dist\Impulse\`
 - Check that `Whisper.ico` is present
 - Verify `installer.iss` syntax is correct
 - Verify `bootstrap_payload.iss.inc` was generated before compiling `bootstrap_installer.iss`

@@ -1,5 +1,5 @@
 # ============================================================================
-# WhisperLocal Automated Release Workflow
+# Impulse Automated Release Workflow
 # Builds and publishes installer when a version tag is pushed
 # ============================================================================
 #
@@ -255,16 +255,16 @@ jobs:
         env:
           WHISPER_TELEMETRY_TOKEN: ${{ secrets.WHISPER_TELEMETRY_TOKEN }}
         run: |
-          Write-Host "Building WhisperLocal with PyInstaller..."
+          Write-Host "Building Impulse with PyInstaller..."
           python -m PyInstaller --clean --noconfirm --distpath dist --workpath build scripts\release\build_config.spec
           
           # Verify output
-          if (Test-Path "dist\WhisperLocal\WhisperLocal.exe") {
-            $size = (Get-Item "dist\WhisperLocal\WhisperLocal.exe").Length / 1MB
+          if (Test-Path "dist\Impulse\Impulse.exe") {
+            $size = (Get-Item "dist\Impulse\Impulse.exe").Length / 1MB
             $sizeText = "Build successful! Size: {0:N1} MB" -f $size
             Write-Host $sizeText
           } else {
-            Write-Error "Build failed - WhisperLocal.exe not found"
+            Write-Error "Build failed - Impulse.exe not found"
             exit 1
           }
 
@@ -275,7 +275,7 @@ jobs:
           & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" /Q scripts\release\installer.iss
           
           # Find and verify installer
-          $installer = Get-ChildItem -Path "dist" -Filter "WhisperLocal-Setup-*.exe" | 
+          $installer = Get-ChildItem -Path "dist" -Filter "Impulse-Setup-*.exe" | 
             Sort-Object LastWriteTime -Descending | Select-Object -First 1
           
           if ($installer) {
@@ -307,7 +307,7 @@ jobs:
           Write-Host "Building bootstrap installer with Inno Setup..."
           & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" /Q scripts\release\bootstrap_installer.iss
 
-          $installer = Get-ChildItem -Path "dist" -Filter "WhisperLocal-Bootstrap-Setup-*.exe" |
+          $installer = Get-ChildItem -Path "dist" -Filter "Impulse-Bootstrap-Setup-*.exe" |
             Sort-Object LastWriteTime -Descending | Select-Object -First 1
 
           if ($installer) {
@@ -325,7 +325,7 @@ jobs:
       - name: Calculate checksums
         shell: pwsh
         run: |
-          $installer = Get-ChildItem -Path "dist" -Filter "WhisperLocal-Setup-*.exe" | 
+          $installer = Get-ChildItem -Path "dist" -Filter "Impulse-Setup-*.exe" | 
             Sort-Object LastWriteTime -Descending | Select-Object -First 1
           
           $hash = (Get-FileHash -Path $installer.FullName -Algorithm SHA256).Hash.ToLower()
@@ -342,7 +342,7 @@ jobs:
         if: ${{ env.BOOTSTRAP_BASE_URL != '' }}
         shell: pwsh
         run: |
-          $installer = Get-ChildItem -Path "dist" -Filter "WhisperLocal-Bootstrap-Setup-*.exe" |
+          $installer = Get-ChildItem -Path "dist" -Filter "Impulse-Bootstrap-Setup-*.exe" |
             Sort-Object LastWriteTime -Descending | Select-Object -First 1
 
           $hash = (Get-FileHash -Path $installer.FullName -Algorithm SHA256).Hash.ToLower()
@@ -363,16 +363,16 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.version.outputs.VERSION }}
-          name: WhisperLocal ${{ steps.version.outputs.VERSION }}
+          name: Impulse ${{ steps.version.outputs.VERSION }}
           body: |
-            ## WhisperLocal ${{ steps.version.outputs.VERSION }}
+            ## Impulse ${{ steps.version.outputs.VERSION }}
             
             Privacy-focused, GPU-accelerated speech-to-text dictation for Windows.
             
             ### Installation
             
-            1. Download `WhisperLocal-Setup-${{ steps.version.outputs.VERSION_NUMBER }}.exe`
-            2. Download every matching `WhisperLocal-Setup-${{ steps.version.outputs.VERSION_NUMBER }}-*.bin` part
+            1. Download `Impulse-Setup-${{ steps.version.outputs.VERSION_NUMBER }}.exe`
+            2. Download every matching `Impulse-Setup-${{ steps.version.outputs.VERSION_NUMBER }}-*.bin` part
             3. Put all downloaded files in the same folder
             4. Run the installer `.exe`
             5. Keep the `.bin` files beside the installer until setup finishes
@@ -394,9 +394,9 @@ jobs:
             See [CHANGELOG.md](https://github.com/Izayauh/whisper/blob/main/CHANGELOG.md) for details.
             
           files: |
-            dist/WhisperLocal-Setup-*.exe
-            dist/WhisperLocal-Setup-*.bin
-            dist/WhisperLocal-Setup-*.sha256
+            dist/Impulse-Setup-*.exe
+            dist/Impulse-Setup-*.bin
+            dist/Impulse-Setup-*.sha256
           draft: false
           prerelease: ${{ steps.version.outputs.IS_PRERELEASE }}
           generate_release_notes: true
@@ -408,15 +408,15 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.version.outputs.VERSION }}
-          name: WhisperLocal ${{ steps.version.outputs.VERSION }}
+          name: Impulse ${{ steps.version.outputs.VERSION }}
           body: |
-            ## WhisperLocal ${{ steps.version.outputs.VERSION }}
+            ## Impulse ${{ steps.version.outputs.VERSION }}
 
             Privacy-focused, GPU-accelerated speech-to-text dictation for Windows.
 
             ### Recommended Installation
 
-            1. Download `WhisperLocal-Bootstrap-Setup-${{ steps.version.outputs.VERSION_NUMBER }}.exe`
+            1. Download `Impulse-Bootstrap-Setup-${{ steps.version.outputs.VERSION_NUMBER }}.exe`
             2. Run the installer and stay online while setup downloads the runtime/model payload
             3. Start dictating with `WIN + CTRL`
             
@@ -424,15 +424,15 @@ jobs:
 
             If the bootstrap installer is unavailable on your network, use the split GitHub release assets instead:
 
-            1. Download `WhisperLocal-Setup-${{ steps.version.outputs.VERSION_NUMBER }}.exe`
-            2. Download every matching `WhisperLocal-Setup-${{ steps.version.outputs.VERSION_NUMBER }}-*.bin` part
+            1. Download `Impulse-Setup-${{ steps.version.outputs.VERSION_NUMBER }}.exe`
+            2. Download every matching `Impulse-Setup-${{ steps.version.outputs.VERSION_NUMBER }}-*.bin` part
             3. Put all downloaded files in the same folder
             4. Run the installer `.exe`
             5. Keep the `.bin` files beside the installer until setup finishes
 
             ### Hosted Bootstrap Payload
 
-            - Upload the files listed in `WhisperLocal-Bootstrap-Payload-${{ steps.version.outputs.VERSION_NUMBER }}.json` to `${{ secrets.WHISPER_BOOTSTRAP_BASE_URL }}`
+            - Upload the files listed in `Impulse-Bootstrap-Payload-${{ steps.version.outputs.VERSION_NUMBER }}.json` to `${{ secrets.WHISPER_BOOTSTRAP_BASE_URL }}`
             - The manifest includes SHA256 checksums for each hosted payload file
 
             ### Checksums
@@ -445,12 +445,12 @@ jobs:
             See [CHANGELOG.md](https://github.com/Izayauh/whisper/blob/main/CHANGELOG.md) for details.
 
           files: |
-            dist/WhisperLocal-Bootstrap-Setup-*.exe
-            dist/WhisperLocal-Bootstrap-Setup-*.sha256
-            dist/WhisperLocal-Bootstrap-Payload-*.json
-            dist/WhisperLocal-Setup-*.exe
-            dist/WhisperLocal-Setup-*.bin
-            dist/WhisperLocal-Setup-*.sha256
+            dist/Impulse-Bootstrap-Setup-*.exe
+            dist/Impulse-Bootstrap-Setup-*.sha256
+            dist/Impulse-Bootstrap-Payload-*.json
+            dist/Impulse-Setup-*.exe
+            dist/Impulse-Setup-*.bin
+            dist/Impulse-Setup-*.sha256
           draft: false
           prerelease: ${{ steps.version.outputs.IS_PRERELEASE }}
           generate_release_notes: true

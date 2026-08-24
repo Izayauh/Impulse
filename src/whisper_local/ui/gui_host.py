@@ -617,7 +617,7 @@ class DashboardAPI(AppApi):
 def _bring_window_to_front() -> None:
     try:
         user32 = ctypes.windll.user32
-        hwnd = user32.FindWindowW(None, "Whisper Local Dashboard")
+        hwnd = user32.FindWindowW(None, "Impulse Dashboard")
         if hwnd:
             user32.ShowWindow(hwnd, 5)
             user32.SetForegroundWindow(hwnd)
@@ -681,7 +681,7 @@ def _run_webview_dashboard() -> None:
         min_h = 600 if is_impulse else 500
 
         window = webview.create_window(
-            title="Whisper Local Dashboard",
+            title="Impulse Dashboard",
             url=DASHBOARD_HTML_PATH,
             width=win_w,
             height=win_h,

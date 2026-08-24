@@ -13,7 +13,7 @@ SPEC_DIR = os.path.dirname(os.path.abspath(SPEC))
 ROOT_DIR = os.path.abspath(os.path.join(SPEC_DIR, '..', '..'))
 
 # Application metadata
-APP_NAME = 'WhisperLocal'
+APP_NAME = 'Impulse'
 APP_VERSION = '1.0.5-beta.4-dev'
 MAIN_SCRIPT = os.path.join(ROOT_DIR, 'main.py')
 

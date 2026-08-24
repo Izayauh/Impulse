@@ -1,5 +1,5 @@
 # ============================================================================
-# WhisperLocal Build Script
+# Impulse Build Script
 # Builds standalone installer from Python source
 # ============================================================================
 #
@@ -31,7 +31,7 @@ $ErrorActionPreference = "Stop"
 # ============================================================================
 # Configuration
 # ============================================================================
-$AppName = "WhisperLocal"
+$AppName = "Impulse"
 $AppVersion = "1.0.0-beta.1"
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $ProjectRoot = Resolve-Path (Join-Path $ScriptDir "..\\..")

@@ -201,7 +201,7 @@ class LicensingManager:
         payload = json.dumps(
             {
                 "license_key": license_key,
-                "instance_name": f"WhisperLocal App - {self._machine_id}",
+                "instance_name": f"Impulse App - {self._machine_id}",
             }
         ).encode("utf-8")
 

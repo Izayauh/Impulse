@@ -274,7 +274,7 @@ class TelemetrySubmitter:
                     "Accept": "application/vnd.github+json",
                     "Authorization": f"Bearer {self._github_token}",
                     "Content-Type": "application/json",
-                    "User-Agent": f"WhisperLocal/{self._app_version}",
+                    "User-Agent": f"Impulse/{self._app_version}",
                 },
                 method="POST",
             )

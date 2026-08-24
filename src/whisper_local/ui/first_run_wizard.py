@@ -33,7 +33,7 @@ except ImportError:
     # Fallback for standalone testing
     print("Warning: Running wizard standalone - some features disabled")
     Theme = None
-    APP_NAME = "WhisperLocal"
+    APP_NAME = "Impulse"
     APP_VERSION = "1.0.0-beta.1"
     
     # Fallback DPI scaling (matching main module's moderate scaling)
@@ -709,7 +709,7 @@ Your voice never leaves your machine."""
         info_frame.pack(fill="x", pady=Theme.PAD_SM)
 
         info_text = (
-            "WhisperLocal works great without Ollama.\n"
+            "Impulse works great without Ollama.\n"
             "Core transcription runs entirely offline via whisper.cpp.\n"
             "\n"
             "With Ollama you unlock:\n"
@@ -1027,7 +1027,7 @@ Your voice never leaves your machine."""
         ).pack(anchor="w")
 
         # Finish button
-        self._create_nav_button("Start Using WhisperLocal", self._finish, accent=True, center=True)
+        self._create_nav_button("Start Using Impulse", self._finish, accent=True, center=True)
     
     def _create_button(self, parent, text, command, side="left"):
         """Create a styled button."""
@@ -1135,7 +1135,7 @@ Your voice never leaves your machine."""
             shortcut.TargetPath = sys.executable
             shortcut.WorkingDirectory = os.path.dirname(sys.executable)
             shortcut.IconLocation = sys.executable
-            shortcut.Description = "WhisperLocal - Voice to Text"
+            shortcut.Description = "Impulse - Voice to Text"
             shortcut.save()
         except ImportError:
             # winshell not available - skip

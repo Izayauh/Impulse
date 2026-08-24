@@ -100,7 +100,7 @@ def _run_selftest(wav_path: str) -> int:
     """Transcribe one WAV through the production route and print a JSON report.
 
     Lets any machine verify install, model routing, and engine speed headlessly:
-        WhisperLocal.exe --selftest C:\\path\\to\\sample.wav
+        Impulse.exe --selftest C:\\path\\to\\sample.wav
     """
     import contextlib
     import json

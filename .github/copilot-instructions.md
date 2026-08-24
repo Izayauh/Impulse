@@ -1,4 +1,4 @@
-# Impulse (WhisperLocal) - Agent Guidelines
+# Impulse - Agent Guidelines
 
 > Canonical guidelines live in AGENTS.md at the project root. Read it before making any changes.
 

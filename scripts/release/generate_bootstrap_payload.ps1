@@ -1,5 +1,5 @@
 # ============================================================================
-# WhisperLocal Bootstrap Payload Manifest Generator
+# Impulse Bootstrap Payload Manifest Generator
 # Generates installer include data and a publish manifest for hosted payloads.
 # ============================================================================
 
@@ -12,7 +12,7 @@ $ErrorActionPreference = "Stop"
 
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $ProjectRoot = Resolve-Path (Join-Path $ScriptDir "..\..")
-$DistRoot = Join-Path $ProjectRoot "dist\WhisperLocal"
+$DistRoot = Join-Path $ProjectRoot "dist\Impulse"
 $IncludePath = Join-Path $ScriptDir "bootstrap_payload.iss.inc"
 
 function Get-AppVersion {
@@ -78,14 +78,14 @@ foreach ($relativePath in $payloadRelativePaths) {
 }
 
 $manifest = [ordered]@{
-    app = "WhisperLocal"
+    app = "Impulse"
     version = $Version
     generated_at_utc = (Get-Date).ToUniversalTime().ToString("o")
     base_url = $NormalizedBaseUrl
     files = $manifestFiles
 }
 
-$manifestPath = Join-Path $ProjectRoot "dist\WhisperLocal-Bootstrap-Payload-$Version.json"
+$manifestPath = Join-Path $ProjectRoot "dist\Impulse-Bootstrap-Payload-$Version.json"
 $manifest | ConvertTo-Json -Depth 5 | Set-Content -Path $manifestPath -Encoding UTF8
 $includeLines | Set-Content -Path $IncludePath -Encoding ASCII
 

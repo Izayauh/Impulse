@@ -1,14 +1,14 @@
-; WhisperLocal Installer Script
+; Impulse Installer Script
 ; Built with Inno Setup (https://jrsoftware.org/isinfo.php)
 ; 
-; This script creates a Windows installer for WhisperLocal.
+; This script creates a Windows installer for Impulse.
 ; Run this with Inno Setup Compiler after building with PyInstaller.
 
-#define MyAppName "WhisperLocal"
+#define MyAppName "Impulse"
 #define MyAppVersion "1.0.5"
-#define MyAppPublisher "WhisperLocal"
+#define MyAppPublisher "Impulse"
 #define MyAppURL "https://github.com/Izayauh/whisper"
-#define MyAppExeName "WhisperLocal.exe"
+#define MyAppExeName "Impulse.exe"
 #define MyAppDescription "Privacy-focused, GPU-accelerated speech-to-text dictation"
 
 [Setup]
@@ -30,7 +30,7 @@ DisableProgramGroupPage=yes
 
 ; Output settings
 OutputDir=..\..\dist
-OutputBaseFilename=WhisperLocal-Setup-{#MyAppVersion}
+OutputBaseFilename=Impulse-Setup-{#MyAppVersion}
 SetupIconFile=..\..\src\whisper_local\Whisper.ico
 UninstallDisplayIcon={app}\{#MyAppExeName}
 
@@ -71,7 +71,7 @@ Name: "quicklaunchicon"; Description: "{cm:CreateQuickLaunchIcon}"; GroupDescrip
 
 [Files]
 ; Main application and dependencies from PyInstaller build
-Source: "..\..\dist\WhisperLocal\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "..\..\dist\Impulse\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 ; WebView2 evergreen bootstrapper (the dashboard requires the WebView2
 ; runtime; fresh Windows 10 machines often lack it). Downloaded at build
@@ -116,6 +116,14 @@ begin
     Result := False;
 end;
 
+[InstallDelete]
+; Upgrading over a pre-rename WhisperLocal install: drop the old exe, shortcuts
+; and autostart entry so nothing keeps launching the stale binary.
+Type: files; Name: "{app}\WhisperLocal.exe"
+Type: filesandordirs; Name: "{autoprograms}\WhisperLocal"
+Type: files; Name: "{autodesktop}\WhisperLocal.lnk"
+Type: files; Name: "{userappdata}\Microsoft\Internet Explorer\Quick Launch\WhisperLocal.lnk"
+
 [Registry]
 ; Auto-start on Windows login (if selected)
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "{#MyAppName}"; ValueData: """{app}\{#MyAppExeName}"""; Flags: uninsdeletevalue; Tasks: autostart
@@ -123,6 +131,10 @@ Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: 
 ; App registration for Windows Settings
 Root: HKCU; Subkey: "Software\{#MyAppName}"; ValueType: string; ValueName: "InstallPath"; ValueData: "{app}"; Flags: uninsdeletekey
 Root: HKCU; Subkey: "Software\{#MyAppName}"; ValueType: string; ValueName: "Version"; ValueData: "{#MyAppVersion}"
+
+; Retire the pre-rename autostart value and app key
+Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: none; ValueName: "WhisperLocal"; Flags: deletevalue
+Root: HKCU; Subkey: "Software\WhisperLocal"; Flags: deletekey
 
 [Run]
 ; Launch application after installation
@@ -172,7 +184,7 @@ begin
   // Check Windows version (require Windows 10 or later)
   if Version.Major < 10 then
   begin
-    MsgBox('WhisperLocal requires Windows 10 or later.' + #13#10 + 
+    MsgBox('Impulse requires Windows 10 or later.' + #13#10 + 
            'Please upgrade your operating system.', mbError, MB_OK);
     Result := False;
     Exit;
@@ -181,7 +193,7 @@ begin
   // Check for 64-bit Windows
   if not IsWin64 then
   begin
-    MsgBox('WhisperLocal requires 64-bit Windows.' + #13#10 + 
+    MsgBox('Impulse requires 64-bit Windows.' + #13#10 + 
            'This appears to be a 32-bit system.', mbError, MB_OK);
     Result := False;
     Exit;
@@ -213,7 +225,7 @@ begin
     UserDataPath := ExpandConstant('{localappdata}\{#MyAppName}');
     if DirExists(UserDataPath) then
     begin
-      if MsgBox('Do you want to remove your WhisperLocal settings and statistics?' + #13#10 + #13#10 +
+      if MsgBox('Do you want to remove your Impulse settings and statistics?' + #13#10 + #13#10 +
                 'Click Yes to remove all data, or No to keep your settings for future installations.',
                 mbConfirmation, MB_YESNO) = IDYES then
       begin

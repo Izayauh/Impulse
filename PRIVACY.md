@@ -27,7 +27,7 @@ All of the following remain exclusively on your local machine:
 
 - Voice recordings (temporary WAV file, overwritten after each transcription)
 - Transcribed text (delivered only to your clipboard or active application)
-- Usage statistics (word counts, streaks — stored in `%LOCALAPPDATA%\WhisperLocal\`)
+- Usage statistics (word counts, streaks — stored in `%LOCALAPPDATA%\Impulse\`)
 - Application settings and preferences
 - Log files for troubleshooting
 
@@ -80,19 +80,19 @@ All other functionality works completely offline.
 
 | File | Purpose | Location |
 |------|---------|----------|
-| `license.json` | Cached license state | `%LOCALAPPDATA%\WhisperLocal\state\` |
-| `machine_id.txt` | Anonymous device identifier (UUID) | `%LOCALAPPDATA%\WhisperLocal\state\` |
-| `whisper_stats.json` | Usage statistics | `%LOCALAPPDATA%\WhisperLocal\state\` |
-| `config.json` | Application settings | `%LOCALAPPDATA%\WhisperLocal\state\` |
-| `flow.log` | Diagnostic log | `%LOCALAPPDATA%\WhisperLocal\logs\` |
-| `flow_input.wav` | Temporary audio | `%LOCALAPPDATA%\WhisperLocal\audio\` |
+| `license.json` | Cached license state | `%LOCALAPPDATA%\Impulse\state\` |
+| `machine_id.txt` | Anonymous device identifier (UUID) | `%LOCALAPPDATA%\Impulse\state\` |
+| `whisper_stats.json` | Usage statistics | `%LOCALAPPDATA%\Impulse\state\` |
+| `config.json` | Application settings | `%LOCALAPPDATA%\Impulse\state\` |
+| `flow.log` | Diagnostic log | `%LOCALAPPDATA%\Impulse\logs\` |
+| `flow_input.wav` | Temporary audio | `%LOCALAPPDATA%\Impulse\audio\` |
 
 ### Deleting Your Data
 
 To remove all Impulse data:
 
 1. Uninstall via Windows Settings → Apps
-2. Manually delete: `%LOCALAPPDATA%\WhisperLocal\`
+2. Manually delete: `%LOCALAPPDATA%\Impulse\`
 
 ---
 

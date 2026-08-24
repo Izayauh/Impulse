@@ -167,9 +167,10 @@ def play_recording_stop_sound():
 # ============================================================================
 # APPLICATION METADATA
 # ============================================================================
-APP_NAME = "WhisperLocal"
+APP_NAME = "Impulse"
+LEGACY_APP_NAME = "WhisperLocal"  # pre-rename data dir name; migrated on first run
 from whisper_local.config import APP_VERSION  # single source of truth for the version banner
-APP_AUTHOR = "WhisperLocal"
+APP_AUTHOR = "Impulse"
 
 # ============================================================================
 # DPI SCALING DETECTION
@@ -340,6 +341,12 @@ def get_user_data_dir():
         # Use AppData/Local for user-specific data
         appdata = os.environ.get('LOCALAPPDATA', os.path.expanduser('~'))
         data_dir = os.path.join(appdata, APP_NAME)
+        legacy_dir = os.path.join(appdata, LEGACY_APP_NAME)
+        if not os.path.isdir(data_dir) and os.path.isdir(legacy_dir):
+            try:
+                os.rename(legacy_dir, data_dir)
+            except OSError:
+                data_dir = legacy_dir  # rename blocked (old app still running?); keep legacy location
         for rel in ("logs", "audio", "transcripts", "state"):
             os.makedirs(os.path.join(data_dir, rel), exist_ok=True)
         debug_print(f"[DEBUG] get_user_data_dir (flow_local_dictation.py): {data_dir}")
@@ -4775,7 +4782,7 @@ listening_enabled = True
 # When True the recording is kept alive without holding the hotkey (toggle mode).
 latch_recording = False
 
-def _tray_update(title="Whisper Local", text="Idle"):
+def _tray_update(title="Impulse", text="Idle"):
     try:
         if tray_icon:
             tray_icon.title = f"{title} — {text}"

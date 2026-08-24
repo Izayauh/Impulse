@@ -166,7 +166,7 @@ class TestApplicationMetadata(unittest.TestCase):
         
         self.assertIsInstance(APP_NAME, str)
         self.assertGreater(len(APP_NAME), 0)
-        self.assertEqual(APP_NAME, "WhisperLocal")
+        self.assertEqual(APP_NAME, "Impulse")
     
     def test_app_version_defined(self):
         """Test application version is defined."""

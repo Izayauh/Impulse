@@ -18,7 +18,7 @@ Transform your voice into text instantly — completely offline, using OpenAI's 
 2. Run the installer and stay online while setup downloads the runtime/model payload
 3. Follow the setup wizard - you'll be prompted to enter your beta license key
 
-Fallback: if the release only includes split assets, download `WhisperLocal-Setup-<version>.exe` and every matching `.bin` part, keep them in the same folder, then run the installer.
+Fallback: if the release only includes split assets, download `Impulse-Setup-<version>.exe` and every matching `.bin` part, keep them in the same folder, then run the installer.
 
 No Python, no configuration, no technical knowledge required.
 
@@ -181,7 +181,7 @@ MIT License - Based on [Whisper.cpp](https://github.com/ggerganov/whisper.cpp)
 
 ## 🆘 Support
 
-1. Check the log file: `%LOCALAPPDATA%\WhisperLocal\logs\flow.log`
+1. Check the log file: `%LOCALAPPDATA%\Impulse\logs\flow.log`
 2. See [`USER_GUIDE.md`](USER_GUIDE.md) for detailed help
 3. Open an issue on GitHub
 

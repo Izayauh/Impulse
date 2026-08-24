@@ -19,7 +19,7 @@ from pathlib import Path
 class CrashReporter:
     """Collect and save crash reports locally (privacy-preserving)."""
     
-    def __init__(self, app_name: str = "WhisperLocal", crash_dir: Optional[str] = None):
+    def __init__(self, app_name: str = "Impulse", crash_dir: Optional[str] = None):
         """Initialize crash reporter.
         
         Args:

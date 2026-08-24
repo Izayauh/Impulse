@@ -1,11 +1,11 @@
-; WhisperLocal Bootstrap Installer Script
+; Impulse Bootstrap Installer Script
 ; Ships the app shell and downloads the heavy runtime/model payload during setup.
 
-#define MyAppName "WhisperLocal"
+#define MyAppName "Impulse"
 #define MyAppVersion "1.0.5"
-#define MyAppPublisher "WhisperLocal"
+#define MyAppPublisher "Impulse"
 #define MyAppURL "https://github.com/Izayauh/whisper"
-#define MyAppExeName "WhisperLocal.exe"
+#define MyAppExeName "Impulse.exe"
 #define MyAppDescription "Privacy-focused, GPU-accelerated speech-to-text dictation"
 
 [Setup]
@@ -22,7 +22,7 @@ DefaultGroupName={#MyAppName}
 AllowNoIcons=yes
 DisableProgramGroupPage=yes
 OutputDir=..\..\dist
-OutputBaseFilename=WhisperLocal-Bootstrap-Setup-{#MyAppVersion}
+OutputBaseFilename=Impulse-Bootstrap-Setup-{#MyAppVersion}
 SetupIconFile=..\..\src\whisper_local\Whisper.ico
 UninstallDisplayIcon={app}\{#MyAppExeName}
 Compression=lzma2/ultra64
@@ -48,7 +48,7 @@ Name: "autostart"; Description: "Start {#MyAppName} when Windows starts"; GroupD
 Name: "quicklaunchicon"; Description: "{cm:CreateQuickLaunchIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 
 [Files]
-Source: "..\..\dist\WhisperLocal\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: "_internal\models\*,_internal\cublas64_13.dll,_internal\cublasLt64_13.dll,_internal\ggml-base.dll,_internal\ggml-cpu.dll,_internal\ggml-cuda.dll,_internal\ggml.dll,_internal\whisper-cli.exe,_internal\whisper.dll"
+Source: "..\..\dist\Impulse\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: "_internal\models\*,_internal\cublas64_13.dll,_internal\cublasLt64_13.dll,_internal\ggml-base.dll,_internal\ggml-cpu.dll,_internal\ggml-cuda.dll,_internal\ggml.dll,_internal\whisper-cli.exe,_internal\whisper.dll"
 Source: "..\..\README.md"; DestDir: "{app}"; Flags: ignoreversion; DestName: "README.txt"
 Source: "..\..\USER_GUIDE.md"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist; DestName: "User Guide.txt"
 Source: "..\..\PRIVACY.md"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist; DestName: "Privacy Policy.txt"
