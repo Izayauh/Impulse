@@ -1,10 +1,10 @@
 # 🎤 Impulse
 
-**Privacy-focused, GPU-accelerated speech-to-text dictation for Windows**
+**Private, local speech-to-text dictation for Windows**
 
-Transform your voice into text instantly — completely offline, using OpenAI's Whisper AI running locally on your computer.
+Hold a key, talk, and the text appears in whatever window has focus. Transcription runs entirely on your machine using Whisper — no audio and no text ever leaves your computer.
 
-> **Beta Notice:** This is a pre-release beta (`1.0.0-beta.1`). A license key is required for activation. The beta expires **April 30, 2026**. Please report bugs via GitHub Issues.
+> **Beta Notice:** This is a pre-release beta. A free license key is issued on signup at [impulsedictation.com](https://impulsedictation.com). Please report bugs via GitHub Issues.
 
 ---
 

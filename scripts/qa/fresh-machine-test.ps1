@@ -97,7 +97,7 @@ try {
   $resp = Invoke-RestMethod -Method Post `
     -Uri 'https://impulse-eight-lake.vercel.app/api/beta-signup' `
     -ContentType 'application/json' -TimeoutSec 30 `
-    -Body (@{ email = "isaiahwashington48+qa-$env:COMPUTERNAME@gmail.com"; source = 'fresh-machine-test' } | ConvertTo-Json)
+    -Body (@{ email = "qa+$env:COMPUTERNAME@impulsedictation.com"; source = 'fresh-machine-test' } | ConvertTo-Json)
   $key = $resp.licenseKey
   if (-not $key) { throw "signup succeeded but returned no licenseKey" }
   Step "License key issued: $key"

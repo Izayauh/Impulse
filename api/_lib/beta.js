@@ -473,8 +473,45 @@ function leadsToCsv(leads) {
   return [headers.join(','), ...rows].join('\n');
 }
 
+/**
+ * Fixed-window rate limit backed by the same KV store.
+ *
+ * The public endpoints (signup, validate, events) were previously unbounded, so
+ * a trivial script could flood signups and burn the Resend send quota, which
+ * costs real money and can damage the sending domain's reputation.
+ *
+ * Fails OPEN: if KV is unreachable we serve the request rather than locking
+ * every user out of activation because a cache is down.
+ */
+async function rateLimit(bucket, identifier, { max, windowSeconds }) {
+  if (!identifier) return { allowed: true, remaining: max };
+
+  const window = Math.floor(Date.now() / 1000 / windowSeconds);
+  const key = `rl:${bucket}:${identifier}:${window}`;
+
+  try {
+    const current = Number((await kvGet(key)) || 0);
+    if (current >= max) {
+      return { allowed: false, remaining: 0, retryAfter: windowSeconds };
+    }
+    await kvRequest('POST', `/set/${encodeURIComponent(key)}/${current + 1}?EX=${windowSeconds * 2}`);
+    return { allowed: true, remaining: max - current - 1 };
+  } catch (err) {
+    console.error('rateLimit check failed, allowing request:', err);
+    return { allowed: true, remaining: max };
+  }
+}
+
+/** Best-effort client identity behind Vercel's proxy. */
+function clientIp(req) {
+  const fwd = req.headers['x-forwarded-for'];
+  if (typeof fwd === 'string' && fwd.trim()) return fwd.split(',')[0].trim();
+  return req.headers['x-real-ip'] || req.socket?.remoteAddress || null;
+}
+
 module.exports = {
   DAY_MS,
+  clientIp,
   createSignupLead,
   csvEscape,
   dueForSequence,
@@ -488,6 +525,7 @@ module.exports = {
   listLeads,
   markLeadUnsubscribedByToken,
   normalizeEmail,
+  rateLimit,
   publicBaseUrl,
   recordValidationSuccess,
   releaseUrl,

@@ -1,4 +1,4 @@
-const { kvGet, kvSet, kvSadd } = require('./_lib/beta');
+const { clientIp, kvGet, kvSadd, kvSet, rateLimit } = require('./_lib/beta');
 
 // Anonymous setup-funnel events from opted-in beta clients.
 // No auth by design (fresh installs have no credentials); the payload is
@@ -23,6 +23,11 @@ function clampProps(props) {
 module.exports = async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
+  }
+
+  const limit = await rateLimit('events', clientIp(req), { max: 120, windowSeconds: 3600 });
+  if (!limit.allowed) {
+    return res.status(429).json({ error: 'Too many events.' });
   }
 
   const { install_id, event, ts, app_version, os, props } = req.body ?? {};

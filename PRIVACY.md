@@ -98,11 +98,20 @@ To remove all Impulse data:
 
 ## Third-Party Components
 
-Impulse uses open-source components under MIT and similar licenses. None collect or transmit user data in our implementation:
+Impulse bundles open-source components. None collect or transmit user data in our
+implementation:
 
-- **Whisper.cpp** — Speech recognition engine
-- **GGML** — Tensor library for model inference
-- **LemonSqueezy** — License validation API (receives only license key + anonymous machine ID)
+| Component | Role | Licence |
+|---|---|---|
+| Whisper.cpp | Offline speech recognition fallback | MIT |
+| GGML | Tensor library for model inference | MIT |
+| faster-whisper / CTranslate2 | Primary transcription engine | MIT / Apache-2.0 |
+| PySide6 (Qt for Python) | On-screen recording indicator | **LGPL v3** |
+
+The only network service Impulse contacts is our own licensing endpoint at
+`impulsedictation.com`, which receives your license key and an anonymous machine
+ID in order to activate and validate. No third-party licensing provider is
+involved, and no other service receives anything about you.
 
 ---
 
