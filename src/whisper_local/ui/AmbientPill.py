@@ -32,6 +32,27 @@ _AUDIO_RESPONSE_ALPHA = 0.35
 _AUDIO_MAX_STEP = 0.22
 _PROCESSING_TIMEOUT_MS = 1200
 _WAVE_BARS = 12
+# SENSITIVITY above is a fixed multiplier tuned for consumer mics with automatic
+# gain, where speech lands near RMS 0.07. A gain-staged input (studio interface,
+# XLR chain) speaks at RMS 0.002-0.02, which that multiplier renders as a 3-15%
+# twitch — indistinguishable from a frozen pill. So normalise against the loudest
+# level of the current take instead of an absolute constant.
+_PEAK_DECAY = 0.995          # per level push (~33/s), so the reference follows the voice down
+_LEVEL_FLOOR = 0.004         # just above RMS_THRESHOLD_VOICED; below this we render silence
+_LEVEL_CURVE = 0.6           # <1 lifts quiet speech so the bars read on camera
+
+
+def normalize_level(ema: float, peak: float) -> float:
+    """Map a smoothed RMS to 0..1 relative to the take's own peak.
+
+    Device-independent by construction: what matters is how loud this moment is
+    against the loudest moment so far, not how hot the interface runs.
+    """
+    if ema <= _LEVEL_FLOOR:
+        return 0.0
+    ceiling = max(peak, _LEVEL_FLOOR)
+    ratio = max(0.0, min(1.0, ema / ceiling))
+    return ratio ** _LEVEL_CURVE
 
 
 class PillState(str, Enum):
@@ -188,6 +209,7 @@ if is_qt_available():
             self.root = _QtRootAdapter(self)
             self._state = PillState.ARMED if self._is_armed_fn() else PillState.IDLE
             self._audio_ema = 0.0
+            self._audio_peak = 0.0
             self._glow = 0.0
             self._audio_level_target = 0.0
             self._audio_level_display = 0.0
@@ -249,7 +271,8 @@ if is_qt_available():
                 return
             level = max(0.0, float(rms))
             self._audio_ema = (1.0 - SMOOTHING_FACTOR) * self._audio_ema + SMOOTHING_FACTOR * level
-            self._audio_level_target = max(0.0, min(1.0, self._audio_ema * SENSITIVITY))
+            self._audio_peak = max(self._audio_ema, self._audio_peak * _PEAK_DECAY)
+            self._audio_level_target = normalize_level(self._audio_ema, self._audio_peak)
 
         def set_status(self, state, text=None, bg=None, fg=None, border=None):
             _ = (text, bg, fg, border)
@@ -341,6 +364,7 @@ if is_qt_available():
             # Completely hide the pill when it isn't actively recording or processing
             if target not in (PillState.RECORDING, PillState.PROCESSING):
                 self._audio_ema = 0.0
+                self._audio_peak = 0.0
                 self._audio_level_target = 0.0
                 self._audio_level_display = 0.0
                 self._glow = 0.0
@@ -357,6 +381,7 @@ if is_qt_available():
 
             if target == PillState.RECORDING:
                 self._audio_ema = 0.0
+                self._audio_peak = 0.0
                 self._audio_level_target = 0.0
                 self._audio_level_display = 0.0
                 self._animate_size(*ACTIVE_DIMENSIONS, duration_ms=ANIMATION_SPEED_MS)
