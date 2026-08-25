@@ -232,6 +232,33 @@ function renderEmail(step, lead) {
     };
   }
 
+  if (step === 'purchase') {
+    return {
+      subject: 'Your Impulse licence key',
+      html: emailFrame({
+        title: 'Thanks for buying Impulse',
+        intro: "You bought it once and it's yours. No subscription, no renewal, and it keeps working offline.",
+        lead,
+        bodyHtml: `
+          <div style="background:#f5f5f5;border:2px solid #e0e0e0;border-radius:12px;padding:24px;text-align:center;margin-bottom:32px;">
+            <p style="color:#999;font-size:12px;text-transform:uppercase;letter-spacing:2px;margin:0 0 12px;">Your Licence Key</p>
+            <p style="font-family:monospace;font-size:22px;font-weight:700;color:#111;margin:0;word-break:break-all;background:#fff;border-radius:8px;padding:12px 16px;border:1px solid #ddd;">${safeKey}</p>
+          </div>
+          <ol style="color:#444;font-size:15px;line-height:1.8;padding-left:20px;">
+            <li><a href="${downloadLink}" style="color:#111;">Download Impulse for Windows</a></li>
+            <li>Run the installer and launch Impulse</li>
+            <li>Paste your licence key when prompted</li>
+            <li>Hold <strong>Ctrl+Win</strong> and talk, or tap <strong>Ctrl+Win+Alt</strong> for hands-free</li>
+          </ol>
+          <p style="color:#444;font-size:15px;line-height:1.7;">
+            Keep this email. The same key activates Impulse on any computer you own.
+            If it does not work on your machine, reply to this email and you will get a full refund.
+          </p>
+        `,
+      }),
+    };
+  }
+
   if (step === 'day1_setup') {
     return {
       subject: 'Need help getting Impulse set up?',

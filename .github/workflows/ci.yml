@@ -41,6 +41,11 @@ jobs:
       run: |
         pytest tests/ --ignore=tests/integration -v --cov=flow_local_dictation --cov=tests --cov-report=xml --cov-report=html --cov-report=term --timeout=30
       continue-on-error: false
+
+    # The purchase webhook mints licence keys, so its signature-verification
+    # tests run on every push rather than only locally.
+    - name: Run API tests
+      run: node tests/api/purchase.test.js
     
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v3
