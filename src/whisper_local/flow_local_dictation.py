@@ -550,19 +550,68 @@ def fast_send_paste() -> bool:
         log_line(f"SendInput paste failed: {type(e).__name__}: {e}")
         return False
 
-def instant_paste(text: str) -> bool:
-    """Reliable paste using pyperclip + pyautogui.
-    
+# Apps that bind Ctrl+V to their own object paste (clips, devices, regions).
+# In these, a clipboard paste is swallowed by the host and something entirely
+# unrelated appears instead — renaming an Ableton track by voice pasted a clip
+# rather than the dictated words. Typing the characters lands them in whatever
+# text field actually has focus.
+TYPE_INSTEAD_OF_PASTE = (
+    "ableton", "fl studio", "fl64", "flstudio", "reaper", "cubase",
+    "studio one", "studioone", "bitwig", "pro tools", "protools",
+    "logic", "renoise",
+)
+
+
+def _target_swallows_paste(context) -> bool:
+    """True when the focused app is known to intercept Ctrl+V for itself."""
+    if context is None:
+        return False
+    haystack = " ".join(
+        str(getattr(context, attr, "") or "")
+        for attr in ("process_name", "window_title", "window_class")
+    ).lower()
+    return any(name in haystack for name in TYPE_INSTEAD_OF_PASTE)
+
+
+def type_text(text: str) -> bool:
+    """Type *text* as keystrokes, for targets that swallow clipboard pastes."""
+    try:
+        # Leave it on the clipboard too, so the user can paste manually if the
+        # target also filters synthetic keystrokes.
+        try:
+            pyperclip.copy(text)
+        except Exception:
+            pass
+        time.sleep(0.05)
+        pyautogui.write(text, interval=0)
+        return True
+    except (OSError, RuntimeError) as e:
+        log_line(f"Type failed: {type(e).__name__}: {e}")
+        return False
+
+
+def instant_paste(text: str, context=None) -> bool:
+    """Deliver *text* to the focused window.
+
+    Uses the clipboard by default. For apps in TYPE_INSTEAD_OF_PASTE the text is
+    typed instead, because those bind Ctrl+V to their own paste command and
+    would insert an object of their own rather than the dictation.
+
     Note: Win32 SendInput gets blocked by Windows UIPI after first use,
     so this uses pyautogui which works more reliably.
-    
+
     Args:
         text: The text to paste.
-        
+        context: Optional AppContext for the window that had focus.
+
     Returns:
         True if successful, False otherwise.
     """
     try:
+        if _target_swallows_paste(context):
+            log_line(f"[PASTE] Typing into {getattr(context, 'process_name', '?')} (binds Ctrl+V itself)")
+            return type_text(text)
+
         pyperclip.copy(text)
         time.sleep(0.05)  # Small delay to ensure clipboard is ready
         pyautogui.hotkey("ctrl", "v")
@@ -4587,7 +4636,9 @@ def _transcribe_and_paste(wav_path):
             safe_print("Copied to clipboard (dashboard focused)")
         else:
             # Paste dictated text directly (no context sandwich behavior).
-            if instant_paste(text):
+            # active_app_context is the window that had focus when recording
+            # started, which is the window the text is going back into.
+            if instant_paste(text, active_app_context):
                 # Record stats async (don't block the paste experience)
                 word_count = len(text.split())
                 threading.Thread(
