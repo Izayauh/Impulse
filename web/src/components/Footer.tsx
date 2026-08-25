@@ -13,8 +13,8 @@ export function Footer() {
             <span className="font-display font-bold text-xl tracking-tight">Impulse</span>
           </div>
           <p className="text-white/40 max-w-sm mb-8 leading-relaxed">
-            The premium dictation layer for modern professionals. 
-            Built for speed, privacy, and the flow state.
+            Dictation that runs entirely on your computer.
+            Hold a key, talk, and it types. Pay once, keep it.
           </p>
           <div className="flex gap-4">
             <a href={GITHUB_REPO_URL} target="_blank" rel="noreferrer" aria-label="GitHub repository" className="text-white/40 hover:text-brand transition-colors"><Github className="w-5 h-5" /></a>
@@ -38,14 +38,14 @@ export function Footer() {
           <ul className="space-y-4 text-sm text-white/60">
             <li><a href={GITHUB_REPO_URL} target="_blank" rel="noreferrer" className="hover:text-brand transition-colors">GitHub</a></li>
             <li><a href={PRIVACY_URL} target="_blank" rel="noreferrer" className="hover:text-brand transition-colors">Privacy</a></li>
-            <li><a href="mailto:beta@impulse-app.com" className="hover:text-brand transition-colors">Contact</a></li>
+            <li><a href="mailto:beta@impulsedictation.com" className="hover:text-brand transition-colors">Contact</a></li>
           </ul>
         </div>
       </div>
       
       <div className="max-w-7xl mx-auto mt-20 pt-8 border-t border-white/5 flex flex-col md:flex-row justify-between items-center gap-4 text-xs text-white/20 font-medium uppercase tracking-widest">
-        <span>© 2026 Impulse. All rights reserved.</span>
-        <span>Designed with passion for the creative mind.</span>
+        <span>© 2026 Isaiah Washington. All rights reserved.</span>
+        <span>Designed, built, and shipped by one person.</span>
       </div>
     </footer>
   );

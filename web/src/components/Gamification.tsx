@@ -7,20 +7,21 @@ export function Gamification() {
       <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-20 items-center">
         <div>
           <h2 className="font-display text-4xl md:text-6xl font-bold mb-8 leading-tight">
-            Productivity is <br />
-            <span className="text-brand">a team sport.</span>
+            The fun part is <br />
+            <span className="text-brand">completely unnecessary.</span>
           </h2>
           <p className="text-white/60 text-lg mb-10 leading-relaxed">
-            Impulse turns your daily output into a rewarding journey. 
-            Track your word count, maintain your streak, and unlock exclusive 
-            AI models as you reach new milestones.
+            Impulse counts every word you speak and turns it into streaks,
+            daily records, and achievements. It has no practical purpose.
+            It just makes you want to dictate again tomorrow, which turns
+            out to be the whole game.
           </p>
           
           <div className="space-y-6">
             {[
               { icon: Flame, text: "14 Day Dictation Streak", color: "text-orange-500" },
-              { icon: Trophy, text: "Top 1% of Power Users", color: "text-yellow-500" },
-              { icon: Star, text: "Elite Stylization Unlocked", color: "text-brand" },
+              { icon: Trophy, text: "Personal Best: 5,460 Words in a Day", color: "text-yellow-500" },
+              { icon: Star, text: "14 Achievements to Find", color: "text-brand" },
             ].map((item, i) => (
               <motion.div 
                 key={i}
@@ -59,7 +60,7 @@ export function Gamification() {
             </motion.div>
 
             <h3 className="text-2xl font-bold mb-2">Level 24 Achieved</h3>
-            <p className="text-white/60 mb-8">You're in the top 5% of creators this week.</p>
+            <p className="text-white/60 mb-8">1,864 words spoken today.</p>
             
             <div className="w-full bg-white/5 rounded-full h-3 overflow-hidden mb-4">
               <motion.div 

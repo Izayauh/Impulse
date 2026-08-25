@@ -49,14 +49,15 @@ export function BetaSignup() {
           viewport={{ once: true }}
         >
           <span className="inline-block px-4 py-1.5 rounded-full glass text-xs font-bold tracking-widest uppercase text-brand mb-6">
-            Limited Beta
+            Try it free
           </span>
           <h2 className="font-display text-4xl md:text-6xl font-bold mb-6 tracking-tight">
-            Get early access
+            Not sure yet? Try the beta.
           </h2>
           <p className="text-white/60 text-lg mb-16 max-w-2xl mx-auto">
-            Impulse is in private beta. Sign up with your email and we'll send you
-            a license key to start dictating immediately.
+            While Impulse is in beta you can try the full app free. Drop your email
+            and a licence key arrives immediately. If it earns a place in your day,
+            buy it once and it's yours.
           </p>
         </motion.div>
 

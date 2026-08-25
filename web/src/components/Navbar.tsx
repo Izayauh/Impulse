@@ -18,25 +18,23 @@ export function Navbar() {
         </div>
         
         <div className="hidden md:flex items-center gap-8 text-sm font-medium text-white/70">
+          <a href="#privacy" className="hover:text-white transition-colors">Privacy</a>
           <a href="#features" className="hover:text-white transition-colors">Features</a>
-          <a href="#gamification" className="hover:text-white transition-colors">Productivity</a>
-          <a href={RELEASE_PAGE_URL} target="_blank" rel="noreferrer" className="hover:text-white transition-colors">Download</a>
-          <a href="#beta" className="hover:text-white transition-colors">Beta</a>
+          <a href="#pricing" className="hover:text-white transition-colors">Pricing</a>
+          <a href="#faq" className="hover:text-white transition-colors">FAQ</a>
         </div>
 
         <div className="flex items-center gap-4">
           <div className="hidden sm:flex items-center gap-2 px-3 py-1 rounded-full bg-brand/10 border border-brand/20 text-[10px] font-bold uppercase tracking-wider text-brand">
             <span className="w-1.5 h-1.5 rounded-full bg-brand animate-pulse" />
-            Beta
+            $29 &middot; pay once
           </div>
-          <button
-            onClick={() => {
-              document.getElementById('beta')?.scrollIntoView({ behavior: 'smooth' });
-            }}
+          <a
+            href="#pricing"
             className="bg-brand hover:bg-brand-dark text-white px-5 py-2 rounded-xl text-sm font-semibold transition-all shadow-lg shadow-brand/20 active:scale-95"
           >
-            Join Beta
-          </button>
+            Get Impulse
+          </a>
         </div>
       </div>
     </motion.nav>
