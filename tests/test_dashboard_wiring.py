@@ -177,10 +177,16 @@ class TestDashboardRealtimeRefreshPath(unittest.TestCase):
                 f.write('{"total_words": 1, "daily_words": {"2026-02-08": 1}}')
 
             high_vram_info = type("GpuInfo", (), {"memory_total_mb": 12288.0})()
+            # gpu_is_usable() probes the real machine for a working CUDA runtime,
+            # so without this patch the test asserts the host's hardware rather
+            # than the routing logic: it passed on a workstation with an NVIDIA
+            # card and failed on CI runners, which have none.
             with patch.object(gui_host, "get_user_data_dir", return_value=tmp_dir), patch.object(
                 gui_host, "get_app_dir", return_value=tmp_dir
             ), patch.object(gui_host, "STATS_FILE", canonical_stats), patch.object(
                 gui_host, "_migration_completed", False
+            ), patch(
+                "whisper_local.faster_whisper_backend.gpu_is_usable", return_value=True
             ), patch.object(gui_host, "gpu_monitor", MagicMock(get_gpu_info=MagicMock(return_value=high_vram_info))):
                 api = gui_host.DashboardAPI()
 
