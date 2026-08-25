@@ -175,7 +175,14 @@ python -m PyInstaller build_config.spec
 
 ## 📝 License
 
-MIT License - Based on [Whisper.cpp](https://github.com/ggerganov/whisper.cpp)
+Impulse is **source-available commercial software**, not open source. The source
+is published so anyone can read it and verify what the app does with their
+voice — which matters when the entire claim is that nothing leaves your machine.
+
+A licence is **bought once and kept**. There is no subscription. See [LICENSE](LICENSE).
+
+Bundled third-party components remain under their own licences, including
+LGPL v3. See [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
 
 ---
 

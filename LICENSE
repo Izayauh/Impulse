@@ -1,43 +1,68 @@
-MIT License
+Impulse End User Licence Agreement
 
-Copyright (c) 2025 WhisperLocal
+Copyright (c) 2026 Isaiah Washington. All rights reserved.
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+Impulse is source-available commercial software. The source is published so that
+anyone can read it and verify what the application does with their voice. It is
+not open source, and publication does not grant permission to redistribute or
+resell it.
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+1. GRANT OF LICENCE
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+   With a valid licence key, you are granted a perpetual, non-exclusive,
+   non-transferable licence to install and use Impulse on any computer you
+   personally own or control, for personal or commercial work, for as long as
+   you like. A licence is bought once. There is no subscription, and no
+   recurring payment is required to keep using a version you have paid for.
 
----
+2. WHAT YOU MAY DO WITHOUT A LICENCE KEY
 
-## Third-Party Licenses
+   You may read, download, compile, and study this source code for the purposes
+   of security review, personal education, and evaluating whether the privacy
+   claims in this repository are true. You may quote it when discussing the
+   software.
 
-This software incorporates the following open-source projects:
+3. WHAT YOU MAY NOT DO
 
-### Whisper.cpp
-Copyright (c) 2023 Georgi Gerganov
-MIT License
-https://github.com/ggerganov/whisper.cpp
+   You may not:
 
-### GGML
-Copyright (c) 2023 Georgi Gerganov
-MIT License
-https://github.com/ggerganov/ggml
+   a. sell, resell, sublicense, rent, or otherwise distribute Impulse or any
+      derivative of it, whether modified or not;
+   b. remove, disable, or circumvent the licence-key mechanism, or distribute
+      any build or instructions that do so;
+   c. remove or obscure these notices or the copyright attribution;
+   d. use the Impulse name or branding for a derived or competing product.
 
-### OpenAI Whisper
-Copyright (c) 2022 OpenAI
-MIT License
-https://github.com/openai/whisper
+4. YOUR DATA
 
+   Impulse performs transcription entirely on your computer. No audio and no
+   transcribed text is transmitted anywhere. The only network requests the
+   application makes are licence validation and, if you opt in, anonymous usage
+   events. See PRIVACY.md.
+
+5. THIRD-PARTY COMPONENTS
+
+   Impulse bundles third-party open-source components which remain under their
+   own licences, including LGPL v3 components. Those licences govern those
+   components and are not affected by this agreement. See
+   THIRD-PARTY-NOTICES.md.
+
+6. REFUNDS
+
+   If Impulse does not work on your machine, you are entitled to a full refund.
+   Contact the address listed at impulsedictation.com.
+
+7. NO WARRANTY
+
+   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+   IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+   FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+   AUTHOR BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
+   ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+   WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+8. PRIOR VERSIONS
+
+   Versions of this software published before 2026-08-25 were released under the
+   MIT Licence. That grant is not revoked for copies obtained under it. This
+   agreement governs this version and all later versions.
