@@ -11,4 +11,4 @@ export const CONTACT_EMAIL = 'beta@impulsedictation.com';
 export const PRICE = '$29';
 // Lemon Squeezy checkout. Overridable per-deploy so the exact product URL can
 // be swapped in without a rebuild once the store is activated.
-export const BUY_URL = import.meta.env.VITE_PUBLIC_BUY_URL || 'https://impulse.lemonsqueezy.com/';
+export const BUY_URL = import.meta.env.VITE_PUBLIC_BUY_URL || 'https://impulsevoice.lemonsqueezy.com/';
