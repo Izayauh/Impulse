@@ -1,6 +1,6 @@
 # Impulse - User Guide
 
-**Privacy-focused, GPU-accelerated speech-to-text dictation for Windows**
+**Private, local speech-to-text dictation for Windows**
 
 ---
 
@@ -53,17 +53,17 @@ The Dashboard shows your statistics: words dictated, streaks, session history, a
 
 ---
 
-## Smart Model Selection
+## Model Selection
 
-Impulse automatically picks the right model based on dictation length:
+Two models, three modes. Change the mode in Settings:
 
-| Words | Model | Speed |
-|-------|-------|-------|
-| < 25 | base.en (142 MB) | Fastest |
-| 25–75 | medium.en (1.5 GB) | Fast |
-| > 75 | large-v3 (3.1 GB) | Thorough |
+| Mode | Model | Notes |
+|------|-------|-------|
+| `auto` (default) | picked at runtime | Runs `turbo` only on a machine that can genuinely accelerate it, `base` everywhere else |
+| `turbo` | large-v3-turbo | Highest quality. Worth pinning only with a working CUDA stack |
+| `base` | base.en | Stays responsive on any CPU. What most machines run |
 
-On NVIDIA GPUs, all models use CUDA acceleration. If your GPU is under heavy load (gaming, rendering), Impulse automatically drops to a lighter model to avoid stuttering.
+`auto` decides from what your machine actually managed, not from what it reports it has. A graphics card that is visible but cannot run inference is treated as no card, because the slowest thing Impulse can do is run the heavy model on a CPU.
 
 ---
 
@@ -123,9 +123,9 @@ Opt in or out of anonymous beta usage reporting. See [PRIVACY.md](PRIVACY.md).
 
 ### Transcription is slow
 
-- First run is slower — the AI model loads into memory (GPU VRAM or RAM)
+- First run is slower — the model is downloaded, then loaded into memory
 - Subsequent runs are much faster
-- NVIDIA GPU users get 2–5× speed improvement over CPU
+- If every dictation is slow, open Settings and check the mode is `auto` or `base` rather than pinned to `turbo`
 
 ### App won't start / crashes
 
@@ -133,11 +133,17 @@ Opt in or out of anonymous beta usage reporting. See [PRIVACY.md](PRIVACY.md).
 - Ensure Windows Defender or antivirus hasn't quarantined any DLLs
 - Try reinstalling — the installer is self-contained
 
-### GPU not being used
+### Dictation runs on the CPU even though I have a graphics card
 
-1. Open a command prompt and run: `nvidia-smi`
-2. If that works, CUDA is available — the app should detect it automatically
-3. Check the log for `[GPU]` lines to see what was detected
+This is expected on most machines. Impulse only uses a card when it has
+confirmed that inference actually ran on it, rather than trusting that a card
+is present, and it remembers that verdict in
+`%LOCALAPPDATA%\Impulse\state\gpu_capability.json`. A card that is visible but
+whose CUDA stack cannot run inference is treated as no card, because running
+the heavy model on a CPU is the slowest outcome available.
+
+`base` on a CPU is quick — a few seconds for a normal dictation — so this
+costs you far less than it sounds like it should.
 
 ### Dictation pastes in wrong place
 
@@ -159,7 +165,7 @@ Opt in or out of anonymous beta usage reporting. See [PRIVACY.md](PRIVACY.md).
 | OS | Windows 10 64-bit | Windows 11 |
 | RAM | 4 GB | 8 GB |
 | Disk | 4 GB | 5 GB |
-| GPU | None (CPU works) | NVIDIA with CUDA |
+| GPU | Not required | Not required |
 
 ---
 

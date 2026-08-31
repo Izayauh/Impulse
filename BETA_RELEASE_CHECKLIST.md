@@ -1,65 +1,77 @@
-# WhisperLocal Beta Release Checklist
+# Impulse Release Checklist
 
-Target version: `1.0.0-beta.1`
+Version comes from `APP_VERSION` in `src/whisper_local/config.py`. The tag drives
+everything else.
 
 ## 1) Preflight
 
 - [ ] `git status` is clean
-- [ ] Licensing env policy selected (recommended below)
-- [ ] Telemetry policy selected (currently opt-in by default)
+- [ ] `APP_VERSION` matches the tag you are about to push
+- [ ] Licensing and telemetry policy reviewed (telemetry is off by default)
 
-Recommended beta env:
+## 2) What CI does for you
+
+Pushing a `v*` tag runs `.github/workflows/release.yml`, which will **refuse to
+publish** unless all of this passes:
+
+- the full test suite, on the tagged commit
+- the packaged tree contains every file the app reads at runtime
+- the frozen `Impulse.exe` transcribes a generated sample and returns the words
+- the built installer installs silently, and the installed copy transcribes too
+- the app creates its own `state` and `logs` directories on a clean profile
+
+A release that cannot dictate does not ship. This exists because the test suite
+runs against Python source while users run an installer, and every user-facing
+defect found in the August 2026 QA pass lived in the gap between the two.
+
+## 3) Reproducing the gate locally
+
+Worth doing before tagging, since it is faster than a round trip through CI:
 
 ```powershell
-$env:WHISPER_REQUIRE_LICENSE = "1"
-$env:WHISPER_DEV_BYPASS_LICENSE = "0"
-$env:WHISPER_FORCE_DISABLE = "0"
-$env:WHISPER_LICENSE_OFFLINE_GRACE_DAYS = "3"
-$env:WHISPER_LICENSE_REVALIDATE_HOURS = "24"
-$env:WHISPER_BETA_EXPIRES_ON = "2026-04-30"
+python -m PyInstaller --clean --noconfirm scripts\release\build_config.spec
+python scripts\release\verify_package.py manifest dist\Impulse
+python scripts\release\verify_package.py make-sample sample.wav
+python scripts\release\verify_package.py selftest dist\Impulse\Impulse.exe sample.wav
 ```
 
-## 2) Validate app
+Build gotcha: PyInstaller 6.3.0 breaks on setuptools >= 70, pinned in
+`requirements.txt`.
 
-```powershell
-python -m pytest tests --ignore=tests/integration
-powershell -ExecutionPolicy Bypass -File scripts\windows\test_system.ps1
-```
+## 4) Building the installer by hand
 
-## 3) Build installer
+Only needed outside CI:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts\release\build_installer.ps1 -Clean
-```
-
-Notes:
-- Version is sourced from `src/whisper_local/config.py`.
-- Inno output name uses `WhisperLocal-Setup-<version>.exe`.
-- Set `WHISPER_BOOTSTRAP_BASE_URL` before the build if you want the single-file bootstrap installer too.
-
-## 4) Create delivery package
-
-```powershell
 powershell -ExecutionPolicy Bypass -File scripts\release\create_release_package.ps1
 ```
 
-This auto-detects latest installer and produces:
-- `dist\WhisperLocal-Setup-<version>-Complete.zip`
-- `dist\WhisperLocal-Setup-<version>-Complete.zip.sha256`
+Produces `dist\Impulse-Setup-<version>.exe`, plus the delivery zip and its
+`.sha256`. Set `WHISPER_BOOTSTRAP_BASE_URL` before building if you also want the
+single-file bootstrap installer.
 
-## 5) Smoke test installer on clean machine
+## 5) What still needs a human
 
-- [ ] Bootstrap installer downloads hosted payload and finishes successfully
-- [ ] Install/uninstall works
-- [ ] First-run wizard opens
-- [ ] Dictation blocked when unlicensed
-- [ ] Activation works with beta key
-- [ ] Offline grace behavior works
-- [ ] Force-disable (`WHISPER_FORCE_DISABLE=1`) blocks dictation
+CI proves the app installs and transcribes. It cannot prove the parts that need
+a real person, a real key, and a machine with no history:
 
-## 6) Publish beta
+- [ ] First-run wizard reads correctly and picks the right microphone
+- [ ] Activation succeeds with a real licence key
+- [ ] Dictation lands in a real application, not just the selftest harness
+- [ ] Dashboard opens and shows live stats rather than fallback data
+- [ ] Offline grace behaves when the network is cut
+- [ ] Uninstall leaves nothing behind
 
-- [ ] Create GitHub pre-release tag: `v1.0.0-beta.1`
-- [ ] Upload bootstrap installer + payload manifest if external hosting is configured
-- [ ] Upload split installer package + sha256
-- [ ] Include known issues + expiration policy in release notes
+`scripts/qa/fresh-machine-test.ps1` drives the download, checksum, silent
+install and key issuance, then hands you the 60-second manual part:
+
+```powershell
+irm https://raw.githubusercontent.com/Izayauh/Impulse/main/scripts/qa/fresh-machine-test.ps1 | iex
+```
+
+## 6) Publish
+
+- [ ] Push the tag; confirm the gate went green rather than assuming it did
+- [ ] Check the release carries the installer, its parts, and the `.sha256`
+- [ ] Release notes state known issues

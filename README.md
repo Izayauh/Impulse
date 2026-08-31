@@ -4,7 +4,7 @@
 
 Hold a key, talk, and the text appears in whatever window has focus. Transcription runs entirely on your machine using Whisper — no audio and no text ever leaves your computer.
 
-> **Beta Notice:** This is a pre-release beta. A free license key is issued on signup at [impulsedictation.com](https://impulsedictation.com). Please report bugs via GitHub Issues.
+> Impulse is **$29, once**. No subscription. Buy it at [impulsedictation.com](https://impulsedictation.com), or try the free beta key from the same page first. Please report bugs via GitHub Issues.
 
 ---
 
@@ -16,7 +16,7 @@ Hold a key, talk, and the text appears in whatever window has focus. Transcripti
 
 1. Download the single Windows bootstrap installer when it is available
 2. Run the installer and stay online while setup downloads the runtime/model payload
-3. Follow the setup wizard - you'll be prompted to enter your beta license key
+3. Follow the setup wizard - you'll be prompted to enter your license key
 
 Fallback: if the release only includes split assets, download `Impulse-Setup-<version>.exe` and every matching `.bin` part, keep them in the same folder, then run the installer.
 
@@ -27,7 +27,7 @@ No Python, no configuration, no technical knowledge required.
 ```powershell
 # Clone the repository
 git clone https://github.com/Izayauh/Impulse.git
-cd whisper
+cd Impulse
 
 # Create and activate virtual environment
 python -m venv .venv
@@ -45,7 +45,7 @@ pip install -r requirements.txt
 ## ✨ Features
 
 - 🔒 **100% Private** - All processing happens on your computer
-- ⚡ **GPU Accelerated** - Fast transcription with NVIDIA CUDA
+- ⚡ **Fast on CPU** - No graphics card needed; a warm dictation lands in seconds
 - 🌍 **System-wide** - Works in any application
 - 🎯 **Simple Controls** - Just hold WIN + CTRL to dictate
 - 🎨 **Modern UI** - Dark theme with statistics dashboard
@@ -75,17 +75,17 @@ That's it! Your spoken words appear as text.
 
 ---
 
-## 📊 Smart Model Selection
+## 📊 Model Selection
 
-Impulse automatically selects the best model based on your dictation length:
+Two models, three modes. Set the mode in Settings:
 
-| Dictation Length | Model Used | Speed | Quality |
-|------------------|------------|-------|---------|
-| < 25 words | base.en | ⚡⚡⚡ Fastest | Good |
-| 25-75 words | medium.en | ⚡⚡ Fast | Better |
-| > 75 words | large-v3 | ⚡ Thorough | Best |
+| Mode | Model | Notes |
+|------|-------|-------|
+| `auto` (default) | picked at runtime | Uses `turbo` only on a machine that can genuinely accelerate it, and `base` everywhere else |
+| `turbo` | large-v3-turbo | Highest quality. Needs a working CUDA stack to be worth it |
+| `base` | base.en | Stays responsive on any CPU. What most machines run |
 
-This gives you the best of both worlds: quick response for short commands, high accuracy for longer dictation.
+`auto` decides from what your machine actually did, not from what it reports. A card that is visible but cannot run inference is treated as no card, because the slowest thing Impulse can do is run the heavy model on a CPU.
 
 ---
 
@@ -95,8 +95,8 @@ Impulse is designed for privacy:
 
 - ✅ **100% Local** — Transcription never leaves your computer
 - ✅ **No Cloud** — Speech processed entirely on-device
-- ✅ **Opt-In Telemetry** — Anonymous beta usage reporting, disabled by default after beta
-- ✅ **Open Source** — Fully auditable code
+- ✅ **Opt-In Telemetry** — Off by default. Anonymous, and only if you turn it on
+- ✅ **Readable Source** — Published so you can verify all of the above yourself
 
 See our full [Privacy Policy](PRIVACY.md).
 
@@ -109,7 +109,7 @@ See our full [Privacy Policy](PRIVACY.md).
 | OS | Windows 10 (64-bit) | Windows 11 |
 | RAM | 4 GB | 8 GB |
 | Disk | 4 GB | 5 GB |
-| GPU | None (CPU works) | NVIDIA with CUDA |
+| GPU | Not required | Not required |
 
 ---
 
@@ -121,9 +121,9 @@ See our full [Privacy Policy](PRIVACY.md).
 - Try selecting a different microphone device
 
 ### Slow transcription
-- First run is slower (loading AI models into memory)
+- First run is slower: the model is downloaded and loaded into memory
 - Subsequent runs are much faster
-- NVIDIA GPU users get 2-5x speed improvement
+- If every dictation is slow, check that Settings is on `auto` or `base` rather than pinned to `turbo`
 
 ### Application won't start
 - Ensure you're running Windows 10 or later (64-bit)
@@ -138,15 +138,20 @@ See [`USER_GUIDE.md`](USER_GUIDE.md) for detailed troubleshooting.
 
 ```
 Impulse/
-├── Impulse.exe           # Main application (installed version)
-├── whisper-cli.exe            # Whisper inference engine
-├── models/                    # AI models
-│   ├── ggml-base.en.bin       # Fast model (142 MB)
-│   ├── ggml-medium.en.bin     # Balanced model (1.5 GB)
-│   └── ggml-large-v3.bin      # Quality model (3.1 GB)
-├── *.dll                      # Runtime libraries
-└── User Guide.txt             # Documentation
+├── Impulse.exe                     # Main application
+├── User Guide.txt                  # Documentation
+├── Privacy Policy.txt
+├── Third-Party Notices.txt
+└── _internal/
+    ├── whisper-cli.exe             # whisper.cpp, the offline fallback engine
+    ├── models/ggml-base.en.bin     # Bundled offline model (142 MB)
+    ├── *.dll                       # Runtime libraries
+    └── whisper_local/ui/           # Dashboard assets
 ```
+
+The primary engine is faster-whisper, whose model is downloaded on first run.
+`whisper-cli.exe` and the bundled `ggml-base.en.bin` are the offline fallback,
+so dictation still works with no network.
 
 ---
 
@@ -154,22 +159,36 @@ Impulse/
 
 ### Prerequisites
 
-- Python 3.8+
-- PyInstaller: `pip install pyinstaller`
-- Inno Setup (for installer): [Download](https://jrsoftware.org/isdl.php)
+- Python 3.10-3.12 (CI builds on all three)
+- Inno Setup (for the installer): [Download](https://jrsoftware.org/isdl.php)
 
 ### Build Commands
 
 ```powershell
-# Install dependencies
-pip install sounddevice soundfile keyboard pyperclip pyautogui pillow pystray numpy pyinstaller
+# Dependencies, including the pinned PyInstaller
+pip install -r requirements.txt
 
-# Build standalone executable
-.\build_installer.ps1
+# Build the frozen app to dist\Impulse\
+python -m PyInstaller --clean --noconfirm scripts\release\build_config.spec
 
-# Or build without installer
-python -m PyInstaller build_config.spec
+# Or build the frozen app and the installer together
+powershell -ExecutionPolicy Bypass -File scripts\release\build_installer.ps1 -Clean
 ```
+
+### Verifying a build
+
+Releases are gated on the artifact working, not on the test suite passing. The
+same checks run locally:
+
+```powershell
+python scripts\release\verify_package.py manifest dist\Impulse
+python scripts\release\verify_package.py make-sample sample.wav
+python scripts\release\verify_package.py selftest dist\Impulse\Impulse.exe sample.wav
+```
+
+`manifest` checks the packaged tree for every file the app reads at runtime;
+`selftest` transcribes real audio through the frozen binary and fails if the
+transcript does not come back.
 
 ---
 
