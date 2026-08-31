@@ -72,9 +72,9 @@ try {
   # --- 3. Silent install ------------------------------------------------------
   # A previous test run may have left the app running; the installer cannot
   # overwrite files that are in use (exit code 5).
-  $running = Get-Process -Name 'WhisperLocal' -ErrorAction SilentlyContinue
+  $running = Get-Process -Name 'Impulse' -ErrorAction SilentlyContinue
   if ($running) {
-    Step "Stopping running WhisperLocal instance from a previous test..."
+    Step "Stopping running Impulse instance from a previous test..."
     $running | Stop-Process -Force
     Start-Sleep -Seconds 2
   }
@@ -84,12 +84,14 @@ try {
     -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/FORCECLOSEAPPLICATIONS' -Wait -PassThru
   if ($p.ExitCode -ne 0) { throw "installer exit code $($p.ExitCode)" }
 
+  # PrivilegesRequired=lowest means {autopf} resolves to Program Files when
+  # elevated and to LocalAppData\Programs when it is not, so check both.
   $appDir = @(
-    "$env:LOCALAPPDATA\Programs\WhisperLocal",
-    "$env:ProgramFiles\WhisperLocal",
-    "${env:ProgramFiles(x86)}\WhisperLocal"
-  ) | Where-Object { Test-Path (Join-Path $_ 'WhisperLocal.exe') } | Select-Object -First 1
-  if (-not $appDir) { throw "WhisperLocal.exe not found after install" }
+    "$env:LOCALAPPDATA\Programs\Impulse",
+    "$env:ProgramFiles\Impulse",
+    "${env:ProgramFiles(x86)}\Impulse"
+  ) | Where-Object { Test-Path (Join-Path $_ 'Impulse.exe') } | Select-Object -First 1
+  if (-not $appDir) { throw "Impulse.exe not found after install" }
   Step "Installed at: $appDir"
 
   # --- 4. Get a license key from the public signup API ------------------------
@@ -122,8 +124,8 @@ try {
   }
 
   # --- 5. Launch the app -------------------------------------------------------
-  Step "Launching WhisperLocal for first run..."
-  Start-Process -FilePath (Join-Path $appDir 'WhisperLocal.exe') -WorkingDirectory $appDir
+  Step "Launching Impulse for first run..."
+  Start-Process -FilePath (Join-Path $appDir 'Impulse.exe') -WorkingDirectory $appDir
 
   $checklist = @"
 
