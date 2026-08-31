@@ -17,6 +17,15 @@
 name: Build and Release
 
 on:
+  pull_request:
+    paths:
+      - '.github/workflows/release.yml'
+      - 'main.py'
+      - 'requirements*.txt'
+      - 'src/**'
+      - 'scripts/qa/fresh-machine-test.ps1'
+      - 'scripts/release/**'
+
   push:
     tags:
       - 'v*.*.*'  # Trigger on version tags like v1.0.0, v1.2.3, etc.
@@ -58,6 +67,8 @@ jobs:
         run: |
           if ("${{ github.event_name }}" -eq "workflow_dispatch") {
             $version = "${{ inputs.version }}"
+          } elseif ("${{ github.event_name }}" -eq "pull_request") {
+            $version = "v0.0.0-pr.${{ github.event.pull_request.number }}.${{ github.run_attempt }}"
           } else {
             $version = "${{ github.ref_name }}"
           }
@@ -358,8 +369,20 @@ jobs:
       # ========================================
       # Create Release
       # ========================================
+      - name: Upload PR installer smoke artifact
+        if: ${{ github.event_name == 'pull_request' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: impulse-installer-pr-${{ github.event.pull_request.number }}
+          path: |
+            dist/Impulse-Setup-*.exe
+            dist/Impulse-Setup-*.bin
+            dist/Impulse-Setup-*.sha256
+          if-no-files-found: error
+          retention-days: 3
+
       - name: Create Release
-        if: ${{ env.BOOTSTRAP_BASE_URL == '' }}
+        if: ${{ github.event_name != 'pull_request' && env.BOOTSTRAP_BASE_URL == '' }}
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.version.outputs.VERSION }}
@@ -367,7 +390,7 @@ jobs:
           body: |
             ## Impulse ${{ steps.version.outputs.VERSION }}
             
-            Privacy-focused, GPU-accelerated speech-to-text dictation for Windows.
+            Private, local speech-to-text dictation for Windows.
             
             ### Installation
             
@@ -383,7 +406,7 @@ jobs:
             - Windows 10 or 11 (64-bit)
             - 4 GB RAM minimum (8 GB recommended)
             - 4 GB disk space
-            - NVIDIA GPU with CUDA recommended (CPU also works)
+            - CPU transcription is supported; compatible NVIDIA CUDA systems may run faster
             
             ### Checksum
             
@@ -391,7 +414,7 @@ jobs:
             
             ### What's New
             
-            See [CHANGELOG.md](https://github.com/Izayauh/whisper/blob/main/CHANGELOG.md) for details.
+            See [CHANGELOG.md](https://github.com/Izayauh/Impulse/blob/main/CHANGELOG.md) for details.
             
           files: |
             dist/Impulse-Setup-*.exe
@@ -404,7 +427,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Create Release With Bootstrap Installer
-        if: ${{ env.BOOTSTRAP_BASE_URL != '' }}
+        if: ${{ github.event_name != 'pull_request' && env.BOOTSTRAP_BASE_URL != '' }}
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.version.outputs.VERSION }}
@@ -412,7 +435,7 @@ jobs:
           body: |
             ## Impulse ${{ steps.version.outputs.VERSION }}
 
-            Privacy-focused, GPU-accelerated speech-to-text dictation for Windows.
+            Private, local speech-to-text dictation for Windows.
 
             ### Recommended Installation
 
@@ -442,7 +465,7 @@ jobs:
 
             ### What's New
 
-            See [CHANGELOG.md](https://github.com/Izayauh/whisper/blob/main/CHANGELOG.md) for details.
+            See [CHANGELOG.md](https://github.com/Izayauh/Impulse/blob/main/CHANGELOG.md) for details.
 
           files: |
             dist/Impulse-Bootstrap-Setup-*.exe
@@ -458,6 +481,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Summary
+        if: ${{ github.event_name != 'pull_request' }}
         shell: pwsh
         run: |
           Write-Host ""
@@ -474,5 +498,5 @@ jobs:
           }
           Write-Host ""
           Write-Host "Release page:"
-          Write-Host "  https://github.com/Izayauh/whisper/releases/tag/${{ steps.version.outputs.VERSION }}"
+          Write-Host "  https://github.com/Izayauh/Impulse/releases/tag/${{ steps.version.outputs.VERSION }}"
           Write-Host ""

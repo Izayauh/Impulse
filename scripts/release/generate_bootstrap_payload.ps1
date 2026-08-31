@@ -35,18 +35,42 @@ if ([string]::IsNullOrWhiteSpace($BaseUrl)) {
 
 $NormalizedBaseUrl = $BaseUrl.TrimEnd('/')
 
-$payloadRelativePaths = @(
-    "_internal\cublas64_13.dll",
-    "_internal\cublasLt64_13.dll",
+$requiredPayloadRelativePaths = @(
     "_internal\ggml-base.dll",
-    "_internal\ggml-cpu.dll",
-    "_internal\ggml-cuda.dll",
     "_internal\ggml.dll",
     "_internal\models\ggml-base.en.bin",
-    "_internal\models\ggml-medium.en.bin",
-    "_internal\models\ggml-large-v3.bin",
     "_internal\whisper-cli.exe",
     "_internal\whisper.dll"
+)
+
+foreach ($relativePath in $requiredPayloadRelativePaths) {
+    $sourcePath = Join-Path $DistRoot $relativePath
+    if (-not (Test-Path $sourcePath)) {
+        throw "Missing required bootstrap payload file: $sourcePath"
+    }
+}
+
+# whisper.cpp now publishes CPU DLLs with architecture suffixes such as
+# ggml-cpu-haswell.dll. Discover the files produced by the current build so
+# the bootstrap payload cannot drift from the packaged runtime again.
+$runtimeRoot = Join-Path $DistRoot "_internal"
+$cpuDlls = @(Get-ChildItem $runtimeRoot -Filter "ggml-cpu*.dll" -File -ErrorAction SilentlyContinue)
+if ($cpuDlls.Count -eq 0) {
+    throw "Missing required bootstrap CPU runtime: $runtimeRoot\ggml-cpu*.dll"
+}
+
+$optionalRuntimeFiles = @(
+    Get-ChildItem $runtimeRoot -Filter "ggml-cuda*.dll" -File -ErrorAction SilentlyContinue
+    Get-ChildItem $runtimeRoot -Filter "cublas*.dll" -File -ErrorAction SilentlyContinue
+)
+
+$discoveredRelativePaths = @($cpuDlls + $optionalRuntimeFiles | ForEach-Object {
+    "_internal\$($_.Name)"
+})
+
+$payloadRelativePaths = @(
+    $requiredPayloadRelativePaths + $discoveredRelativePaths |
+        Sort-Object -Unique
 )
 
 $manifestFiles = @()

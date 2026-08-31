@@ -4,7 +4,7 @@
 # ============================================================================
 #
 # Prerequisites:
-#   1. Python 3.8+ with pip
+#   1. Python 3.10+ with pip (Python 3.11 matches the release workflow)
 #   2. PyInstaller: pip install pyinstaller
 #   3. Inno Setup: https://jrsoftware.org/isdl.php
 #   4. (Optional) UPX for compression: https://upx.github.io/
@@ -32,7 +32,6 @@ $ErrorActionPreference = "Stop"
 # Configuration
 # ============================================================================
 $AppName = "Impulse"
-$AppVersion = "1.0.0-beta.1"
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $ProjectRoot = Resolve-Path (Join-Path $ScriptDir "..\\..")
 $BuildDir = Join-Path $ProjectRoot "build_output"
@@ -51,7 +50,7 @@ function Get-AppVersion {
             return $match.Matches[0].Groups[1].Value
         }
     }
-    return $AppVersion
+    throw "Unable to determine application version from src\whisper_local\config.py"
 }
 
 $AppVersion = Get-AppVersion
@@ -159,7 +158,13 @@ function Test-Prerequisites {
     # Check Python
     if (Test-Command "python") {
         $pyVersion = python --version 2>&1
-        Write-Success "Python: $pyVersion"
+        python -c "import sys; raise SystemExit(0 if sys.version_info >= (3, 10) else 1)"
+        if ($LASTEXITCODE -eq 0) {
+            Write-Success "Python: $pyVersion"
+        } else {
+            Write-Error "Python 3.10 or newer is required (3.11 recommended); found $pyVersion"
+            $allGood = $false
+        }
     } else {
         Write-Error "Python not found in PATH"
         $allGood = $false
@@ -219,7 +224,7 @@ function Test-Prerequisites {
         "main.py",
         "src\\whisper_local\\ui\\first_run_wizard.py",
         "runtime\\bin\\whisper-cli.exe",
-        "src\\whisper_local\\Whisper.ico"
+        "src\\whisper_local\\Impulse.ico"
     )
     
     foreach ($file in $requiredFiles) {
@@ -234,21 +239,13 @@ function Test-Prerequisites {
     
     # Check models
     $modelsDir = Join-Path $ProjectRoot "runtime\\models"
-    $models = @("ggml-base.en.bin", "ggml-medium.en.bin", "ggml-large-v3.bin")
-    $modelsFound = 0
-    foreach ($model in $models) {
-        $modelPath = Join-Path $modelsDir $model
-        if (Test-Path $modelPath) {
-            $size = (Get-Item $modelPath).Length / 1MB
-            Write-Success (("Model: {0} ({1:N0} MB)" -f $model, $size))
-            $modelsFound++
-        } else {
-            Write-Info "Model not found: $model (optional)"
-        }
-    }
-    
-    if ($modelsFound -eq 0) {
-        Write-Error "No AI models found in runtime\\models directory"
+    $model = "ggml-base.en.bin"
+    $modelPath = Join-Path $modelsDir $model
+    if (Test-Path $modelPath) {
+        $size = (Get-Item $modelPath).Length / 1MB
+        Write-Success (("Offline fallback model: {0} ({1:N0} MB)" -f $model, $size))
+    } else {
+        Write-Error "Missing required offline fallback model: runtime\\models\\$model"
         $allGood = $false
     }
 
@@ -265,14 +262,30 @@ function Test-Prerequisites {
     }
     
     # Check DLLs
-    $dlls = @("ggml-base.dll", "ggml-cpu.dll", "ggml-cuda.dll", "ggml.dll", "whisper.dll")
-    foreach ($dll in $dlls) {
+    $requiredDlls = @("ggml-base.dll", "ggml.dll", "whisper.dll")
+    foreach ($dll in $requiredDlls) {
         $dllPath = Join-Path $ProjectRoot ("runtime\\bin\\" + $dll)
         if (Test-Path $dllPath) {
             Write-Success "DLL: $dll"
         } else {
-            Write-Info "DLL not found: $dll (may be optional)"
+            Write-Error "Missing required DLL: runtime\\bin\\$dll"
+            $allGood = $false
         }
+    }
+
+    $cpuDlls = @(Get-ChildItem (Join-Path $ProjectRoot "runtime\\bin") -Filter "ggml-cpu*.dll" -ErrorAction SilentlyContinue)
+    if ($cpuDlls.Count -gt 0) {
+        Write-Success "CPU DLL variants: $($cpuDlls.Count)"
+    } else {
+        Write-Error "No ggml-cpu*.dll found in runtime\\bin"
+        $allGood = $false
+    }
+
+    $cudaDlls = @(Get-ChildItem (Join-Path $ProjectRoot "runtime\\bin") -Filter "ggml-cuda*.dll" -ErrorAction SilentlyContinue)
+    if ($cudaDlls.Count -gt 0) {
+        Write-Success "Optional CUDA DLLs: $($cudaDlls.Count)"
+    } else {
+        Write-Info "CUDA DLLs not found; the packaged app will use CPU fallback"
     }
     
     return $allGood

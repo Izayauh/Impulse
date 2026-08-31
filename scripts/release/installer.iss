@@ -9,7 +9,7 @@
 #define MyAppPublisher "Impulse"
 #define MyAppURL "https://github.com/Izayauh/Impulse"
 #define MyAppExeName "Impulse.exe"
-#define MyAppDescription "Privacy-focused, GPU-accelerated speech-to-text dictation"
+#define MyAppDescription "Private, local speech-to-text dictation"
 
 [Setup]
 ; Application identity
@@ -235,4 +235,3 @@ begin
     end;
   end;
 end;
-

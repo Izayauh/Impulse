@@ -106,10 +106,10 @@ $readmeLines += @(
     "- Windows 10 or 11 (64-bit)",
     "- 4 GB RAM minimum (8 GB recommended)",
     "- 5 GB free disk space",
-    "- NVIDIA GPU recommended for faster transcription (optional)",
+    "- CPU transcription is supported; compatible NVIDIA CUDA systems may run faster",
     "",
     "For support and updates:",
-    "https://github.com/Izayauh/whisper"
+    "https://github.com/Izayauh/Impulse"
 )
 
 $instructionsFile = Join-Path $env:TEMP "Impulse-README.txt"

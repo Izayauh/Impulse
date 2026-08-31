@@ -14,7 +14,7 @@ ROOT_DIR = os.path.abspath(os.path.join(SPEC_DIR, '..', '..'))
 
 # Application metadata
 APP_NAME = 'Impulse'
-APP_VERSION = '1.0.5-beta.4-dev'
+APP_VERSION = '1.0.5'
 MAIN_SCRIPT = os.path.join(ROOT_DIR, 'main.py')
 
 # Bake telemetry token into the frozen build so it works without

@@ -62,21 +62,21 @@ If you need to create a release manually:
 ### Prerequisites
 
 1. **Build tools installed**:
-   - Python 3.8+
+   - Python 3.10+ (Python 3.11 matches the automated release)
    - PyInstaller: `pip install pyinstaller`
    - Inno Setup 6: [Download](https://jrsoftware.org/isdl.php)
 
 2. **Required files present**:
    - `whisper-cli.exe`
-   - `*.dll` files (ggml-base.dll, ggml-cpu.dll, etc.)
-   - `models/` directory with AI models
+   - `ggml-base.dll`, `ggml.dll`, `whisper.dll`, and at least one `ggml-cpu*.dll`
+   - `runtime/models/ggml-base.en.bin` as the offline fallback model
    - Optional for bootstrap builds: `WHISPER_BOOTSTRAP_BASE_URL` pointing at the public payload folder
 
 ### Build Steps
 
 1. **Build the installer locally**:
    ```powershell
-   .\build_installer.ps1
+   .\scripts\release\build_installer.ps1
    ```
 
 2. **Verify the output**:
@@ -109,7 +109,7 @@ Before creating a release, verify:
 - [ ] Settings window opens (WIN + CTRL + S)
 - [ ] Release includes the installer EXE and all required `.bin` parts
 - [ ] Bootstrap installer works when `WHISPER_BOOTSTRAP_BASE_URL` is configured
-- [ ] All three AI models are included
+- [ ] The `base.en` offline fallback model is included
 - [ ] CHANGELOG.md is updated
 - [ ] Version numbers are consistent across files
 
@@ -121,20 +121,15 @@ Example layout:
 
 ```text
 https://downloads.example.com/whisper/v1.0.4/
-  _internal/cublas64_13.dll
-  _internal/cublasLt64_13.dll
   _internal/ggml-base.dll
-  _internal/ggml-cpu.dll
-  _internal/ggml-cuda.dll
+  _internal/ggml-cpu-<architecture>.dll
   _internal/ggml.dll
   _internal/models/ggml-base.en.bin
-  _internal/models/ggml-medium.en.bin
-  _internal/models/ggml-large-v3.bin
   _internal/whisper-cli.exe
   _internal/whisper.dll
 ```
 
-The manifest generated during release includes public URLs and SHA256 checksums for every hosted payload file.
+The manifest generator discovers the CPU/CUDA DLL variants produced by the current build and includes public URLs and SHA256 checksums for every hosted payload file.
 
 ## Troubleshooting Build Failures
 
@@ -155,14 +150,14 @@ Models are downloaded from Hugging Face. If downloads fail:
 ### "Inno Setup failed"
 
 - Ensure all source files exist in `dist\Impulse\`
-- Check that `Whisper.ico` is present
+- Check that `src\whisper_local\Impulse.ico` is present
 - Verify `installer.iss` syntax is correct
 - Verify `bootstrap_payload.iss.inc` was generated before compiling `bootstrap_installer.iss`
 
 ### "Build takes too long"
 
 The build can take 15-30 minutes due to:
-- Downloading ~5 GB of AI models
+- Downloading the model and runtime dependencies
 - Installing dependencies
 - Compressing the installer
 
@@ -173,9 +168,9 @@ This is normal for the first build. Consider caching if builds become too slow.
 | File | Purpose |
 |------|---------|
 | `.github/workflows/release.yml` | Automated build workflow |
-| `build_installer.ps1` | Local build script |
-| `build_config.spec` | PyInstaller configuration |
-| `installer.iss` | Inno Setup installer script |
+| `scripts/release/build_installer.ps1` | Local build script |
+| `scripts/release/build_config.spec` | PyInstaller configuration |
+| `scripts/release/installer.iss` | Inno Setup installer script |
 | `CHANGELOG.md` | Version history |
 
 ## Contact

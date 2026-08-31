@@ -4,7 +4,7 @@
 
 Hold a key, talk, and the text appears in whatever window has focus. Transcription runs entirely on your machine using Whisper — no audio and no text ever leaves your computer.
 
-> **Beta Notice:** This is a pre-release beta. A free license key is issued on signup at [impulsedictation.com](https://impulsedictation.com). Please report bugs via GitHub Issues.
+> **Beta Notice:** This is pre-release software. A license is required; see [impulsedictation.com](https://impulsedictation.com) for current availability. Please report bugs via GitHub Issues.
 
 ---
 
@@ -16,7 +16,7 @@ Hold a key, talk, and the text appears in whatever window has focus. Transcripti
 
 1. Download the single Windows bootstrap installer when it is available
 2. Run the installer and stay online while setup downloads the runtime/model payload
-3. Follow the setup wizard - you'll be prompted to enter your beta license key
+3. Follow the setup wizard and activate Impulse with your license key
 
 Fallback: if the release only includes split assets, download `Impulse-Setup-<version>.exe` and every matching `.bin` part, keep them in the same folder, then run the installer.
 
@@ -27,7 +27,7 @@ No Python, no configuration, no technical knowledge required.
 ```powershell
 # Clone the repository
 git clone https://github.com/Izayauh/Impulse.git
-cd whisper
+cd Impulse
 
 # Create and activate virtual environment
 python -m venv .venv
@@ -45,7 +45,7 @@ pip install -r requirements.txt
 ## ✨ Features
 
 - 🔒 **100% Private** - All processing happens on your computer
-- ⚡ **GPU Accelerated** - Fast transcription with NVIDIA CUDA
+- ⚡ **Responsive** - Uses compatible NVIDIA CUDA hardware when available and falls back to CPU
 - 🌍 **System-wide** - Works in any application
 - 🎯 **Simple Controls** - Just hold WIN + CTRL to dictate
 - 🎨 **Modern UI** - Dark theme with statistics dashboard
@@ -77,15 +77,14 @@ That's it! Your spoken words appear as text.
 
 ## 📊 Smart Model Selection
 
-Impulse automatically selects the best model based on your dictation length:
+Impulse chooses a transcription model based on the hardware it can actually use:
 
-| Dictation Length | Model Used | Speed | Quality |
-|------------------|------------|-------|---------|
-| < 25 words | base.en | ⚡⚡⚡ Fastest | Good |
-| 25-75 words | medium.en | ⚡⚡ Fast | Better |
-| > 75 words | large-v3 | ⚡ Thorough | Best |
+| Runtime | Model | Behavior |
+|---------|-------|----------|
+| CPU | `base.en` | Smaller model for dependable local transcription |
+| Verified CUDA GPU | `turbo` | Faster, higher-capacity transcription when the CUDA runtime passes startup checks |
 
-This gives you the best of both worlds: quick response for short commands, high accuracy for longer dictation.
+If GPU initialization fails, Impulse automatically uses the CPU path instead of leaving dictation unavailable.
 
 ---
 
@@ -96,7 +95,7 @@ Impulse is designed for privacy:
 - ✅ **100% Local** — Transcription never leaves your computer
 - ✅ **No Cloud** — Speech processed entirely on-device
 - ✅ **Opt-In Telemetry** — Anonymous beta usage reporting, disabled by default after beta
-- ✅ **Open Source** — Fully auditable code
+- ✅ **Source Available** — Published code can be inspected and audited
 
 See our full [Privacy Policy](PRIVACY.md).
 
@@ -123,7 +122,7 @@ See our full [Privacy Policy](PRIVACY.md).
 ### Slow transcription
 - First run is slower (loading AI models into memory)
 - Subsequent runs are much faster
-- NVIDIA GPU users get 2-5x speed improvement
+- Compatible NVIDIA CUDA systems may transcribe faster; Impulse logs and uses CPU fallback when CUDA is unavailable
 
 ### Application won't start
 - Ensure you're running Windows 10 or later (64-bit)
@@ -138,15 +137,16 @@ See [`USER_GUIDE.md`](USER_GUIDE.md) for detailed troubleshooting.
 
 ```
 Impulse/
-├── Impulse.exe           # Main application (installed version)
-├── whisper-cli.exe            # Whisper inference engine
-├── models/                    # AI models
-│   ├── ggml-base.en.bin       # Fast model (142 MB)
-│   ├── ggml-medium.en.bin     # Balanced model (1.5 GB)
-│   └── ggml-large-v3.bin      # Quality model (3.1 GB)
-├── *.dll                      # Runtime libraries
+├── Impulse.exe                # Main application
+├── _internal/
+│   ├── whisper-cli.exe        # Offline fallback engine
+│   ├── models/
+│   │   └── ggml-base.en.bin   # Bundled offline fallback model
+│   └── *.dll                  # Packaged runtime libraries
 └── User Guide.txt             # Documentation
 ```
+
+The primary `faster-whisper` model is cached in the user's application data after it is first needed; it is not duplicated in the installer.
 
 ---
 
@@ -154,21 +154,21 @@ Impulse/
 
 ### Prerequisites
 
-- Python 3.8+
+- Python 3.10+ (Python 3.11 matches the release workflow)
 - PyInstaller: `pip install pyinstaller`
 - Inno Setup (for installer): [Download](https://jrsoftware.org/isdl.php)
 
 ### Build Commands
 
 ```powershell
-# Install dependencies
-pip install sounddevice soundfile keyboard pyperclip pyautogui pillow pystray numpy pyinstaller
+# Install pinned dependencies
+pip install -r requirements.txt
 
 # Build standalone executable
-.\build_installer.ps1
+.\scripts\release\build_installer.ps1
 
 # Or build without installer
-python -m PyInstaller build_config.spec
+python -m PyInstaller scripts\release\build_config.spec
 ```
 
 ---
