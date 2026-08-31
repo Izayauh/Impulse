@@ -42,7 +42,14 @@ The release workflow and local build both require:
 
 ## 5) Test on a clean Windows machine
 
-Run:
+For a PR build, download and extract the workflow artifact, then run the script from the matching branch checkout against that exact directory:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\qa\fresh-machine-test.ps1 `
+  -ArtifactDirectory 'C:\path\to\extracted\impulse-installer-pr-<number>'
+```
+
+For an already-published release, run:
 
 ```powershell
 irm https://raw.githubusercontent.com/Izayauh/Impulse/main/scripts/qa/fresh-machine-test.ps1 | iex

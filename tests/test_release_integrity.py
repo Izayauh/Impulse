@@ -50,6 +50,9 @@ class ReleaseIntegrityTests(unittest.TestCase):
     def test_fresh_machine_qa_looks_for_current_product(self):
         script = read("scripts/qa/fresh-machine-test.ps1")
         self.assertIn("Get-Process -Name 'Impulse'", script)
+        self.assertIn("[string]$ArtifactDirectory", script)
+        self.assertIn("$assetRoot = $work", script)
+        self.assertIn("Resolve-Path $ArtifactDirectory", script)
         self.assertIn("Programs\\Impulse", script)
         self.assertIn("Join-Path $appDir 'Impulse.exe'", script)
         self.assertNotIn("Programs\\WhisperLocal", script)

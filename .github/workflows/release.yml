@@ -23,6 +23,7 @@ on:
       - 'main.py'
       - 'requirements*.txt'
       - 'src/**'
+      - 'scripts/qa/fresh-machine-test.ps1'
       - 'scripts/release/**'
 
   push:
