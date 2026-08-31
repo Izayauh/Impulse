@@ -47,6 +47,10 @@ checkpoints/
 *.wav
 *.flac
 *.mp4
+# The site's hero demo is a shipped asset, not a local recording. Without this
+# exception it stays untracked, Vercel never deploys it, and /demo.mp4 404s
+# behind a working poster frame.
+!web/public/demo.mp4
 *.zip
 *.7z
 *.tar
