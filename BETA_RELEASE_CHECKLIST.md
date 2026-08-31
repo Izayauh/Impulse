@@ -1,65 +1,68 @@
-# WhisperLocal Beta Release Checklist
+# Impulse Beta Release Checklist
 
-Target version: `1.0.0-beta.1`
+Target version: set the next prerelease tag, for example `v1.0.6-beta.1`.
 
 ## 1) Preflight
 
 - [ ] `git status` is clean
-- [ ] Licensing env policy selected (recommended below)
-- [ ] Telemetry policy selected (currently opt-in by default)
+- [ ] `src/whisper_local/config.py`, `pyproject.toml`, and both Inno Setup scripts use the intended version
+- [ ] `CHANGELOG.md` describes the user-visible changes and known issues
+- [ ] Release credentials and required GitHub secrets are configured
 
-Recommended beta env:
-
-```powershell
-$env:WHISPER_REQUIRE_LICENSE = "1"
-$env:WHISPER_DEV_BYPASS_LICENSE = "0"
-$env:WHISPER_FORCE_DISABLE = "0"
-$env:WHISPER_LICENSE_OFFLINE_GRACE_DAYS = "3"
-$env:WHISPER_LICENSE_REVALIDATE_HOURS = "24"
-$env:WHISPER_BETA_EXPIRES_ON = "2026-04-30"
-```
-
-## 2) Validate app
+## 2) Validate the app
 
 ```powershell
 python -m pytest tests --ignore=tests/integration
 powershell -ExecutionPolicy Bypass -File scripts\windows\test_system.ps1
 ```
 
-## 3) Build installer
+## 3) Build the installer
+
+Preferred: push the prerelease tag and let `.github/workflows/release.yml` build the release on the pinned Python 3.11 path.
+
+For a local Windows build:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts\release\build_installer.ps1 -Clean
 ```
 
-Notes:
-- Version is sourced from `src/whisper_local/config.py`.
-- Inno output name uses `WhisperLocal-Setup-<version>.exe`.
-- Set `WHISPER_BOOTSTRAP_BASE_URL` before the build if you want the single-file bootstrap installer too.
+The release workflow and local build both require:
 
-## 4) Create delivery package
+- `runtime\bin\whisper-cli.exe`
+- `runtime\bin\ggml-base.dll`, `ggml.dll`, and `whisper.dll`
+- at least one `runtime\bin\ggml-cpu*.dll` variant
+- `runtime\models\ggml-base.en.bin`
+
+## 4) Verify release assets
+
+- [ ] `Impulse-Setup-<version>.exe` exists
+- [ ] Every matching split `.bin` part is present beside the installer
+- [ ] The published SHA256 matches the installer
+- [ ] If bootstrap hosting is configured, its manifest contains the exact runtime files produced by this build
+
+## 5) Test on a clean Windows machine
+
+Run:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts\release\create_release_package.ps1
+irm https://raw.githubusercontent.com/Izayauh/Impulse/main/scripts/qa/fresh-machine-test.ps1 | iex
 ```
 
-This auto-detects latest installer and produces:
-- `dist\WhisperLocal-Setup-<version>-Complete.zip`
-- `dist\WhisperLocal-Setup-<version>-Complete.zip.sha256`
+Then verify:
 
-## 5) Smoke test installer on clean machine
+- [ ] Silent per-user install completes and `Impulse.exe` is found
+- [ ] First-run wizard detects or clearly asks for a microphone
+- [ ] Dictation remains unavailable before activation
+- [ ] A valid license activates successfully
+- [ ] First model preparation finishes without freezing the UI
+- [ ] `WIN + CTRL` records, transcribes, and pastes into at least two applications
+- [ ] Dashboard and settings open
+- [ ] Impulse exits cleanly and starts again
+- [ ] Upgrade from the previous release preserves expected user data
+- [ ] Uninstall behavior matches the documented data-retention choice
 
-- [ ] Bootstrap installer downloads hosted payload and finishes successfully
-- [ ] Install/uninstall works
-- [ ] First-run wizard opens
-- [ ] Dictation blocked when unlicensed
-- [ ] Activation works with beta key
-- [ ] Offline grace behavior works
-- [ ] Force-disable (`WHISPER_FORCE_DISABLE=1`) blocks dictation
+## 6) Publish deliberately
 
-## 6) Publish beta
-
-- [ ] Create GitHub pre-release tag: `v1.0.0-beta.1`
-- [ ] Upload bootstrap installer + payload manifest if external hosting is configured
-- [ ] Upload split installer package + sha256
-- [ ] Include known issues + expiration policy in release notes
+- [ ] Release notes describe install steps and known limitations honestly
+- [ ] Download the published assets and repeat the checksum check
+- [ ] Keep the release marked prerelease until the clean-machine test passes

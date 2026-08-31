@@ -6,7 +6,7 @@
 #define MyAppPublisher "Impulse"
 #define MyAppURL "https://github.com/Izayauh/Impulse"
 #define MyAppExeName "Impulse.exe"
-#define MyAppDescription "Privacy-focused, GPU-accelerated speech-to-text dictation"
+#define MyAppDescription "Private, local speech-to-text dictation"
 
 [Setup]
 AppId={{F7E8A9B0-1234-5678-90AB-CDEF01234567}
@@ -48,7 +48,7 @@ Name: "autostart"; Description: "Start {#MyAppName} when Windows starts"; GroupD
 Name: "quicklaunchicon"; Description: "{cm:CreateQuickLaunchIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 
 [Files]
-Source: "..\..\dist\Impulse\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: "_internal\models\*,_internal\cublas64_13.dll,_internal\cublasLt64_13.dll,_internal\ggml-base.dll,_internal\ggml-cpu.dll,_internal\ggml-cuda.dll,_internal\ggml.dll,_internal\whisper-cli.exe,_internal\whisper.dll"
+Source: "..\..\dist\Impulse\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: "_internal\models\*,_internal\cublas*.dll,_internal\ggml*.dll,_internal\whisper-cli.exe,_internal\whisper.dll"
 Source: "..\..\README.md"; DestDir: "{app}"; Flags: ignoreversion; DestName: "README.txt"
 Source: "..\..\USER_GUIDE.md"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist; DestName: "User Guide.txt"
 Source: "..\..\PRIVACY.md"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist; DestName: "Privacy Policy.txt"
@@ -136,7 +136,7 @@ begin
 
   if Version.Major < 10 then
   begin
-    MsgBox('WhisperLocal requires Windows 10 or later.' + #13#10 +
+    MsgBox('Impulse requires Windows 10 or later.' + #13#10 +
            'Please upgrade your operating system.', mbError, MB_OK);
     Result := False;
     Exit;
@@ -144,7 +144,7 @@ begin
 
   if not IsWin64 then
   begin
-    MsgBox('WhisperLocal requires 64-bit Windows.' + #13#10 +
+    MsgBox('Impulse requires 64-bit Windows.' + #13#10 +
            'This appears to be a 32-bit system.', mbError, MB_OK);
     Result := False;
     Exit;
@@ -233,7 +233,7 @@ begin
     UserDataPath := ExpandConstant('{localappdata}\{#MyAppName}');
     if DirExists(UserDataPath) then
     begin
-      if MsgBox('Do you want to remove your WhisperLocal settings and statistics?' + #13#10 + #13#10 +
+      if MsgBox('Do you want to remove your Impulse settings and statistics?' + #13#10 + #13#10 +
                 'Click Yes to remove all data, or No to keep your settings for future installations.',
                 mbConfirmation, MB_YESNO) = IDYES then
       begin
@@ -242,4 +242,3 @@ begin
     end;
   end;
 end;
-
