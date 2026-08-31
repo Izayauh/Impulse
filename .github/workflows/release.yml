@@ -81,6 +81,13 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+
+      # CI only triggers on pushes to main/develop, so without this a tag can
+      # publish code the suite never saw. That is how a March build shipped for
+      # five months while the pipeline was red.
+      - name: Run test suite
+        run: pytest tests/ --ignore=tests/integration -q --timeout=60
 
       - name: Install Inno Setup
         shell: pwsh
@@ -268,6 +275,32 @@ jobs:
             exit 1
           }
 
+      # ========================================
+      # Gate: the artifact must work, not just build
+      # ========================================
+      # The suite above tests Python source. Everything below tests what the
+      # user actually receives. Each check maps to a defect that shipped:
+      # missing pywebview JS, assets at paths the app does not read, and a
+      # frozen build that never created its own working directories.
+
+      - name: Verify packaged tree
+        shell: pwsh
+        run: python scripts\release\verify_package.py manifest dist\Impulse
+
+      - name: Synthesize dictation sample
+        shell: pwsh
+        run: python scripts\release\verify_package.py make-sample "${{ runner.temp }}\gate-sample.wav"
+
+      - name: Transcribe through the frozen build
+        shell: pwsh
+        run: |
+          # Start from no user data so this exercises the real first-run path.
+          Remove-Item -Recurse -Force "$env:LOCALAPPDATA\Impulse" -ErrorAction SilentlyContinue
+          python scripts\release\verify_package.py selftest `
+            dist\Impulse\Impulse.exe "${{ runner.temp }}\gate-sample.wav"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python scripts\release\verify_package.py datadirs "$env:LOCALAPPDATA\Impulse"
+
       - name: Build installer with Inno Setup
         shell: pwsh
         run: |
@@ -289,6 +322,38 @@ jobs:
             exit 1
           }
         id: installer
+
+      # The frozen tree passing does not mean the installer ships it correctly.
+      # This is the stranger's path: install it, then dictate from where it
+      # landed.
+      - name: Install and verify from the installed location
+        shell: pwsh
+        run: |
+          $setup = "${{ steps.installer.outputs.INSTALLER_PATH }}"
+          Write-Host "Installing $setup silently..."
+          $p = Start-Process -FilePath $setup -Wait -PassThru `
+            -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/FORCECLOSEAPPLICATIONS'
+          if ($p.ExitCode -ne 0) { Write-Error "installer exit code $($p.ExitCode)"; exit 1 }
+
+          # PrivilegesRequired=lowest means {autopf} resolves to Program Files
+          # when elevated and to LocalAppData\Programs when it is not, so look
+          # in both rather than assuming which one the runner used.
+          $appDir = @(
+            "$env:LOCALAPPDATA\Programs\Impulse",
+            "$env:ProgramFiles\Impulse",
+            "${env:ProgramFiles(x86)}\Impulse"
+          ) | Where-Object { Test-Path (Join-Path $_ 'Impulse.exe') } | Select-Object -First 1
+          if (-not $appDir) { Write-Error "Impulse.exe not found after install"; exit 1 }
+          Write-Host "Installed at: $appDir"
+
+          python scripts\release\verify_package.py manifest $appDir
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+          Remove-Item -Recurse -Force "$env:LOCALAPPDATA\Impulse" -ErrorAction SilentlyContinue
+          python scripts\release\verify_package.py selftest `
+            (Join-Path $appDir 'Impulse.exe') "${{ runner.temp }}\gate-sample.wav"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python scripts\release\verify_package.py datadirs "$env:LOCALAPPDATA\Impulse"
 
       - name: Generate bootstrap payload manifest
         if: ${{ env.BOOTSTRAP_BASE_URL != '' }}
