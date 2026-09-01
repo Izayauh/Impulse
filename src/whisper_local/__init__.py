@@ -4,7 +4,6 @@ WhisperLocal - Privacy-focused speech-to-text dictation.
 This package contains the core components of the WhisperLocal application.
 """
 
-__version__ = "1.0.0-beta.1"
 __author__ = "WhisperLocal"
 
 # Import main components
@@ -19,6 +18,11 @@ from .config import (
     get_app_dir,
     get_user_data_dir,
 )
+
+# Derived, never hardcoded: this drifted to 1.0.0-beta.1 while the app, the
+# installer and telemetry all reported APP_VERSION, so the package claimed a
+# version that had not shipped in months.
+__version__ = APP_VERSION
 
 from .stats import StatsTracker
 
