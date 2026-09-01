@@ -9,6 +9,12 @@ export const CONTACT_EMAIL = 'beta@impulsedictation.com';
 
 // One-time price, shown everywhere the buy path appears.
 export const PRICE = '$29';
-// Lemon Squeezy checkout. Overridable per-deploy so the exact product URL can
-// be swapped in without a rebuild once the store is activated.
-export const BUY_URL = import.meta.env.VITE_PUBLIC_BUY_URL || 'https://impulsevoice.lemonsqueezy.com/';
+// Lemon Squeezy checkout, set per-deploy once the store is activated so the
+// exact product URL can be swapped in without a rebuild.
+//
+// There is deliberately no fallback URL. While the store is pending activation
+// the Lemon Squeezy address 403s, and a buy button pointing at a dead page is
+// worse than no buy button: it loses the one visitor who had already decided.
+// Until the variable is set, the buy path routes to the free beta instead.
+export const BUY_URL = import.meta.env.VITE_PUBLIC_BUY_URL || '';
+export const STORE_IS_LIVE = BUY_URL !== '';

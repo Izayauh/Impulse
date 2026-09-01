@@ -1,6 +1,6 @@
 import { motion } from 'motion/react';
 import { Check } from 'lucide-react';
-import { BUY_URL, CONTACT_EMAIL, PRICE } from '@/src/lib/site';
+import { BUY_URL, CONTACT_EMAIL, PRICE, STORE_IS_LIVE } from '@/src/lib/site';
 
 const included = [
   'Lifetime licence for the computers you own',
@@ -59,20 +59,37 @@ export function Pricing() {
             ))}
           </ul>
 
-          <a
-            href={BUY_URL}
-            target="_blank"
-            rel="noreferrer"
-            className="block w-full bg-brand hover:bg-brand-dark text-white text-center px-8 py-5 rounded-2xl font-bold text-xl transition-all shadow-2xl shadow-brand/40 active:scale-95"
-          >
-            Get Impulse for {PRICE}
-          </a>
-          <p className="text-center text-xs text-white/40 mt-4">
-            Secure checkout by Lemon Squeezy &middot; licence key arrives by email &middot;{' '}
-            <a href="#beta" className="underline underline-offset-2 hover:text-white/70">
-              or try the beta free first
-            </a>
-          </p>
+          {STORE_IS_LIVE ? (
+            <>
+              <a
+                href={BUY_URL}
+                target="_blank"
+                rel="noreferrer"
+                className="block w-full bg-brand hover:bg-brand-dark text-white text-center px-8 py-5 rounded-2xl font-bold text-xl transition-all shadow-2xl shadow-brand/40 active:scale-95"
+              >
+                Get Impulse for {PRICE}
+              </a>
+              <p className="text-center text-xs text-white/40 mt-4">
+                Secure checkout by Lemon Squeezy &middot; licence key arrives by email &middot;{' '}
+                <a href="#beta" className="underline underline-offset-2 hover:text-white/70">
+                  or try the beta free first
+                </a>
+              </p>
+            </>
+          ) : (
+            <>
+              <a
+                href="#beta"
+                className="block w-full bg-brand hover:bg-brand-dark text-white text-center px-8 py-5 rounded-2xl font-bold text-xl transition-all shadow-2xl shadow-brand/40 active:scale-95"
+              >
+                Get a free beta key
+              </a>
+              <p className="text-center text-xs text-white/40 mt-4">
+                Checkout opens shortly &middot; the beta is the full app, not a trial &middot; buy
+                later at {PRICE} and keep it forever
+              </p>
+            </>
+          )}
         </motion.div>
 
         {/* The comparison */}
