@@ -1,0 +1,78 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap">
+  <style>
+    body { margin: 0; background: #26262B; }
+    a { color: #FF1493; } a:hover { color: #FF4DAA; }
+    .board { font-family: "Geist", "Segoe UI", system-ui, sans-serif; font-size: 13px; line-height: 1.45; color: #EDEDEF; -webkit-font-smoothing: antialiased; }
+    .mono { font-family: "Geist Mono", ui-monospace, "Cascadia Mono", Consolas, monospace; font-variant-numeric: tabular-nums; }
+    .pill { width: 166px; height: 48px; border-radius: 24px; background: #040608; border: 1px solid rgba(255,255,255,0.1); display: flex; align-items: center; gap: 10px; padding: 0 16px; box-sizing: border-box; }
+    .pill svg { width: 16px; height: 16px; flex: none; }
+    .bars { display: flex; align-items: center; gap: 3px; height: 20px; }
+    .bars i { display: block; width: 3px; border-radius: 2px; background: #FF1493; animation: talk 900ms ease-in-out infinite; }
+    .bars i:nth-child(2) { animation-delay: 80ms; } .bars i:nth-child(3) { animation-delay: 160ms; } .bars i:nth-child(4) { animation-delay: 240ms; }
+    .bars i:nth-child(5) { animation-delay: 320ms; } .bars i:nth-child(6) { animation-delay: 400ms; } .bars i:nth-child(7) { animation-delay: 480ms; }
+    .bars i:nth-child(8) { animation-delay: 560ms; } .bars i:nth-child(9) { animation-delay: 640ms; } .bars i:nth-child(10) { animation-delay: 720ms; }
+    .bars i:nth-child(11) { animation-delay: 800ms; } .bars i:nth-child(12) { animation-delay: 880ms; }
+    @keyframes talk { 0%, 100% { transform: scaleY(0.35); } 50% { transform: scaleY(1); } }
+    .ring { width: 18px; height: 18px; animation: spin 900ms linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .line { flex: 1; height: 2px; border-radius: 2px; background: rgba(255,255,255,0.12); position: relative; overflow: hidden; }
+    .line i { position: absolute; top: 0; bottom: 0; width: 40%; border-radius: 2px; background: #FF1493; animation: sweep 900ms ease-in-out infinite; }
+    @keyframes sweep { 0% { left: -40%; } 100% { left: 100%; } }
+    .cap { color: #B4B4BC; font-size: 12px; max-width: 200px; }
+    .cap b { display: block; color: #EDEDEF; font-weight: 500; margin-bottom: 2px; }
+    @media (prefers-reduced-motion: reduce) { .bars i, .ring, .line i { animation: none; } }
+  </style>
+</helmet>
+
+<div class="board" style="width: 1100px; height: 320px; background: #26262B; box-sizing: border-box; padding: 32px 40px; display: flex; flex-direction: column; gap: 28px;">
+  <div style="display: flex; flex-direction: column; gap: 4px;">
+    <div style="font-size: 16px; font-weight: 600; letter-spacing: -0.01em;">The pill, four moments</div>
+    <div style="color: #B4B4BC; font-size: 12px;">Docked bottom center, 166 x 48, only on screen while something is happening. Stats grow here, where the use happens.</div>
+  </div>
+
+  <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 32px;">
+
+    <div style="display: flex; flex-direction: column; gap: 16px; align-items: flex-start;">
+      <div class="pill">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#FF1493" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"></rect><path d="M5 11a7 7 0 0 0 14 0"></path><path d="M12 18v3"></path></svg>
+        <span class="bars"><i style="height: 8px;"></i><i style="height: 14px;"></i><i style="height: 18px;"></i><i style="height: 10px;"></i><i style="height: 16px;"></i><i style="height: 20px;"></i><i style="height: 12px;"></i><i style="height: 18px;"></i><i style="height: 8px;"></i><i style="height: 14px;"></i><i style="height: 16px;"></i><i style="height: 10px;"></i></span>
+      </div>
+      <div class="cap"><b>Listening</b>Bars follow your voice, scaled to the take's own peak so a studio interface reads the same as a laptop mic.</div>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 16px; align-items: flex-start;">
+      <div class="pill">
+        <svg class="ring" viewBox="0 0 24 24" fill="none" stroke="#FF1493" stroke-width="2.4" stroke-linecap="round"><path d="M12 3a9 9 0 0 1 9 9"></path></svg>
+        <span class="line"><i></i></span>
+      </div>
+      <div class="cap"><b>Working</b>No word "processing". The bars fold into one line and a pink sweep runs until the text lands, usually under a second.</div>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 16px; align-items: flex-start;">
+      <div class="pill" style="border-color: rgba(255,20,147,0.45);">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#FF1493" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5 9-10"></path></svg>
+        <span class="mono" style="font-size: 13px; color: #EDEDEF;">+42</span>
+        <span class="mono" style="font-size: 12px; color: #9A9AA3; margin-left: auto;">1,326 today</span>
+      </div>
+      <div class="cap"><b>Landed, one second</b>Words added and the day's total. This is the only place the count ticks up, then the pill is gone.</div>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 16px; align-items: flex-start;">
+      <div style="width: 166px; height: 48px; border-radius: 24px; border: 1px dashed rgba(255,255,255,0.18); box-sizing: border-box;"></div>
+      <div class="cap"><b>Idle</b>Nothing on screen. Impulse lives in the tray and the hotkey, not on your desktop.</div>
+    </div>
+
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

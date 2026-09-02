@@ -1,0 +1,213 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap">
+  <style>
+    body { margin: 0; background: #F4F4F5; }
+    a { color: #E0117F; } a:hover { color: #B80D68; }
+    .app { font-family: "Geist", "Segoe UI", system-ui, sans-serif; font-size: 13px; line-height: 1.45; color: #18181B; -webkit-font-smoothing: antialiased; }
+    .mono { font-family: "Geist Mono", ui-monospace, "Cascadia Mono", Consolas, monospace; font-variant-numeric: tabular-nums; }
+    .nav { display: flex; align-items: center; gap: 10px; height: 32px; padding: 0 10px; border-radius: 6px; color: #5F5F68; cursor: default; transition: background-color 120ms ease-out, color 120ms ease-out; }
+    .nav:hover { background: rgba(0,0,0,0.05); color: #18181B; }
+    .nav.active { background: rgba(0,0,0,0.07); color: #18181B; }
+    .nav svg { width: 16px; height: 16px; flex: none; }
+    .nav .count { margin-left: auto; color: #5F5F68; font-size: 12px; }
+    .btn { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border-radius: 6px; border: 1px solid rgba(0,0,0,0.12); background: #FAFAFA; color: #18181B; font: inherit; font-weight: 500; cursor: default; transition: background-color 120ms ease-out, border-color 120ms ease-out, transform 80ms ease-out; }
+    .btn:hover { background: #F4F4F5; border-color: rgba(0,0,0,0.18); }
+    .btn:active { transform: scale(0.98); }
+    .btn.primary { background: #E0117F; border-color: #E0117F; color: #FFFFFF; }
+    .btn.primary:hover { background: #C90F72; border-color: #C90F72; }
+    .btn svg { width: 14px; height: 14px; }
+    .kbd { display: inline-block; padding: 1px 7px; border-radius: 5px; border: 1px solid rgba(0,0,0,0.14); border-bottom-width: 2px; background: #FFFFFF; color: #18181B; font-family: "Geist Mono", ui-monospace, monospace; font-size: 12px; line-height: 18px; }
+    .card { background: #FFFFFF; border: 1px solid rgba(0,0,0,0.08); border-radius: 8px; }
+    .stat { display: flex; flex-direction: column; gap: 4px; padding: 14px 16px; }
+    .stat .label { color: #5F5F68; font-size: 12px; }
+    .stat .value { font-size: 22px; line-height: 26px; font-weight: 500; color: #18181B; }
+    .stat .delta { color: #5F5F68; font-size: 12px; }
+    .bar { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; height: 88px; }
+    .bar i { position: relative; display: block; border-radius: 3px 3px 0 0; background: #D4D4D8; transition: background-color 120ms ease-out; }
+    .bar:hover i { background: #E0117F; }
+    .bar.today i { background: #E0117F; }
+    .tip { position: absolute; left: 50%; bottom: 100%; transform: translate(-50%, -8px); padding: 4px 8px; border-radius: 5px; background: #18181B; color: #FFFFFF; font-size: 12px; white-space: nowrap; opacity: 0; pointer-events: none; transition: opacity 120ms ease-out; }
+    .bar:hover .tip, .bar.today .tip { opacity: 1; }
+    .row { display: grid; grid-template-columns: 64px minmax(0, 1fr) 80px; gap: 16px; align-items: start; padding: 8px 16px; border-top: 1px solid rgba(0,0,0,0.07); transition: background-color 120ms ease-out; }
+    .row:hover { background: #FAFAFA; }
+    .row .time { color: #5F5F68; font-size: 12px; padding-top: 2px; }
+    .row .text { color: #2A2A2F; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+    .row .copy { justify-self: end; opacity: 0; transition: opacity 120ms ease-out; }
+    .row:hover .copy { opacity: 1; }
+    .rec { position: relative; flex: 1; max-width: 260px; height: 4px; border-radius: 999px; background: rgba(0,0,0,0.08); }
+    .rec i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 999px; background: #E0117F; }
+    .best { position: absolute; left: 0; right: 0; top: 0; border-top: 1px dashed rgba(0,0,0,0.22); }
+    .best span { position: absolute; left: 0; top: 4px; font-size: 11px; color: #5F5F68; }
+    .dot { width: 6px; height: 6px; border-radius: 999px; background: #059669; box-shadow: 0 0 0 3px rgba(5,150,105,0.14); }
+  </style>
+</helmet>
+
+<div class="app" style="width: 1100px; height: 740px; display: flex; background: #F4F4F5; overflow: hidden;">
+
+  <aside style="width: 220px; flex: none; display: flex; flex-direction: column; padding: 16px 12px; background: #FAFAFA; border-right: 1px solid rgba(0,0,0,0.08);">
+    <div style="display: flex; align-items: center; gap: 10px; padding: 4px 10px 18px;">
+      <div style="width: 22px; height: 22px; border-radius: 6px; background: #E0117F; display: flex; align-items: center; justify-content: center;">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="#FFFFFF" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"></rect><path d="M5 11a7 7 0 0 0 14 0"></path><path d="M12 18v3"></path></svg>
+      </div>
+      <div style="font-weight: 600; font-size: 14px; letter-spacing: -0.01em;">Impulse</div>
+    </div>
+
+    <nav style="display: flex; flex-direction: column; gap: 2px;">
+      <div class="nav active">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V9l8-6 8 6v10"></path><path d="M10 19v-6h4v6"></path></svg>
+        <span>Home</span>
+      </div>
+      <div class="nav">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16"></path><path d="M4 12h10"></path><path d="M4 17h7"></path></svg>
+        <span>Snippets</span><span class="count">5</span>
+      </div>
+      <div class="nav">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5z"></path><path d="M4 20.5V5.5"></path></svg>
+        <span>Dictionary</span><span class="count">13</span>
+      </div>
+    </nav>
+
+    <div style="flex: 1;"></div>
+
+    <div style="display: flex; flex-direction: column; gap: 2px;">
+      <div class="nav">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"></path></svg>
+        <span>Settings</span>
+      </div>
+      <div style="display: flex; align-items: center; gap: 8px; padding: 10px 10px 4px; color: #5F5F68; font-size: 12px;">
+        <span class="dot"></span><span>Listening for Ctrl + Win</span>
+      </div>
+    </div>
+  </aside>
+
+  <main style="flex: 1; min-width: 0; padding: 26px 32px 32px; overflow: auto; display: flex; flex-direction: column; gap: 14px;">
+
+    <div style="display: flex; align-items: center; justify-content: space-between; gap: 16px;">
+      <div style="display: flex; flex-direction: column; gap: 2px;">
+        <div style="font-size: 20px; font-weight: 600; letter-spacing: -0.02em; line-height: 24px;">Today</div>
+        <div style="color: #5F5F68; font-size: 12px;">Tuesday, September 1</div>
+      </div>
+      <div style="display: flex; align-items: center; gap: 10px; color: #5F5F68; font-size: 13px;">
+        <span>Hold</span><span class="kbd">Ctrl</span><span class="kbd">Win</span><span>and talk</span>
+        <span style="width: 1px; height: 16px; background: rgba(0,0,0,0.12); margin: 0 4px;"></span>
+        <span class="kbd">Ctrl</span><span class="kbd">Win</span><span class="kbd">Alt</span><span>hands-free</span>
+      </div>
+    </div>
+
+    <div class="card" style="display: flex; align-items: stretch;">
+      <div style="flex: 1; padding: 16px 20px 14px; display: flex; flex-direction: column; gap: 6px;">
+        <span style="color: #5F5F68; font-size: 12px;">Words today</span>
+        <div style="display: flex; align-items: baseline; gap: 12px;">
+          <span class="mono" style="font-size: 40px; line-height: 44px; font-weight: 500; letter-spacing: -0.02em; color: #18181B;">1,284</span>
+          <span style="color: #5F5F68; font-size: 12px;">9 dictations</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 10px; margin-top: 2px;">
+          <span class="rec"><i style="width: 69%;"></i></span>
+          <span class="mono" style="color: #5F5F68; font-size: 12px; white-space: nowrap;">69% of your best day, 1,860</span>
+        </div>
+      </div>
+      <div style="width: 1px; background: rgba(0,0,0,0.08);"></div>
+      <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); width: 390px;">
+        <div class="stat" style="padding: 16px 16px 14px;">
+          <span class="label">Speed</span>
+          <span class="value mono">137 <span style="font-size: 13px; color: #5F5F68; font-weight: 400;">wpm</span></span>
+          <span class="delta">3.4x typing</span>
+        </div>
+        <div class="stat" style="padding: 16px 16px 14px; border-left: 1px solid rgba(0,0,0,0.08);">
+          <span class="label">Time saved</span>
+          <span class="value mono">22 <span style="font-size: 13px; color: #5F5F68; font-weight: 400;">min</span></span>
+          <span class="delta">estimate</span>
+        </div>
+        <div class="stat" style="padding: 16px 16px 14px; border-left: 1px solid rgba(0,0,0,0.08);">
+          <span class="label">Streak</span>
+          <span class="value mono">12 <span style="font-size: 13px; color: #5F5F68; font-weight: 400;">days</span></span>
+          <span class="delta">138,605 all time</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" style="padding: 16px 16px 12px; display: flex; flex-direction: column; gap: 14px;">
+      <div style="display: flex; align-items: baseline; justify-content: space-between;">
+        <div style="display: flex; align-items: baseline; gap: 10px;">
+          <span style="font-weight: 600; font-size: 14px;">Last 14 days</span>
+          <span style="color: #5F5F68; font-size: 12px;">words per day</span>
+        </div>
+        <span class="mono" style="color: #5F5F68; font-size: 12px;">avg 918 / day</span>
+      </div>
+      <div style="position: relative; display: flex; align-items: flex-end; gap: 8px; margin-top: 10px;">
+        <span class="best"><span class="mono">best day 1,860</span></span>
+        <div class="bar"><i style="height: 29px;"><span class="tip mono">620</span></i></div>
+        <div class="bar"><i style="height: 54px;"><span class="tip mono">1,140</span></i></div>
+        <div class="bar"><i style="height: 42px;"><span class="tip mono">880</span></i></div>
+        <div class="bar"><i style="height: 2px;"><span class="tip mono">0</span></i></div>
+        <div class="bar"><i style="height: 72px;"><span class="tip mono">1,520</span></i></div>
+        <div class="bar"><i style="height: 62px;"><span class="tip mono">1,310</span></i></div>
+        <div class="bar"><i style="height: 36px;"><span class="tip mono">760</span></i></div>
+        <div class="bar"><i style="height: 45px;"><span class="tip mono">940</span></i></div>
+        <div class="bar"><i style="height: 88px;"><span class="tip mono">1,860</span></i></div>
+        <div class="bar"><i style="height: 49px;"><span class="tip mono">1,030</span></i></div>
+        <div class="bar"><i style="height: 19px;"><span class="tip mono">410</span></i></div>
+        <div class="bar"><i style="height: 58px;"><span class="tip mono">1,220</span></i></div>
+        <div class="bar"><i style="height: 33px;"><span class="tip mono">690</span></i></div>
+        <div class="bar today"><i style="height: 60px;"><span class="tip mono">1,284</span></i></div>
+      </div>
+      <div style="display: flex; justify-content: space-between; color: #5F5F68; font-size: 11px;" class="mono">
+        <span>Aug 19</span><span>Aug 26</span><span style="color: #E0117F;">Today</span>
+      </div>
+    </div>
+
+    <div class="card" style="display: flex; flex-direction: column; overflow: hidden;">
+      <div style="display: flex; align-items: center; justify-content: space-between; padding: 14px 16px 10px;">
+        <span style="font-weight: 600; font-size: 14px;">Recent dictations</span>
+        <span class="btn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"></rect><path d="M5 15V5a2 2 0 0 1 2-2h10"></path></svg>
+          Copy last
+        </span>
+      </div>
+      <div class="row">
+        <span class="time mono">4:12 PM</span>
+        <span class="text">Move the second verse up an octave on the double and leave the first pass dry. Bounce both so I can pick tomorrow with fresh ears.</span>
+        <span class="btn copy">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"></rect><path d="M5 15V5a2 2 0 0 1 2-2h10"></path></svg>
+          Copy
+        </span>
+      </div>
+      <div class="row">
+        <span class="time mono">3:48 PM</span>
+        <span class="text">Reply to Marcus: yes to Thursday, bring the stems for the club edit, and ask if he still has the vocal chain preset from the last session.</span>
+        <span class="btn copy">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"></rect><path d="M5 15V5a2 2 0 0 1 2-2h10"></path></svg>
+          Copy
+        </span>
+      </div>
+      <div class="row">
+        <span class="time mono">2:05 PM</span>
+        <span class="text">Add a note to the release checklist that the installer has to be tested on a machine with no history before we tag anything.</span>
+        <span class="btn copy">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"></rect><path d="M5 15V5a2 2 0 0 1 2-2h10"></path></svg>
+          Copy
+        </span>
+      </div>
+      <div class="row">
+        <span class="time mono">11:30 AM</span>
+        <span class="text">Grocery run after the shift: eggs, oat milk, the good coffee, and something green so the week does not turn into all takeout.</span>
+        <span class="btn copy">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"></rect><path d="M5 15V5a2 2 0 0 1 2-2h10"></path></svg>
+          Copy
+        </span>
+      </div>
+    </div>
+
+  </main>
+</div>
+</x-dc>
+</body>
+</html>
