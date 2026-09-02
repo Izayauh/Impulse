@@ -15,9 +15,6 @@
 </head>
 
 <body>
-  <div id="confetti-container"></div>
-  <div id="achievement-popup"></div>
-  <div id="achievement-toast-container"></div>
   <div id="toast-container"></div>
   <div id="paywall-overlay"
     style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 10000; align-items: center; justify-content: center; backdrop-filter: blur(4px);">
@@ -62,20 +59,10 @@
             id="snippet-count" class="nav-count" data-bind="snippets.length">0</span></button>
         <button id="nav-dictionary" class="nav-item" onclick="switchView('dictionary')"><span>Dictionary</span><span
             id="dictionary-count" class="nav-count" data-bind="vocabularyWords.length">0</span></button>
-        <button id="nav-achievements" class="nav-item"
-          onclick="switchView('achievements')"><span>Achievements</span><span id="achievement-count" class="nav-count"
-            data-bind="achievements.unlocked/total">0</span></button>
-        <button id="nav-challenges" class="nav-item" onclick="switchView('challenges')"><span>Challenges</span><span
-            class="nav-count">Daily</span></button>
       </nav>
 
       <div class="sidebar-footer">
         <div class="profile-card">
-          <div class="profile-avatar">I</div>
-          <div class="profile-meta">
-            <div>Rank: <span id="rank" data-bind="stats.rank">Word Warrior</span></div>
-            <div><span id="header-xp-display" data-bind="stats.totalWords">0</span> words</div>
-          </div>
           <button class="gear-btn" onclick="openSettings()" title="Settings">&#9881;</button>
         </div>
       </div>
@@ -114,14 +101,11 @@
 
   <script>
     let currentView = 'home';
-    let activeCategory = 'all';
     let snippetScope = 'all';
     let snippetSearch = '';
     let settingsTab = 'general';
     let pythonPollingStarted = false;
-    let achievementsInitializedFromBackend = false;
     let lastStatsDigest = '';
-    let lastAchievementsDigest = '';
     let lastRecentDigest = '';
     let lastModelSettingsDigest = '';
     let lastVocabularyDigest = '';
@@ -140,7 +124,7 @@
     let licenseState = { active: false, is_valid: false, key: null, reason: null, message: null, expires_at: null };
 
     let stats = {
-      userName: 'User', xp: 2300, xpToNextLevel: 3500, level: 9, rank: 'Word Warrior', nextRank: 'Voice Virtuoso',
+      userName: 'User',
       today: 823, thisWeek: 10430, thisMonth: 28490, avgWpm: 142, bestWpm: 187, totalWords: 54620,
       totalSessions: 441, totalTime: '47h 23m', dayStreak: 8, weekStreak: 2,
       recentTranscripts: [
@@ -148,30 +132,9 @@
         { text: 'The achievement system should feel rewarding', words: 12, time: '03:27 PM' },
         { text: 'Please fix the syntax error for the audio pipeline', words: 10, time: '03:25 PM' }
       ],
-      last7Days: [{ day: 'Sun', words: 737 }, { day: 'Mon', words: 5460 }, { day: 'Tue', words: 90 }, { day: 'Wed', words: 4177 }, { day: 'Thu', words: 12 }, { day: 'Fri', words: 1853 }, { day: 'Sat', words: 923 }],
-      records: { mostWordsDay: { value: 5460, date: '2026-01-12' }, fastestWpm: { value: 187, date: '2026-01-16' }, longestSession: { value: '2h 14m', date: '2026-01-12' }, longestStreak: { value: 14, date: '2026-01-31' } }
+      last7Days: [{ day: 'Sun', words: 737 }, { day: 'Mon', words: 5460 }, { day: 'Tue', words: 90 }, { day: 'Wed', words: 4177 }, { day: 'Thu', words: 12 }, { day: 'Fri', words: 1853 }, { day: 'Sat', words: 923 }]
     };
 
-    const achievements = [
-      { id: 1, key: 'daily_100', category: 'milestones', name: 'Centurion', description: '100 words in a day', icon: '100', rarity: 'common', xp: 25, unlocked: true },
-      { id: 2, key: 'daily_500', category: 'milestones', name: 'Chatterbox', description: '500 words in a day', icon: '500', rarity: 'common', xp: 40, unlocked: true },
-      { id: 3, key: 'total_1k', category: 'milestones', name: 'Starter Stack', description: '1,000 total words', icon: '1K', rarity: 'common', xp: 25, unlocked: true },
-      { id: 4, key: 'total_10k', category: 'milestones', name: 'Wordsmith', description: '10,000 total words', icon: '10K', rarity: 'rare', xp: 120, unlocked: true },
-      { id: 5, key: 'speed_100', category: 'speed', name: 'Lightning', description: 'Reach 100 WPM', icon: '100', rarity: 'rare', xp: 75, unlocked: true },
-      { id: 6, key: 'speed_120', category: 'speed', name: 'Rapid Fire', description: 'Reach 120 WPM', icon: '120', rarity: 'rare', xp: 100, unlocked: true },
-      { id: 7, key: 'speed_150', category: 'speed', name: 'Speed Demon', description: 'Reach 150 WPM', icon: '150', rarity: 'epic', xp: 200, unlocked: false, progress: 95 },
-      { id: 8, key: 'streak_7', category: 'streaks', name: 'Full Week', description: '7-day streak', icon: '7D', rarity: 'rare', xp: 75, unlocked: true },
-      { id: 9, category: 'streaks', name: 'Monthly Master', description: '30-day streak', icon: '30D', rarity: 'epic', xp: 350, unlocked: false, progress: 27 },
-      { id: 10, category: 'accuracy', name: 'Precise', description: '98% session accuracy', icon: '98', rarity: 'rare', xp: 75, unlocked: true },
-      { id: 11, key: 'secret_whisper', category: 'quirky', name: 'Whisper Mode', description: 'Very quiet audio transcribed', icon: 'Q1', rarity: 'common', xp: 25, unlocked: true },
-      { id: 12, category: 'social', name: 'Beta Tester', description: 'Used during beta period', icon: 'SO', rarity: 'epic', xp: 200, unlocked: true },
-      { id: 13, category: 'secret', name: 'Hello World', description: 'Say hello world', icon: 'HW', rarity: 'rare', xp: 50, unlocked: true },
-      { id: 14, category: 'secret', name: 'Konami', description: 'Classic cheat code', icon: 'KN', rarity: 'legendary', xp: 500, unlocked: false, progress: 4 }
-    ];
-
-    const categories = [{ id: 'all', name: 'All' }, { id: 'milestones', name: 'Milestones' }, { id: 'speed', name: 'Speed' }, { id: 'streaks', name: 'Streaks' }, { id: 'accuracy', name: 'Accuracy' }, { id: 'quirky', name: 'Quirky' }, { id: 'social', name: 'Social' }, { id: 'secret', name: 'Secret' }];
-    const dailyChallenges = [{ id: 1, name: 'Word Count', target: 500, unit: 'words', xp: 50 }, { id: 2, name: 'Speed Goal', target: 120, unit: 'WPM', xp: 30 }, { id: 3, name: 'Marathon', target: 1000, unit: 'words', xp: 100 }];
-    const weeklyChallenges = [{ id: 1, name: 'Weekly Words', target: 5000, unit: 'words', xp: 200 }, { id: 2, name: 'Active Days', target: 5, unit: 'days', xp: 100 }, { id: 3, name: 'Speed Week', target: 100, unit: 'avg WPM', xp: 150 }];
     let snippets = [
       { id: 1, scope: 'personal', trigger: 'personal email', replacement: 'user@example.com' },
       { id: 2, scope: 'personal', trigger: 'intro email', replacement: 'Hey, would love to find some time to chat later this week.' },
@@ -200,9 +163,6 @@
 
     const esc = (v) => String(v || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
     const digest = (v) => { try { return JSON.stringify(v); } catch { return String(Date.now()); } };
-    const unlockCount = () => achievements.filter(a => a.unlocked).length;
-    const xpPct = () => Math.max(0, Math.min(100, ((Number(stats.xp) || 0) / (Number(stats.xpToNextLevel) || 1)) * 100));
-    const headerXp = () => typeof stats.totalWords === 'number' ? stats.totalWords : 0;
     const weekWords = () => {
       const explicit = Number(stats.thisWeek);
       if (Number.isFinite(explicit) && explicit > 0) return explicit;
@@ -311,8 +271,6 @@
           getChartData: (d) => invoke(a => a.stats ? a.stats.get_chart_data(d || 7) : null),
           getTotals: () => invoke(a => a.stats ? a.stats.get_totals() : null),
           getHistory: () => invoke(a => a.get_transcription_history()),
-          getAchievements: () => invoke(a => a.get_achievements()),
-          unlockAchievement: (id) => invoke(a => a.unlock_achievement(id)),
           getActivity: () => invoke(a => a.get_activity_data()),
         },
 
@@ -406,10 +364,6 @@
 
     function updateSidebar() {
       const snapshot = {
-        rank: String(stats.rank || 'Word Warrior'),
-        xp: Number(headerXp() || 0),
-        level: Number(stats.level || 9),
-        achievements: `${unlockCount()}/${achievements.length}`,
         snippets: String(snippets.length),
         dictionary: String(vocabularyWords.length),
       };
@@ -417,22 +371,14 @@
       if (currentDigest === lastSidebarDigest) return;
       lastSidebarDigest = currentDigest;
 
-      const rank = document.getElementById('rank');
-      const xp = document.getElementById('header-xp-display');
-      const lvl = document.getElementById('sidebar-level');
-      const ac = document.getElementById('achievement-count');
       const sc = document.getElementById('snippet-count');
       const dc = document.getElementById('dictionary-count');
-      if (rank) rank.textContent = snapshot.rank;
-      if (xp) xp.textContent = snapshot.xp.toLocaleString();
-      if (lvl) lvl.textContent = 'Lvl ' + snapshot.level;
-      if (ac) ac.textContent = snapshot.achievements;
       if (sc) sc.textContent = snapshot.snippets;
       if (dc) dc.textContent = snapshot.dictionary;
     }
 
     function updateNav() {
-      ['home', 'snippets', 'dictionary', 'achievements', 'challenges'].forEach((v) => {
+      ['home', 'snippets', 'dictionary'].forEach((v) => {
         const b = document.getElementById('nav-' + v);
         if (!b) return;
         b.classList.toggle('active', v === currentView);
@@ -457,11 +403,9 @@
       return Boolean(modal && modal.classList.contains('is-open') && settingsTab === 'models');
     }
 
-    function rarityClass(r) { return r === 'legendary' ? 'rarity-legendary' : r === 'epic' ? 'rarity-epic' : r === 'rare' ? 'rarity-rare' : 'rarity-common'; }
     function actTime(t, i) { if (typeof t === 'string' && /\d{1,2}:\d{2}\s*[AP]M/i.test(t)) return t.toUpperCase(); if (typeof t === 'string' && /^\d+$/.test(t)) return 'RECENT'; return t || (i === 0 ? 'NOW' : i + 'm AGO'); }
 
     function switchView(v) { currentView = v; scheduleRender(); if (v === 'dictionary') loadVocabularyFromPython(); if (v === 'snippets') loadSnippetsFromPython(); }
-    function setCategory(c) { activeCategory = c; if (currentView === 'achievements') scheduleRender(); }
     function setSnippetScope(s) { snippetScope = s; scheduleRender(); }
     function setSnippetSearch(s) { snippetSearch = String(s || ''); scheduleRender(); }
 
@@ -471,7 +415,6 @@
     // ================================================================
 
     function renderWelcomeHeader() {
-      const weeklyTotal = weekWords();
       return `
     <header class="card home-header WelcomeHeader" data-source="Bridge.stats.get" data-update-fn="renderWelcomeHeader" style="position:relative;">
       <div class="welcome-row WelcomeHeader__row">
@@ -485,16 +428,6 @@
             once to record hands-free, and again to stop.
           </p>
         </div>
-        <div class="header-metrics WelcomeHeader__metrics">
-          <span class="metric-chip WelcomeHeader__chip" data-bind="stats.level">Lvl ${Number(stats.level) || 9}</span>
-          <span class="metric-chip metric-chip-xp WelcomeHeader__chip" data-bind="stats.xp">${Number(stats.xp || 0).toLocaleString()} XP</span>
-          <span class="metric-chip metric-chip-streak WelcomeHeader__chip" data-bind="stats.dayStreak">🔥 ${Number(stats.dayStreak || 0)} Day Streak</span>
-          <span class="metric-chip metric-chip-week WelcomeHeader__chip" data-bind="stats.thisWeek">${Number(weeklyTotal || 0).toLocaleString()} Weekly Words</span>
-        </div>
-      </div>
-      <div class="xp-block XpProgress">
-        <div class="xp-meta"><span style="text-transform:uppercase; letter-spacing:0.1em; font-weight:700; color:var(--text);">Current Rank Progress</span><span style="color:var(--accent-light); font-weight:bold;">${Number(stats.xp || 0).toLocaleString()} / ${Number(stats.xpToNextLevel || 0).toLocaleString()}</span></div>
-        <div class="xp-track XpProgress__track"><div class="xp-fill XpProgress__fill" data-bind="stats.xp / stats.xpToNextLevel" style="width:${xpPct()}%"></div></div>
       </div>
     </header>`;
     }
@@ -616,79 +549,11 @@
     </section>`;
     }
 
-    function renderAchievements() {
-      const set = { common: [0, 0], rare: [0, 0], epic: [0, 0], legendary: [0, 0] };
-      achievements.forEach((a) => { if (set[a.rarity]) { set[a.rarity][1] += 1; if (a.unlocked) set[a.rarity][0] += 1; } });
-      const rarity = ['common', 'rare', 'epic', 'legendary'].map((r) => `<div class="rarity-card ${rarityClass(r)}"><div>${r[0].toUpperCase() + r.slice(1)}</div><strong>${set[r][0]}/${set[r][1]}</strong></div>`).join('');
-      const cbtn = categories.map((c) => { const tot = c.id === 'all' ? achievements.length : achievements.filter((a) => a.category === c.id).length; const un = c.id === 'all' ? unlockCount() : achievements.filter((a) => a.category === c.id && a.unlocked).length; return `<button class="${activeCategory === c.id ? 'active' : ''}" onclick="setCategory('${c.id}')">${esc(c.name)} ${un}/${tot}</button>`; }).join('');
-      const items = (activeCategory === 'all' ? achievements : achievements.filter((a) => a.category === activeCategory)).map((a) => `<article class="achievement-card ${a.unlocked ? 'unlocked' : 'locked'} ${rarityClass(a.rarity)}" onclick="showAchievementDetail(${a.id})"><div class="achievement-icon">${a.unlocked ? esc(a.icon) : 'LOCK'}</div><h4>${esc(a.name)}</h4><p>${esc(a.description)}</p><div class="achievement-xp">+${a.xp} XP</div>${a.unlocked ? '' : `<div class="achievement-progress"><span style="width:${Math.max(0, Math.min(100, Number(a.progress || 0)))}%"></span></div>`}</article>`).join('');
-      return `<section class="achievements-view"><header class="view-header card"><div><h2>Achievements</h2><p>${unlockCount()} of ${achievements.length} unlocked</p></div></header><section class="rarity-grid">${rarity}</section><section class="category-filters">${cbtn}</section><section class="achievement-grid">${items}</section></section>`;
-    }
-
-    function challengeProgress(c, mode) {
-      if (mode === 'daily') { if (c.id === 1) return Number(stats.today) || 0; if (c.id === 2) return Number(stats.avgWpm) || 0; return Number(stats.today) || 0; }
-      if (c.id === 1) return weekWords();
-      if (c.id === 2) return Math.min(Number(stats.weekStreak) || 0, 7);
-      return Number(stats.avgWpm) || 0;
-    }
-
-    function renderChallenges() {
-      const daily = dailyChallenges.map((c) => { const p = challengeProgress(c, 'daily'); const pct = Math.max(0, Math.min(100, (p / c.target) * 100)); const ok = p >= c.target; return `<article class="challenge-card ${ok ? 'complete' : ''}" style="background:linear-gradient(135deg, rgba(255,255,255,0.02), transparent); border:1px solid rgba(255,255,255,0.05); padding:16px; border-radius:12px; position:relative; overflow:hidden;"><div style="position:absolute; inset:0; background:linear-gradient(90deg, transparent, rgba(255,255,255,0.02)); pointer-events:none;"></div><div class="challenge-head" style="position:relative; z-index:2;"><h4 style="color:var(--text); font-weight:700;">${esc(c.name)}</h4><span style="color:var(--accent); font-weight:bold;">+${c.xp} XP ${ok ? '✅' : ''}</span></div><div class="challenge-bar" style="background:rgba(0,0,0,0.5); border:1px solid rgba(255,255,255,0.05); box-shadow:inset 0 1px 3px rgba(0,0,0,0.5); border-radius:99px; height:8px; margin:10px 0; overflow:hidden;"><span style="width:${pct}%; background:linear-gradient(90deg, var(--accent), var(--accent-light)); position:relative;"><div style="position:absolute; inset:0; background:linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent); animation:shimmer 2s infinite;"></div></span></div><p style="color:var(--muted); font-size:12px; position:relative; z-index:2;">${Number(p).toLocaleString()} / ${c.target.toLocaleString()} ${esc(c.unit)}</p></article>`; }).join('');
-      const weekly = weeklyChallenges.map((c) => { const p = challengeProgress(c, 'weekly'); const pct = Math.max(0, Math.min(100, (p / c.target) * 100)); const ok = p >= c.target; return `<article class="challenge-card ${ok ? 'complete' : ''}" style="background:linear-gradient(135deg, rgba(255,255,255,0.02), transparent); border:1px solid rgba(255,255,255,0.05); padding:16px; border-radius:12px; position:relative; overflow:hidden;"><div style="position:absolute; inset:0; background:linear-gradient(90deg, transparent, rgba(255,255,255,0.02)); pointer-events:none;"></div><div class="challenge-head" style="position:relative; z-index:2;"><h4 style="color:var(--text); font-weight:700;">${esc(c.name)}</h4><span style="color:var(--accent); font-weight:bold;">+${c.xp} XP ${ok ? '✅' : ''}</span></div><div class="challenge-bar" style="background:rgba(0,0,0,0.5); border:1px solid rgba(255,255,255,0.05); box-shadow:inset 0 1px 3px rgba(0,0,0,0.5); border-radius:99px; height:8px; margin:10px 0; overflow:hidden;"><span style="width:${pct}%; background:linear-gradient(90deg, var(--accent), var(--accent-light)); position:relative;"><div style="position:absolute; inset:0; background:linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent); animation:shimmer 2s infinite;"></div></span></div><p style="color:var(--muted); font-size:12px; position:relative; z-index:2;">${Number(p).toLocaleString()} / ${c.target.toLocaleString()} ${esc(c.unit)}</p></article>`; }).join('');
-      return `<section class="challenges-view">
-        <header class="view-header card" style="position:relative; overflow:hidden;">
-          <div style="position:relative; z-index:2;"><h2>Active Challenges</h2><p>Daily and weekly targets with gamified XP rewards.</p></div>
-        </header>
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
-          <section class="challenge-section card" style="padding:20px;">
-            <div class="section-head" style="margin-bottom:16px;">
-              <h3 style="font-size:18px; font-weight:700;">Daily Missions</h3>
-              <span style="color:var(--accent); font-weight:600;">Resets in 5h</span>
-            </div>
-            <div class="challenge-stack" style="display:grid; gap:12px;">${daily}</div>
-          </section>
-          <section class="challenge-section card" style="padding:20px;">
-            <div class="section-head" style="margin-bottom:16px;">
-              <h3 style="font-size:18px; font-weight:700;">Weekly Operations</h3>
-              <span style="color:var(--green); font-weight:600;">Resets in 3d</span>
-            </div>
-            <div class="challenge-stack" style="display:grid; gap:12px;">${weekly}</div>
-          </section>
-        </div>
-        <section class="records-grid" style="display:grid; grid-template-columns:repeat(4, 1fr); gap:16px; margin-top:8px;">
-          <article class="record-card card" style="text-align:center; padding:24px 16px;">
-             <div style="width:40px; height:40px; margin:0 auto 12px; border-radius:12px; background:var(--accent-bg-strong); display:flex; align-items:center; justify-content:center; border:1px solid var(--accent-border);">🌟</div>
-             <h4 style="color:var(--muted); font-size:13px; margin-bottom:8px;">Most Words (Day)</h4>
-             <strong style="color:var(--text); font-size:24px; display:block; margin-bottom:4px;">${Number(stats.records.mostWordsDay.value || 0).toLocaleString()}</strong>
-             <span style="font-size:11px; color:var(--muted);">${esc(stats.records.mostWordsDay.date || 'N/A')}</span>
-          </article>
-          <article class="record-card card" style="text-align:center; padding:24px 16px;">
-             <div style="width:40px; height:40px; margin:0 auto 12px; border-radius:12px; background:rgba(3,218,198,0.15); display:flex; align-items:center; justify-content:center; border:1px solid rgba(3,218,198,0.3);">⚡</div>
-             <h4 style="color:var(--muted); font-size:13px; margin-bottom:8px;">Fastest WPM</h4>
-             <strong style="color:var(--text); font-size:24px; display:block; margin-bottom:4px;">${esc(stats.records.fastestWpm.value || '0')}</strong>
-             <span style="font-size:11px; color:var(--muted);">${esc(stats.records.fastestWpm.date || 'N/A')}</span>
-          </article>
-          <article class="record-card card" style="text-align:center; padding:24px 16px;">
-             <div style="width:40px; height:40px; margin:0 auto 12px; border-radius:12px; background:rgba(255,171,0,0.15); display:flex; align-items:center; justify-content:center; border:1px solid rgba(255,171,0,0.3);">⏳</div>
-             <h4 style="color:var(--muted); font-size:13px; margin-bottom:8px;">Longest Session</h4>
-             <strong style="color:var(--text); font-size:24px; display:block; margin-bottom:4px;">${esc(stats.records.longestSession.value || 'N/A')}</strong>
-             <span style="font-size:11px; color:var(--muted);">${esc(stats.records.longestSession.date || 'N/A')}</span>
-          </article>
-          <article class="record-card card" style="text-align:center; padding:24px 16px;">
-             <div style="width:40px; height:40px; margin:0 auto 12px; border-radius:12px; background:rgba(255,107,107,0.15); display:flex; align-items:center; justify-content:center; border:1px solid rgba(255,107,107,0.3);">🔥</div>
-             <h4 style="color:var(--muted); font-size:13px; margin-bottom:8px;">Best Streak</h4>
-             <strong style="color:var(--text); font-size:24px; display:block; margin-bottom:4px;">${esc(stats.records.longestStreak.value || '0')} days</strong>
-             <span style="font-size:11px; color:var(--muted);">${esc(stats.records.longestStreak.date || 'N/A')}</span>
-          </article>
-        </section>
-      </section>`;
-    }
-
     function renderContent() {
       const content = document.getElementById('tab-content');
       if (!content) return;
       const y = content.scrollTop;
-      content.innerHTML = currentView === 'home' ? renderHome() : currentView === 'snippets' ? renderSnippets() : currentView === 'dictionary' ? renderDictionary() : currentView === 'achievements' ? renderAchievements() : renderChallenges();
+      content.innerHTML = currentView === 'snippets' ? renderSnippets() : currentView === 'dictionary' ? renderDictionary() : renderHome();
       updateSidebar();
       updateNav();
       content.scrollTop = y;
@@ -762,7 +627,7 @@
         return;
       }
       if (settingsTab === 'data') {
-        panel.innerHTML = `<h3>Data</h3><div class="settings-row"><div><h4>Export History</h4><p>Download transcripts, snippets, and achievements.</p></div><button class="primary-btn" onclick="exportHistory()">Export History</button></div><div class="settings-row"><div><h4>Share Telemetry</h4><p>Opt in to anonymous crash/error diagnostics and setup-progress events (install, activation, first dictation). No audio or transcript content is ever sent.</p></div><label class="switch"><input type="checkbox" ${settingsState.telemetryEnabled ? 'checked' : ''} onchange="toggleSetting('telemetryEnabled')"><span></span></label></div><div class="settings-row"><div><h4>Snapshot</h4><p>${Number(stats.totalWords || 0).toLocaleString()} total words, ${(stats.recentTranscripts || []).length} recent transcripts, ${unlockCount()} achievements unlocked.</p></div></div>`;
+        panel.innerHTML = `<h3>Data</h3><div class="settings-row"><div><h4>Export History</h4><p>Download transcripts and snippets.</p></div><button class="primary-btn" onclick="exportHistory()">Export History</button></div><div class="settings-row"><div><h4>Share Telemetry</h4><p>Opt in to anonymous crash/error diagnostics and setup-progress events (install, activation, first dictation). No audio or transcript content is ever sent.</p></div><label class="switch"><input type="checkbox" ${settingsState.telemetryEnabled ? 'checked' : ''} onchange="toggleSetting('telemetryEnabled')"><span></span></label></div><div class="settings-row"><div><h4>Snapshot</h4><p>${Number(stats.totalWords || 0).toLocaleString()} total words, ${(stats.recentTranscripts || []).length} recent transcripts.</p></div></div>`;
         return;
       }
       if (settingsTab === 'license') {
@@ -1012,24 +877,6 @@
     async function copySnippet(id) { const s = snippets.find((x) => x.id === id); if (!s) return; if (await copyText(s.replacement)) showToast('Snippet copied'); }
     function copyLast() { if ((stats.recentTranscripts || []).length > 0) copyTranscriptItem(0); }
 
-    function showConfetti() {
-      const c = document.getElementById('confetti-container');
-      if (!c) return;
-      c.innerHTML = '';
-      ['#bb86fc', '#03dac6', '#cf6679'].forEach((col) => {
-        for (let i = 0; i < 6; i += 1) {
-          const b = document.createElement('div');
-          b.className = 'confetti-bit';
-          b.style.left = Math.random() * 100 + '%';
-          b.style.animationDelay = Math.random() * 0.8 + 's';
-          b.style.animationDuration = (1.8 + Math.random() * 1.2) + 's';
-          b.style.backgroundColor = col;
-          c.appendChild(b);
-        }
-      });
-      setTimeout(() => { c.innerHTML = ''; }, 2800);
-    }
-
     function mountAnimatedNode(container, node, ttlMs = 2300) {
       if (!container || !node) return;
       container.appendChild(node);
@@ -1040,25 +887,6 @@
       }, ttlMs);
     }
 
-    function showAchievementPopup(a) {
-      const p = document.getElementById('achievement-popup');
-      if (!p) return;
-      p.innerHTML = '';
-      const card = document.createElement('div');
-      card.className = 'achievement-popup-card';
-      card.innerHTML = `<div class="achievement-popup-title">Achievement Unlocked</div><h4>${esc(a.name)}</h4><p>${esc(a.description)}</p><span>+${a.xp} XP</span>`;
-      mountAnimatedNode(p, card, 2600);
-    }
-
-    function showAchievementToast(a) {
-      const c = document.getElementById('achievement-toast-container');
-      if (!c) return;
-      const t = document.createElement('div');
-      t.className = 'achievement-toast';
-      t.innerHTML = `<strong>Achievement Unlocked</strong><span>${esc(a.name)}</span>`;
-      mountAnimatedNode(c, t, 2600);
-    }
-
     function showToast(msg) {
       const c = document.getElementById('toast-container');
       if (!c) return;
@@ -1066,18 +894,6 @@
       t.className = 'toast-notification';
       t.textContent = msg;
       mountAnimatedNode(c, t, 2300);
-    }
-
-    function showAchievementDetail(id) { const a = achievements.find((x) => x.id === id); if (!a || !a.unlocked) return; showAchievementPopup(a); showConfetti(); }
-
-    function applyUnlockedAchievements(ids, emit = false) {
-      const incoming = new Set((ids || []).map((x) => String(x)));
-      achievements.forEach((a) => {
-        const ok = incoming.has(String(a.id)) || (a.key && incoming.has(String(a.key)));
-        if (emit && ok && !a.unlocked) { showAchievementToast(a); showToast('Unlocked: ' + a.name); }
-        a.unlocked = ok;
-      });
-      updateSidebar();
     }
 
     function minimizeWindow() { Bridge.system.minimize(); }
@@ -1090,7 +906,7 @@
         return;
       }
       if (result) { showToast(result.error || 'Export failed'); return; }
-      const blob = new Blob([JSON.stringify({ exportedAt: new Date().toISOString(), stats, recentTranscripts: stats.recentTranscripts || [], unlockedAchievements: achievements.filter((a) => a.unlocked), snippets }, null, 2)], { type: 'application/json' });
+      const blob = new Blob([JSON.stringify({ exportedAt: new Date().toISOString(), stats, recentTranscripts: stats.recentTranscripts || [], snippets }, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -1112,18 +928,7 @@
       lastStatsDigest = d;
       lastRecentDigest = digest((stats.recentTranscripts || []).map((t) => t.fullText || t.text || ''));
       updateSidebar();
-      renderIfCurrentViewIn(['home', 'challenges']);
-      return true;
-    }
-
-    function loadAchievementsFromJSFile() {
-      if (!Array.isArray(window.WHISPER_ACHIEVEMENTS)) return false;
-      const d = digest(window.WHISPER_ACHIEVEMENTS.slice().sort());
-      if (d === lastAchievementsDigest) return true;
-      applyUnlockedAchievements(window.WHISPER_ACHIEVEMENTS, achievementsInitializedFromBackend);
-      achievementsInitializedFromBackend = true;
-      lastAchievementsDigest = d;
-      renderIfCurrentViewIn(['achievements']);
+      renderIfCurrentViewIn(['home']);
       return true;
     }
 
@@ -1139,7 +944,7 @@
       lastStatsDigest = d;
       lastRecentDigest = digest((stats.recentTranscripts || []).map((t) => t.fullText || t.text || ''));
       updateSidebar();
-      renderIfCurrentViewIn(['home', 'challenges']);
+      renderIfCurrentViewIn(['home']);
     }
 
     async function loadRecentTranscriptionsFromPython() {
@@ -1150,18 +955,6 @@
       stats.recentTranscripts = recent;
       lastRecentDigest = d;
       renderIfCurrentViewIn(['home']);
-    }
-
-    async function loadAchievementsFromPython() {
-      if (!Bridge.ready()) { loadAchievementsFromJSFile(); return; }
-      const ids = await Bridge.stats.getAchievements();
-      if (!Array.isArray(ids)) { loadAchievementsFromJSFile(); return; }
-      const d = digest(ids.slice().sort());
-      if (d === lastAchievementsDigest) return;
-      applyUnlockedAchievements(ids, achievementsInitializedFromBackend);
-      achievementsInitializedFromBackend = true;
-      lastAchievementsDigest = d;
-      renderIfCurrentViewIn(['achievements']);
     }
 
     async function loadModelSettingsFromPython() {
@@ -1244,7 +1037,7 @@
       const converted = chartDataToLast7Days(data);
       if (converted) {
         stats.last7Days = converted;
-        renderIfCurrentViewIn(['home', 'challenges']);
+        renderIfCurrentViewIn(['home']);
       }
     }
 
@@ -1256,7 +1049,7 @@
       lastTotalsDigest = d;
       mergeSqlTotals(totals);
       updateSidebar();
-      renderIfCurrentViewIn(['home', 'challenges']);
+      renderIfCurrentViewIn(['home']);
     }
 
     async function verifyBridgeHealth() { await Bridge.system.ping(); }
@@ -1333,7 +1126,6 @@
       stats.last7Days = normalize7(stats.last7Days);
       renderContent();
       lastStatsDigest = digest(stats);
-      lastAchievementsDigest = digest(achievements.filter((a) => a.unlocked).map((a) => a.id).sort());
       lastRecentDigest = digest((stats.recentTranscripts || []).map((t) => t.fullText || t.text || ''));
       lastHotkeyDigest = digest(settingsState.hotkey);
 
@@ -1343,9 +1135,7 @@
         try {
           pollTick += 1;
           const jobs = [];
-          const statsHeavyView = currentView === 'home' || currentView === 'challenges';
-          const shouldPollStats = statsHeavyView || (pollTick % 15 === 0);
-          const shouldPollAchievements = currentView === 'achievements' || (pollTick % 15 === 0);
+          const shouldPollStats = currentView === 'home' || (pollTick % 15 === 0);
           const shouldPollModels = isModelsSettingsVisible() || (pollTick % 30 === 0);
           const shouldPollVocabulary = currentView === 'dictionary' || (pollTick % 30 === 0);
           const shouldPollHotkey = (settingsTab === 'general' && document.body.classList.contains('modal-open')) || (pollTick % 30 === 0);
@@ -1357,7 +1147,6 @@
             jobs.push(loadChartDataFromSqlite());
             jobs.push(loadTotalsFromSqlite());
           }
-          if (shouldPollAchievements) jobs.push(loadAchievementsFromPython());
           if (currentView === 'home') jobs.push(loadRecentTranscriptionsFromPython());
           if (shouldPollModels) jobs.push(loadModelSettingsFromPython());
           if (shouldPollVocabulary) jobs.push(loadVocabularyFromPython());
@@ -1380,7 +1169,6 @@
         loadStatsFromPython();
         loadChartDataFromSqlite();
         loadTotalsFromSqlite();
-        loadAchievementsFromPython();
         loadRecentTranscriptionsFromPython();
         loadModelSettingsFromPython();
         loadVocabularyFromPython();
@@ -1393,7 +1181,7 @@
         return true;
       }
 
-      function startFallback() { setTimeout(() => { loadStatsFromJSFile(); loadAchievementsFromJSFile(); }, 120); }
+      function startFallback() { setTimeout(() => { loadStatsFromJSFile(); }, 120); }
 
       window.addEventListener('pywebviewready', () => { startPyPoll(); });
 
