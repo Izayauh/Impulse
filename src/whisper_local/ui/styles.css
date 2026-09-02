@@ -375,7 +375,6 @@ body.modal-open {
    Controls
    ================================================================ */
 .primary-btn,
-.copy-btn,
 .close-btn {
   display: inline-flex;
   align-items: center;
@@ -392,14 +391,12 @@ body.modal-open {
   transition: background-color var(--ease), border-color var(--ease), color var(--ease), transform var(--press);
 }
 
-.copy-btn:hover,
 .close-btn:hover {
   background: var(--control-hover);
   border-color: var(--control-line-hover);
 }
 
 .primary-btn:active,
-.copy-btn:active,
 .close-btn:active {
   transform: scale(0.98);
 }
@@ -421,13 +418,6 @@ body.modal-open {
   min-width: 0;
 }
 
-.snippets-view,
-.dictionary-view {
-  width: min(1180px, 100%);
-  display: grid;
-  gap: 14px;
-}
-
 /* ================================================================
    Cards
    ================================================================ */
@@ -440,28 +430,18 @@ body.modal-open {
   overflow: hidden;
 }
 
-.view-header h2 {
-  margin: 0;
-  font-size: 20px;
-  line-height: 24px;
-  font-weight: 600;
-  letter-spacing: -0.02em;
-  color: var(--text);
-}
-
-.view-header p {
-  margin: 0;
-  color: var(--text-2);
-  font-size: 13px;
-}
-
-.primary-btn {
+/* Solid accent, white text in both themes. .btn.primary is the canvas
+   name (Main.dc.html); .primary-btn is the pre-redesign name still used
+   by the settings modal and paywall. */
+.primary-btn,
+.btn.primary {
   background: var(--accent);
   border-color: var(--accent);
   color: #FFFFFF;
 }
 
-.primary-btn:hover {
+.primary-btn:hover,
+.btn.primary:hover {
   background: var(--accent-hover);
   border-color: var(--accent-hover);
 }
@@ -870,124 +850,125 @@ body.modal-open {
   color: var(--text-2);
 }
 
-.copy-btn {
-  padding: 0 8px;
+/* ================================================================
+   Snippets and Dictionary. Markup in dashboard.html renderSnippets()
+   and renderDictionary(). The header, .card, .row and .btn rules are
+   Home's (Main.dc.html); the inputs take the control values from
+   SettingsPage.dc.html: 6 px radius, 1 px line, control background.
+   ================================================================ */
+.snippets-view,
+.dictionary-view {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+
+.view-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.view-title {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.view-title h2 {
+  margin: 0;
+  font-size: 20px;
+  line-height: 24px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--text);
+}
+
+.view-sub {
+  color: var(--text-3);
   font-size: 12px;
 }
 
-/* ================================================================
-   Snippets
-   ================================================================ */
-.snippet-banner h3 {
-  margin: 0 0 4px;
-  font-size: 14px;
-}
-
-.snippet-banner p {
-  margin: 0 0 12px;
-  color: var(--text-2);
-}
-
-.snippet-pill-row {
+/* Add form: inputs side by side, primary Add at the right. */
+.card.add-form {
   display: grid;
-  gap: 8px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 12px 16px;
+  margin: 0;
 }
 
-.snippet-pill {
-  border: 1px solid var(--line);
+.card.snippet-form {
+  grid-template-columns: minmax(0, 2fr) minmax(0, 3fr) auto;
+}
+
+.field {
+  width: 100%;
+  min-width: 0;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--control-line);
   border-radius: var(--radius-control);
   background: var(--control-bg);
-  padding: 8px 10px;
-  display: flex;
-  gap: 8px;
-  color: var(--text-2);
-  font-size: 13px;
-}
-
-.snippet-controls {
-  display: grid;
-  grid-template-columns: 1fr 260px;
-  gap: 14px;
-  align-items: center;
-}
-
-.scope-tabs {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.scope-tabs button {
-  border: 1px solid var(--control-line);
-  background: var(--control-bg);
   color: var(--text);
-  border-radius: var(--radius-pill);
-  height: 28px;
-  padding: 0 11px;
-  cursor: pointer;
-  font-size: 12px;
-  font-weight: 500;
-  transition: background-color var(--ease), border-color var(--ease), color var(--ease), transform var(--press);
+  outline: none;
+  transition: border-color var(--ease), background-color var(--ease);
 }
 
-.scope-tabs button:hover {
-  background: var(--control-hover);
+.field::placeholder {
+  color: var(--text-3);
+}
+
+.field:hover {
   border-color: var(--control-line-hover);
 }
 
-.scope-tabs button:active {
-  transform: scale(0.98);
-}
-
-.scope-tabs button.active {
+.field:focus {
   border-color: var(--accent);
-  background: var(--accent-bg-strong);
 }
 
-.snippet-controls input {
-  width: 100%;
-  border: 1px solid var(--control-line);
-  background: var(--control-bg);
+/* List: rows only, no head, so the first row drops its top line. */
+.card.list {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+}
+
+.list > :first-child {
+  border-top: 0;
+}
+
+.row.snippet {
+  grid-template-columns: minmax(120px, 200px) minmax(0, 1fr) auto;
+}
+
+.row.word {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.row .trigger {
   color: var(--text);
-  border-radius: var(--radius-control);
-  height: 28px;
-  padding: 0 10px;
-  outline: none;
-  transition: border-color var(--ease);
-}
-
-.snippet-controls input:focus {
-  border-color: var(--accent);
-}
-
-.snippet-row {
-  display: grid;
-  grid-template-columns: minmax(120px, 210px) 22px 1fr auto;
-  gap: 10px;
-  align-items: center;
-  border-bottom: 1px solid var(--line);
-  padding: 10px 0;
-}
-
-.snippet-row:last-child {
-  border-bottom: 0;
-}
-
-.snippet-key {
-  color: var(--accent);
-  font-weight: 600;
-}
-
-.snippet-value {
-  color: var(--text-2);
+  font-size: 12px;
+  padding-top: 2px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.snippet-arrow {
-  color: var(--text-3);
-  text-align: center;
+.row-actions {
+  justify-self: end;
+  display: flex;
+  gap: 6px;
+  opacity: 0;
+  transition: opacity var(--ease);
+}
+
+.row:hover .row-actions,
+.row:focus-within .row-actions {
+  opacity: 1;
 }
 
 /* ================================================================
@@ -1304,11 +1285,6 @@ body.modal-open {
   outline-offset: 2px;
 }
 
-.empty-card {
-  color: var(--text-2);
-  text-align: center;
-}
-
 /* ================================================================
    Toasts
    ================================================================ */
@@ -1334,77 +1310,4 @@ body.modal-open {
 
 .toast-notification.is-visible {
   opacity: 1;
-}
-
-/* ================================================================
-   Snippets and dictionary views
-   ================================================================ */
-.snippets-view {
-  grid-template-columns: minmax(360px, 460px) minmax(0, 1fr);
-  align-items: start;
-}
-
-.dictionary-view {
-  grid-template-columns: 1fr;
-  align-items: start;
-  max-width: 760px;
-}
-
-.dictionary-editor p {
-  margin: 8px 0 0;
-  color: var(--text-2);
-  font-size: 12px;
-}
-
-.dictionary-input-row {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 10px;
-  align-items: center;
-}
-
-.dictionary-input-row input {
-  width: 100%;
-  border: 1px solid var(--control-line);
-  background: var(--control-bg);
-  color: var(--text);
-  border-radius: var(--radius-control);
-  height: 28px;
-  padding: 0 10px;
-  outline: none;
-  transition: border-color var(--ease);
-}
-
-.dictionary-input-row input:focus {
-  border-color: var(--accent);
-}
-
-.dictionary-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  align-content: flex-start;
-}
-
-.dictionary-pill {
-  border: 1px solid var(--control-line);
-  background: var(--control-bg);
-  border-radius: var(--radius-pill);
-  padding: 4px 10px;
-  font-size: 12px;
-  color: var(--text);
-}
-
-.snippets-view .view-header,
-.snippets-view .snippet-banner,
-.snippets-view .snippet-controls {
-  grid-column: 1;
-}
-
-.snippets-view .snippet-list {
-  grid-column: 2;
-  grid-row: 1 / span 3;
-  max-height: calc(100vh - 175px);
-  overflow-y: auto;
-  scrollbar-gutter: stable both-edges;
 }

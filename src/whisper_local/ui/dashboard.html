@@ -109,8 +109,6 @@
 
   <script>
     let currentView = 'home';
-    let snippetScope = 'all';
-    let snippetSearch = '';
     let settingsTab = 'general';
     let pythonPollingStarted = false;
     let lastStatsDigest = '';
@@ -150,11 +148,9 @@
       recentTranscripts: []
     };
 
-    let snippets = [
-      { id: 1, scope: 'personal', trigger: 'personal email', replacement: 'user@example.com' },
-      { id: 2, scope: 'personal', trigger: 'intro email', replacement: 'Hey, would love to find some time to chat later this week.' },
-      { id: 3, scope: 'shared', trigger: 'my calendly link', replacement: 'calendly.com/12345%448' }
-    ];
+    // Empty until Bridge.settings.getSnippets() / getVocabulary() fill them,
+    // so a fresh install shows no snippets rather than sample ones.
+    let snippets = [];
     let vocabularyWords = [];
     const settingsState = {
       launchBehavior: 'start_minimized',
@@ -372,8 +368,6 @@
     }
 
     function switchView(v) { currentView = v; scheduleRender(); if (v === 'dictionary') loadVocabularyFromPython(); if (v === 'snippets') loadSnippetsFromPython(); }
-    function setSnippetScope(s) { snippetScope = s; scheduleRender(); }
-    function setSnippetSearch(s) { snippetSearch = String(s || ''); scheduleRender(); }
 
     // ================================================================
     // Home view. Layout and values lifted from
@@ -548,37 +542,64 @@
     </section>`;
     }
 
+    // ================================================================
+    // Snippets and Dictionary. Same header, card, row and button
+    // patterns as Home (Main.dc.html); the inputs follow the control
+    // values in SettingsPage.dc.html. Form first, list under it.
+    // Every snippet is stored with scope "personal" (gui_host.add_snippet
+    // never passes a scope), so there is no scope filter to render.
+    // ================================================================
+
+    function renderViewHead(title, subline) {
+      return `
+    <header class="view-head">
+      <div class="view-title"><h2>${esc(title)}</h2><span class="view-sub">${esc(subline)}</span></div>
+    </header>`;
+    }
+
     function renderSnippets() {
-      const s = snippetSearch.trim().toLowerCase();
-      const filtered = snippets.filter((x) => (snippetScope === 'all' || x.scope === snippetScope) && (!s || (x.trigger + ' ' + x.replacement).toLowerCase().includes(s)));
-      const rows = filtered.map((x) => `<div class="snippet-row"><div class="snippet-key">${esc(x.trigger)}</div><div class="snippet-arrow">-></div><div class="snippet-value">${esc(x.replacement)}</div><button class="copy-btn" onclick="copySnippet(${x.id})">Copy</button><button class="copy-btn" onclick="deleteSnippet(${x.id})" style="margin-left:4px;opacity:0.7">Del</button></div>`).join('');
-      const pills = snippets.slice(0, 3).map((x) => `<div class="snippet-pill"><span>${esc(x.trigger)}</span><span class="arrow">-></span><span>${esc(x.replacement)}</span></div>`).join('');
+      const rows = snippets.map((x) => `<div class="row snippet">
+        <span class="trigger mono">"${esc(x.trigger)}"</span>
+        <span class="text">${esc(x.replacement)}</span>
+        <span class="row-actions">
+          <button class="btn" onclick="copySnippet(${Number(x.id)})">${COPY_ICON}Copy</button>
+          <button class="btn" onclick="deleteSnippet(${Number(x.id)})">Delete</button>
+        </span>
+      </div>`).join('');
+      const empty = `<div class="row-empty">
+        <span>No snippets yet</span>
+        <span class="label">Add a trigger above. Say it while dictating and the replacement gets typed instead.</span>
+      </div>`;
       return `
     <section class="snippets-view">
-      <header class="view-header card"><div><h2>Snippets</h2><p>Text replacement shortcuts for faster dictation cleanup.</p></div><button class="primary-btn" onclick="addSnippet()">Add new</button></header>
-      <section class="card snippet-banner"><h3>The stuff you should not have to re-type.</h3><p>Save shortcuts for emails, links, addresses, and recurring prompts.</p><div class="snippet-pill-row">${pills}</div></section>
-      <section class="snippet-controls card"><div class="scope-tabs"><button class="${snippetScope === 'all' ? 'active' : ''}" onclick="setSnippetScope('all')">All</button><button class="${snippetScope === 'personal' ? 'active' : ''}" onclick="setSnippetScope('personal')">Personal</button><button class="${snippetScope === 'shared' ? 'active' : ''}" onclick="setSnippetScope('shared')">Shared with team</button></div><input type="text" placeholder="Search snippets..." value="${esc(snippetSearch)}" oninput="setSnippetSearch(this.value)"></section>
-      <section class="snippet-list card">${rows || '<div class="empty-card">No snippets match this filter.</div>'}</section>
+      ${renderViewHead('Snippets', 'Say the trigger, Impulse types the replacement.')}
+      <form class="card add-form snippet-form" onsubmit="event.preventDefault();addSnippet();">
+        <input id="snippet-trigger-input" class="field" type="text" placeholder="If I say..." autocomplete="off" spellcheck="false">
+        <input id="snippet-replacement-input" class="field" type="text" placeholder="Type this..." autocomplete="off">
+        <button type="submit" class="btn primary">Add</button>
+      </form>
+      <section class="card list" data-source="Bridge.settings.getSnippets">${rows || empty}</section>
     </section>`;
     }
 
     function normalizeVocabularyWord(v) { return String(v || '').trim().replace(/\s+/g, ' '); }
 
+    // Rows carry no action: the bridge has add_vocabulary_word but no
+    // remove call, so nothing is invented here.
     function renderDictionary() {
-      const rows = vocabularyWords.map((w) => `<div class="dictionary-pill">${esc(w)}</div>`).join('');
+      const rows = vocabularyWords.map((w) => `<div class="row word"><span class="text">${esc(w)}</span></div>`).join('');
+      const empty = `<div class="row-empty">
+        <span>No words yet</span>
+        <span class="label">Add the names and jargon Whisper keeps getting wrong.</span>
+      </div>`;
       return `
     <section class="dictionary-view">
-      <header class="view-header card">
-        <div><h2>Dictionary</h2><p>Add names and jargon to bias Whisper transcription.</p></div>
-      </header>
-      <section class="card dictionary-editor">
-        <div class="dictionary-input-row">
-          <input id="dictionary-word-input" type="text" placeholder="Add word or phrase..." onkeydown="if(event.key==='Enter'){event.preventDefault();addVocabularyWord();}">
-          <button class="primary-btn" onclick="addVocabularyWord()">Add Word</button>
-        </div>
-        <p>Saved instantly to your local vocabulary file.</p>
-      </section>
-      <section class="card dictionary-list">${rows || '<div class="empty-card">No custom words yet.</div>'}</section>
+      ${renderViewHead('Dictionary', 'Names and jargon Whisper should get right.')}
+      <form class="card add-form word-form" onsubmit="event.preventDefault();addVocabularyWord();">
+        <input id="dictionary-word-input" class="field" type="text" placeholder="Add a word or phrase" autocomplete="off">
+        <button type="submit" class="btn primary">Add</button>
+      </form>
+      <section class="card list" data-source="Bridge.settings.getVocabulary">${rows || empty}</section>
     </section>`;
     }
 
@@ -855,11 +876,15 @@
     }
     function handleModalBackdrop(e) { if (e.target && e.target.id === 'settings-modal') closeSettings(); }
 
+    // Reads the add form; a successful add re-renders the view, which
+    // rebuilds (and so clears) the form. Failures leave the text in place.
     async function addSnippet() {
-      const t = window.prompt('Snippet shortcut name');
-      if (!t) return;
-      const r = window.prompt('Replacement text');
-      if (!r) return;
+      const triggerInput = document.getElementById('snippet-trigger-input');
+      const replacementInput = document.getElementById('snippet-replacement-input');
+      const t = String(triggerInput ? triggerInput.value : '').trim();
+      const r = String(replacementInput ? replacementInput.value : '').trim();
+      if (!t) { if (triggerInput) triggerInput.focus(); return; }
+      if (!r) { if (replacementInput) replacementInput.focus(); return; }
       const result = await Bridge.settings.addSnippet(t, r);
       if (result && result.ok && Array.isArray(result.snippets)) {
         snippets = result.snippets;
