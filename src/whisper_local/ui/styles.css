@@ -75,6 +75,7 @@
   --accent-bg-strong: rgba(255, 20, 147, 0.18);
   --accent-border: rgba(255, 20, 147, 0.35);
   --green: #34D399;
+  --green-ring: rgba(52, 211, 153, 0.15);
   --red: #FF5252;
 
   /* Interaction steps (hover is a background step, never a lift) */
@@ -136,6 +137,7 @@
   --accent-bg-strong: rgba(224, 17, 127, 0.14);
   --accent-border: rgba(224, 17, 127, 0.35);
   --green: #059669;
+  --green-ring: rgba(5, 150, 105, 0.15);
   --red: #DC2626;
 
   --hover: rgba(0, 0, 0, 0.05);
@@ -239,23 +241,26 @@ body.modal-open {
 }
 
 /* ================================================================
-   Shell
+   Shell. Values lifted from docs/design/canvas-2026-09/Main.dc.html:
+   220 px sidebar, 16 px 12 px padding, 32 px nav rows, 6 px radius,
+   main padding 26px 32px 32px with a 14 px column gap. The window is
+   1100 x 740 (minimum 900 x 600, gui_host.py), so the sidebar never
+   collapses or goes horizontal.
    ================================================================ */
 #app-shell {
-  display: grid;
-  grid-template-columns: 250px 1fr;
+  display: flex;
   min-height: 100vh;
 }
 
 .sidebar {
-  width: 250px;
-  position: fixed;
+  width: 220px;
+  flex: none;
+  position: sticky;
   top: 0;
-  bottom: 0;
-  left: 0;
+  height: 100vh;
   background: var(--sidebar);
   border-right: 1px solid var(--line);
-  padding: 20px 14px;
+  padding: 16px 12px;
   display: flex;
   flex-direction: column;
   z-index: 10;
@@ -265,36 +270,38 @@ body.modal-open {
   display: flex;
   align-items: center;
   gap: 10px;
-  margin-bottom: 20px;
+  padding: 4px 10px 18px;
 }
 
 .sidebar-brand h1 {
   margin: 0;
   font-size: 14px;
   font-weight: 600;
+  line-height: 1;
   letter-spacing: -0.01em;
   color: var(--text);
 }
 
-.sidebar-brand p {
-  margin: 2px 0 0;
-  color: var(--text-2);
-  font-size: 12px;
-  font-weight: 400;
+.brand-tile {
+  width: 22px;
+  height: 22px;
+  flex: none;
+  border-radius: var(--radius-control);
+  background: var(--accent);
+  color: #FFFFFF;
   display: flex;
   align-items: center;
-  gap: 6px;
+  justify-content: center;
 }
 
-.brand-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: var(--radius-pill);
-  background: var(--accent);
+.brand-tile svg {
+  width: 14px;
+  height: 14px;
 }
 
 .sidebar-nav {
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: 2px;
 }
 
@@ -308,12 +315,17 @@ body.modal-open {
   text-align: left;
   cursor: pointer;
   display: flex;
-  justify-content: space-between;
   align-items: center;
   gap: 10px;
   font-size: 13px;
   font-weight: 500;
   transition: background-color var(--ease), color var(--ease);
+}
+
+.nav-item svg {
+  width: 16px;
+  height: 16px;
+  flex: none;
 }
 
 .nav-item:hover {
@@ -327,6 +339,7 @@ body.modal-open {
 }
 
 .nav-count {
+  margin-left: auto;
   color: var(--text-3);
   font-size: 12px;
   font-weight: 400;
@@ -334,33 +347,36 @@ body.modal-open {
 
 .sidebar-footer {
   margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
-.profile-card {
-  border: 1px solid var(--line);
-  border-radius: var(--radius-card);
-  background: var(--card);
-  padding: 10px;
-  display: grid;
-  grid-template-columns: 40px 1fr 36px;
-  gap: 10px;
+.sidebar-listening {
+  display: flex;
   align-items: center;
-  transition: background-color var(--ease), border-color var(--ease);
+  gap: 8px;
+  padding: 10px 10px 4px;
+  color: var(--text-3);
+  font-size: 12px;
+  white-space: nowrap;
 }
 
-.profile-card:hover {
-  background: var(--hover);
+.live-dot {
+  width: 6px;
+  height: 6px;
+  flex: none;
+  border-radius: var(--radius-pill);
+  background: var(--green);
+  box-shadow: 0 0 0 3px var(--green-ring);
 }
 
 /* ================================================================
    Controls
    ================================================================ */
-.gear-btn,
-.ghost-btn,
 .primary-btn,
 .copy-btn,
-.close-btn,
-.window-controls button {
+.close-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -376,58 +392,33 @@ body.modal-open {
   transition: background-color var(--ease), border-color var(--ease), color var(--ease), transform var(--press);
 }
 
-.gear-btn:hover,
-.ghost-btn:hover,
 .copy-btn:hover,
-.close-btn:hover,
-.window-controls button:hover {
+.close-btn:hover {
   background: var(--control-hover);
   border-color: var(--control-line-hover);
 }
 
-.gear-btn:active,
-.ghost-btn:active,
 .primary-btn:active,
 .copy-btn:active,
-.close-btn:active,
-.window-controls button:active {
+.close-btn:active {
   transform: scale(0.98);
 }
 
-.gear-btn {
-  width: 28px;
-  padding: 0;
-}
-
 .main-panel {
-  margin-left: 250px;
+  flex: 1;
+  min-width: 0;
   min-height: 100vh;
-  padding: 18px 24px 28px;
-  width: calc(100vw - 250px);
-  overflow-x: hidden;
-}
-
-.main-toolbar {
+  padding: 26px 32px 32px;
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 14px;
-}
-
-.window-controls {
-  display: flex;
-  gap: 8px;
-}
-
-.window-controls button {
-  width: 28px;
-  padding: 0;
+  flex-direction: column;
+  gap: 14px;
 }
 
 #tab-content {
-  display: block;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
   min-width: 0;
-  scrollbar-gutter: stable both-edges;
 }
 
 .home-view,
@@ -1206,88 +1197,6 @@ body.modal-open {
   max-height: calc(100vh - 175px);
   overflow-y: auto;
   scrollbar-gutter: stable both-edges;
-}
-
-@media (max-width: 980px) {
-  #app-shell {
-    grid-template-columns: 1fr;
-  }
-
-  .sidebar {
-    position: static;
-    width: 100%;
-    border-right: 0;
-    border-bottom: 1px solid var(--line);
-  }
-
-  .sidebar-nav {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-
-  .main-panel {
-    margin-left: 0;
-    width: 100%;
-    padding: 12px;
-  }
-
-  .home-view,
-  .snippets-view,
-  .dictionary-view {
-    grid-template-columns: 1fr;
-  }
-
-  .snippets-view .snippet-list {
-    grid-column: auto;
-    grid-row: auto;
-    max-height: none;
-    overflow: visible;
-  }
-
-  .home-right .timeline-list {
-    max-height: none;
-  }
-
-  .snippet-controls {
-    grid-template-columns: 1fr;
-  }
-
-  .dictionary-input-row {
-    grid-template-columns: 1fr;
-  }
-
-  .timeline-card {
-    grid-template-columns: 1fr;
-  }
-
-  .settings-body {
-    grid-template-columns: 1fr;
-  }
-
-  .settings-nav {
-    border-right: 0;
-    border-bottom: 1px solid var(--line);
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
-
-  .model-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .hotkey-control {
-    grid-template-columns: 1fr;
-    min-width: 0;
-  }
-}
-
-@media (max-width: 640px) {
-  .welcome-row {
-    flex-direction: column;
-  }
-
-  .snippet-row {
-    grid-template-columns: 1fr;
-    gap: 6px;
-  }
 }
 
 /* ---------------------------------------------------------------------------

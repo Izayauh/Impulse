@@ -26,51 +26,64 @@
   <div id="app-shell">
     <aside class="sidebar">
       <div class="sidebar-brand">
-        <div class="brand-logo"
-          style="display: flex; align-items: center; justify-content: center; width: 36px; height: 36px; margin-right: 4px; border-radius: 12px; background: linear-gradient(135deg, var(--bg) 0%, rgba(20, 20, 26, 0.8) 100%); border: 1px solid var(--accent-border); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);">
-          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
-            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-            style="color: var(--accent); filter: drop-shadow(0 0 4px var(--accent));">
-            <path d="M12 5a3 3 0 1 0-5.997.125 4 4 0 0 0-2.526 5.77 4 4 0 0 0 .556 6.588A4 4 0 1 0 12 18Z" />
-            <path d="M12 5a3 3 0 1 1 5.997.125 4 4 0 0 1 2.526 5.77 4 4 0 0 1-.556 6.588A4 4 0 1 1 12 18Z" />
-            <path d="M15 13a4.5 4.5 0 0 1-3-4 4.5 4.5 0 0 1-3 4" />
-            <path d="M17.599 6.5a3 3 0 0 0 .399-1.375" />
-            <path d="M6.003 5.125A3 3 0 0 0 6.401 6.5" />
-            <path d="M3.477 10.896a4 4 0 0 1 .585-.396" />
-            <path d="M19.938 10.5a4 4 0 0 1 .585.396" />
-            <path d="M6 18a4 4 0 0 1-1.967-.516" />
-            <path d="M19.967 17.484A4 4 0 0 1 18 18" />
+        <div class="brand-tile" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2"
+            stroke-linecap="round" stroke-linejoin="round">
+            <rect x="9" y="3" width="6" height="11" rx="3"></rect>
+            <path d="M5 11a7 7 0 0 0 14 0"></path>
+            <path d="M12 18v3"></path>
           </svg>
         </div>
-        <div>
-          <h1 style="margin: 0; line-height: 1;">Impulse</h1>
-        </div>
+        <h1>Impulse</h1>
       </div>
 
       <nav class="sidebar-nav">
-        <button id="nav-home" class="nav-item active" onclick="switchView('home')"><span>Home</span><span
-            class="nav-count">Feed</span></button>
-        <button id="nav-snippets" class="nav-item" onclick="switchView('snippets')"><span>Snippets</span><span
-            id="snippet-count" class="nav-count" data-bind="snippets.length">0</span></button>
-        <button id="nav-dictionary" class="nav-item" onclick="switchView('dictionary')"><span>Dictionary</span><span
-            id="dictionary-count" class="nav-count" data-bind="vocabularyWords.length">0</span></button>
+        <button id="nav-home" class="nav-item active" onclick="switchView('home')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
+            stroke-linejoin="round" aria-hidden="true">
+            <path d="M4 19V9l8-6 8 6v10"></path>
+            <path d="M10 19v-6h4v6"></path>
+          </svg>
+          <span>Home</span>
+        </button>
+        <button id="nav-snippets" class="nav-item" onclick="switchView('snippets')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
+            stroke-linejoin="round" aria-hidden="true">
+            <path d="M4 7h16"></path>
+            <path d="M4 12h10"></path>
+            <path d="M4 17h7"></path>
+          </svg>
+          <span>Snippets</span>
+          <span id="snippet-count" class="nav-count" data-bind="snippets.length">0</span>
+        </button>
+        <button id="nav-dictionary" class="nav-item" onclick="switchView('dictionary')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
+            stroke-linejoin="round" aria-hidden="true">
+            <path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5z"></path>
+            <path d="M4 20.5V5.5"></path>
+          </svg>
+          <span>Dictionary</span>
+          <span id="dictionary-count" class="nav-count" data-bind="vocabularyWords.length">0</span>
+        </button>
       </nav>
 
       <div class="sidebar-footer">
-        <div class="profile-card">
-          <button class="gear-btn" onclick="openSettings()" title="Settings">&#9881;</button>
+        <button id="nav-settings" class="nav-item" onclick="openSettings()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
+            stroke-linejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"></path>
+          </svg>
+          <span>Settings</span>
+        </button>
+        <div class="sidebar-listening">
+          <span class="live-dot" aria-hidden="true"></span>
+          <span>Listening for <span id="listening-hotkey"></span></span>
         </div>
       </div>
     </aside>
 
     <main class="main-panel">
-      <div class="main-toolbar">
-        <button class="ghost-btn" onclick="copyLast()">Copy Last</button>
-        <div class="window-controls">
-          <button onclick="minimizeWindow()" aria-label="Minimize window" title="Minimize">−</button>
-          <button onclick="closeWindow()" aria-label="Close window" title="Close">×</button>
-        </div>
-      </div>
       <div id="tab-content"></div>
     </main>
   </div>
@@ -370,6 +383,11 @@
       const dc = document.getElementById('dictionary-count');
       if (sc) sc.textContent = snapshot.snippets;
       if (dc) dc.textContent = snapshot.dictionary;
+    }
+
+    function updateListeningLabel() {
+      const el = document.getElementById('listening-hotkey');
+      if (el) el.textContent = hotkeyDisplay(settingsState.hotkey);
     }
 
     function updateNav() {
@@ -739,6 +757,7 @@
       const normalized = String(value || '').toLowerCase();
       if (!Bridge.ready()) {
         settingsState.hotkey = normalized || settingsState.hotkey;
+        updateListeningLabel();
         showToast('Shortcut updated');
         return true;
       }
@@ -748,6 +767,7 @@
         return false;
       }
       settingsState.hotkey = String(result.hotkey || settingsState.hotkey);
+      updateListeningLabel();
       showToast('Shortcut set to ' + hotkeyDisplay(settingsState.hotkey));
       return true;
     }
@@ -995,6 +1015,7 @@
       if (d === lastHotkeyDigest) return;
       lastHotkeyDigest = d;
       settingsState.hotkey = nextHotkey || settingsState.hotkey;
+      updateListeningLabel();
       if (settingsTab === 'general') renderSettingsPanel();
     }
 
@@ -1133,6 +1154,7 @@
 
     window.addEventListener('DOMContentLoaded', () => {
       applyTheme(settingsState.theme);
+      updateListeningLabel();
       stats.last7Days = normalize7(stats.last7Days);
       renderContent();
       lastStatsDigest = digest(stats);
