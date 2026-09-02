@@ -421,6 +421,9 @@ class AppApi:
     def check_ollama(self) -> bool:
         return self.settings.check_ollama()
 
+    def get_input_devices(self) -> List[Dict[str, str]]:
+        return self.settings.get_input_devices()
+
     def get_vocabulary(self) -> List[str]:
         return self.settings.get_vocabulary()
 

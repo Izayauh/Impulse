@@ -147,6 +147,9 @@ datas += collect_data_files('soundfile')
 # pywebview injects window.pywebview from its bundled JS assets (webview/js);
 # without them the dashboard renders but every api call silently fails.
 datas += collect_data_files('webview')
+# faster-whisper's vad_filter needs its bundled Silero model (assets/silero_vad_*.onnx);
+# without it the frozen build silently skips VAD and hallucinates on silence.
+datas += collect_data_files('faster_whisper')
 
 # Analysis configuration
 a = Analysis(

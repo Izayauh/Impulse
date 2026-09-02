@@ -101,3 +101,30 @@ class TestDashboardSettingsContract(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class InputDeviceListTest(unittest.TestCase):
+    """The Microphone select lists real input devices, default first."""
+
+    def _controller(self):
+        return _controller("")
+
+    def test_default_first_then_input_capable_devices_without_duplicates(self):
+        fake_sd = MagicMock()
+        fake_sd.query_devices.return_value = [
+            {"name": "Speakers (Realtek)", "max_input_channels": 0},
+            {"name": "Audient iD14", "max_input_channels": 2},
+            {"name": "Audient iD14", "max_input_channels": 2},
+            {"name": "Webcam Mic", "max_input_channels": 1},
+        ]
+        with patch.dict(sys.modules, {"sounddevice": fake_sd}):
+            devices = self._controller().get_input_devices()
+        self.assertEqual(devices[0], {"value": "default", "label": "Default System Microphone"})
+        self.assertEqual([d["value"] for d in devices[1:]], ["Audient iD14", "Webcam Mic"])
+
+    def test_query_failure_still_offers_the_default(self):
+        fake_sd = MagicMock()
+        fake_sd.query_devices.side_effect = RuntimeError("PortAudio not initialized")
+        with patch.dict(sys.modules, {"sounddevice": fake_sd}):
+            devices = self._controller().get_input_devices()
+        self.assertEqual(devices, [{"value": "default", "label": "Default System Microphone"}])

@@ -80,6 +80,34 @@ class SettingsController:
         except Exception:
             return False
 
+    def get_input_devices(self) -> List[Dict[str, str]]:
+        """Input-capable audio devices for the Microphone select.
+
+        The first entry is always the system default. Values are the device
+        labels the engine resolves by substring (see
+        flow_local_dictation._input_device_request_from_settings), so what
+        the user picks here is exactly what the next take listens to.
+        """
+        devices: List[Dict[str, str]] = [{"value": "default", "label": "Default System Microphone"}]
+        try:
+            import sounddevice as sd
+
+            seen = set()
+            for dev in sd.query_devices():
+                try:
+                    if int(dev.get("max_input_channels", 0) or 0) <= 0:
+                        continue
+                    name = str(dev.get("name") or "").strip()
+                except AttributeError:
+                    continue
+                if not name or name in seen:
+                    continue
+                seen.add(name)
+                devices.append({"value": name, "label": name})
+        except Exception:
+            pass
+        return devices
+
     # -- hotkey -------------------------------------------------------------
 
     def get_hotkey(self) -> Dict[str, Any]:

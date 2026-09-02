@@ -143,7 +143,7 @@
       theme: 'system',
       commandMode: true,
       autoCopy: true,
-      microphone: 'Default System Microphone',
+      microphone: 'default',
       vadSensitivity: 65,
       vadSilenceMs: 700,
       modelMode: 'auto',
@@ -156,7 +156,8 @@
       ollamaEndpoint: 'http://127.0.0.1:11434',
       telemetryEnabled: false
     };
-    const microphones = ['Default System Microphone', 'USB Audio Interface', 'Headset Microphone', 'Webcam Microphone'];
+    // Real input devices, loaded from the bridge when Settings opens.
+    let microphones = [{ value: 'default', label: 'Default System Microphone' }];
 
     const esc = (v) => String(v || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
     const digest = (v) => { try { return JSON.stringify(v); } catch { return String(Date.now()); } };
@@ -250,6 +251,7 @@
           addSnippet: (t, r) => invoke(a => a.add_snippet(t, r)),
           deleteSnippet: (id) => invoke(a => a.delete_snippet(id)),
           checkOllama: () => invoke(a => a.check_ollama()),
+          getInputDevices: () => invoke(a => a.get_input_devices()),
           getAppVersion: () => invoke(a => a.get_app_version()),
         },
 
@@ -358,7 +360,7 @@
       scheduleRender();
       if (v === 'dictionary') loadVocabularyFromPython();
       if (v === 'snippets') loadSnippetsFromPython();
-      if (v === 'settings') { loadOllamaReachability(); loadAppVersion(); }
+      if (v === 'settings') { loadOllamaReachability(); loadAppVersion(); loadInputDevices(); }
     }
 
     // ================================================================
@@ -660,7 +662,7 @@
       const recordKeys = hotkeyDisplay(settingsState.hotkey).split(' + ').filter(Boolean);
       const draftKeys = hotkeyRecording ? hotkeyDisplay(hotkeyCaptureDraft.join('+')).split(' + ').filter(Boolean) : [];
       const recordControl = `<span class="keys" id="hotkey-record-keys">${kbdCaps(draftKeys.length ? draftKeys : recordKeys)}</span><button class="btn${hotkeyRecording ? ' is-recording' : ''}" onclick="toggleHotkeyRecording()">${hotkeyRecording ? 'Press keys...' : 'Change'}</button>`;
-      const micOptions = microphones.map((m) => ({ value: m, label: m }));
+      const micOptions = microphones.map((m) => ({ value: m.value, label: m.label }));
       if (!micOptions.some((o) => o.value === settingsState.microphone)) micOptions.unshift({ value: settingsState.microphone, label: settingsState.microphone });
       const themeOptions = [{ value: 'system', label: 'System' }, { value: 'dark', label: 'Dark' }, { value: 'light', label: 'Light' }];
 
@@ -677,7 +679,6 @@
       <div class="card settings-card">
         ${settingRow('Microphone', 'Which input Impulse listens to.', selectControl('microphone', micOptions, settingsState.microphone, 'Microphone'))}
         ${settingRow('Sensitivity', 'Higher picks up quieter speech.', sliderControl('vadSensitivity', 'Sensitivity'))}
-        ${settingRow('Stop after silence', 'How long a pause ends a hands-free take.', sliderControl('vadSilenceMs', 'Stop after silence'))}
       </div>`;
 
       // Only when the stored endpoint answered /api/tags on open.
@@ -768,6 +769,16 @@
       const reachable = Bridge.ready() ? Boolean(await Bridge.settings.checkOllama()) : false;
       if (reachable === ollamaReachable) return;
       ollamaReachable = reachable;
+      renderSettingsPanel();
+    }
+
+    async function loadInputDevices() {
+      if (!Bridge.ready()) return;
+      const list = await Bridge.settings.getInputDevices();
+      if (!Array.isArray(list) || !list.length) return;
+      const next = list.filter((d) => d && d.value).map((d) => ({ value: String(d.value), label: String(d.label || d.value) }));
+      if (JSON.stringify(next) === JSON.stringify(microphones)) return;
+      microphones = next;
       renderSettingsPanel();
     }
 
