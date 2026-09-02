@@ -160,6 +160,17 @@ class StatsController:
         conn.close()
         return [[r[0], r[1]] for r in rows]
 
+    def get_today_words(self) -> int:
+        """Words logged today, for the pill's landed moment."""
+        today = datetime.now().strftime("%Y-%m-%d")
+        conn = self._connect()
+        row = conn.execute(
+            "SELECT COALESCE(SUM(word_count),0) FROM transcription_logs WHERE date = ?",
+            (today,),
+        ).fetchone()
+        conn.close()
+        return int(row[0] or 0)
+
     def get_totals(self) -> Dict[str, Any]:
         conn = self._connect()
         row = conn.execute(

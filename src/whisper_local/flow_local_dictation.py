@@ -867,6 +867,40 @@ from whisper_local.stats import StatsTracker as NewStatsTracker
 stats_tracker = NewStatsTracker()
 debug_print(f"[DEBUG] Stats tracker initialized with file: {stats_tracker.stats_file}")
 
+# SQLite stats store shared with the dashboard, created on the first take.
+_take_stats_controller = None
+
+
+def _get_take_stats_controller():
+    global _take_stats_controller
+    if _take_stats_controller is None:
+        from whisper_local.controllers.stats_controller import StatsController
+        _take_stats_controller = StatsController(get_user_data_dir(), stats_tracker.stats_file)
+    return _take_stats_controller
+
+
+def _record_take_stats(text, model_used, audio_duration_sec, land=True):
+    """Record one take in both stats stores, then land the pill with the counts.
+
+    Runs on the stats thread so the paste path keeps its timing.
+    """
+    stats_tracker.record_transcription(text, model_used, audio_duration_sec)
+    word_count = len(text.split())
+    try:
+        wpm = 0.0
+        if audio_duration_sec and audio_duration_sec > 0:
+            wpm = float(round(word_count / (audio_duration_sec / 60.0)))
+            if wpm > stats_tracker.MAX_REASONABLE_WPM:
+                wpm = 0.0
+        controller = _get_take_stats_controller()
+        controller.record_transcription(word_count, model_used or "", float(audio_duration_sec or 0.0), wpm)
+        today_total = controller.get_today_words()
+    except Exception as e:
+        log_line(f"[stats] sqlite record failed: {e}", "warning")
+        today_total = stats_tracker.get_today_words()
+    if land:
+        _push_landed(word_count, today_total)
+
 # Global session tracking (tracks words at app start, not dashboard open)
 app_session_start_words = stats_tracker.data.get('total_words', 0)
 debug_print(f"[SESSION] App started with {app_session_start_words} total words")
@@ -2448,6 +2482,20 @@ def set_status_safe(text, bg, fg="#ffffff", border=None):
         ui_queue.put((gui.set_status, (text, bg, fg, border)))
     except Exception:
         pass
+
+
+def _push_landed(word_count, today_total):
+    """Land the pill: "+N" and today's total for one second, then gone.
+
+    The Tk fallback pill has no landed moment, so it gets the old pasted status.
+    """
+    try:
+        if word_count > 0 and hasattr(gui, "show_landed"):
+            ui_queue.put((gui.show_landed, (int(word_count), int(today_total or 0))))
+            return
+    except Exception:
+        pass
+    set_status_safe("✅ Pasted!", Theme.SUCCESS, Theme.TEXT_PRIMARY, Theme.SUCCESS)
 
 
 def notify(msg):
@@ -4607,10 +4655,10 @@ def _transcribe_and_paste(wav_path):
         if our_window_focused:
             # Dashboard has focus - just copy to clipboard, don't auto-paste
             pyperclip.copy(text)
-            # Record stats async
+            # Record stats async; the stats thread lands the pill with the counts
             word_count = len(text.split())
             threading.Thread(
-                target=stats_tracker.record_transcription,
+                target=_record_take_stats,
                 args=(text, model_used, audio_duration_sec),
                 daemon=True,
             ).start()
@@ -4630,7 +4678,6 @@ def _transcribe_and_paste(wav_path):
                     debug_print(f"[ACHIEVEMENT] Error in delayed check: {e}")
             threading.Thread(target=check_achievements_delayed, daemon=True).start()
 
-            set_status_safe("📋 Copied!", Theme.SUCCESS, Theme.TEXT_PRIMARY, Theme.SUCCESS)
             pending_status_timer = threading.Timer(1.5, lambda: set_status_safe("🎤 Ready", Theme.BG_ELEVATED, Theme.TEXT_PRIMARY, Theme.PINK_PRIMARY))
             pending_status_timer.start()
             safe_print("Copied to clipboard (dashboard focused)")
@@ -4639,10 +4686,11 @@ def _transcribe_and_paste(wav_path):
             # active_app_context is the window that had focus when recording
             # started, which is the window the text is going back into.
             if instant_paste(text, active_app_context):
-                # Record stats async (don't block the paste experience)
+                # Record stats async (don't block the paste experience);
+                # the stats thread lands the pill with the counts
                 word_count = len(text.split())
                 threading.Thread(
-                    target=stats_tracker.record_transcription,
+                    target=_record_take_stats,
                     args=(text, model_used, audio_duration_sec),
                     daemon=True,
                 ).start()
@@ -4662,7 +4710,6 @@ def _transcribe_and_paste(wav_path):
                         debug_print(f"[ACHIEVEMENT] Error in delayed check: {e}")
                 threading.Thread(target=check_achievements_delayed, daemon=True).start()
 
-                set_status_safe("✅ Pasted!", Theme.SUCCESS, Theme.TEXT_PRIMARY, Theme.SUCCESS)
                 pending_status_timer = threading.Timer(1.5, lambda: set_status_safe("🎤 Ready", Theme.BG_ELEVATED, Theme.TEXT_PRIMARY, Theme.PINK_PRIMARY))
                 pending_status_timer.start()
                 safe_print("Pasted OK")
@@ -4676,8 +4723,8 @@ def _transcribe_and_paste(wav_path):
             pyperclip.copy(text)
             word_count = len(text.split())
             threading.Thread(
-                target=stats_tracker.record_transcription,
-                args=(text, model_used, audio_duration_sec),
+                target=_record_take_stats,
+                args=(text, model_used, audio_duration_sec, False),
                 daemon=True,
             ).start()
 
