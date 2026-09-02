@@ -573,7 +573,7 @@ if is_qt_available():
             bounds = self.rect().adjusted(1, 1, -1, -1)
             radius = bounds.height() / 2.0
 
-            if self._glow > 0.01:
+            if False and self._glow > 0.01:  # halo removed: the pill has no glow (laptop notes, 2026-09-02)
                 glow_rect = bounds.adjusted(
                     -int(_GLOW_BASE + self._glow * _GLOW_DELTA),
                     -int(_GLOW_BASE + self._glow * (_GLOW_DELTA * 0.55)),
@@ -586,12 +586,11 @@ if is_qt_available():
                 painter.drawRoundedRect(glow_rect, glow_rect.height() / 2.0, glow_rect.height() / 2.0)
 
             base = QtGui.QColor("#040608")
-            base.setAlpha(220)
+            base.setAlpha(255)
             painter.setBrush(base)
             painter.drawRoundedRect(bounds, radius, radius)
 
-            border = QtGui.QColor(self._pill_color)
-            border.setAlpha(80)
+            border = QtGui.QColor(255, 255, 255, _WORKING_BORDER_ALPHA)
             if self._state == PillState.PROCESSING:
                 border = QtGui.QColor(255, 255, 255, _WORKING_BORDER_ALPHA)
             elif self._state == PillState.LANDED:
@@ -632,12 +631,6 @@ if is_qt_available():
             painter.drawLine(QtCore.QPointF(cx, cy + 4), QtCore.QPointF(cx, cy + 7))
             painter.drawLine(QtCore.QPointF(cx - 3, cy + 7), QtCore.QPointF(cx + 3, cy + 7))
 
-            # Pulse glow when recording
-            pulse_color = QtGui.QColor(accent_color)
-            pulse_color.setAlpha(int(15 + 15 * math.sin(self._wave_phase)))
-            painter.setBrush(pulse_color)
-            painter.setPen(QtCore.Qt.PenStyle.NoPen)
-            painter.drawEllipse(icon_rect.center(), icon_size * 1.5, icon_size * 1.5)
             painter.restore()
 
             start_x += 24 + 14
