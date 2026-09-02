@@ -113,3 +113,75 @@ class StatsHomeTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class StatsLegacyJsonMergeTest(unittest.TestCase):
+    """Older builds wrote takes to the JSON file only; reads must merge both stores.
+
+    The one-time migration only runs on an empty SQLite store, so these tests
+    build the controller first, log one take to SQLite, and only then write a
+    JSON file that carries days SQLite never saw.
+    """
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.json_path = os.path.join(self.tmp.name, "whisper_stats.json")
+        self.controller = StatsController(self.tmp.name, self.json_path)
+
+    def _write_json(self) -> None:
+        import json
+        with open(self.json_path, "w", encoding="utf-8") as f:
+            json.dump({
+                "total_words": 9925,
+                "total_sessions": 110,
+                "daily_words": {_day(3): 2976, _day(1): 135, _day(0): 40},
+                "wpm_history": [163, 0, 166],
+                "best_wpm": 281,
+            }, f)
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def _insert(self, date: str, words: int, wpm: float = 0.0) -> None:
+        conn = sqlite3.connect(self.controller._db_path)
+        conn.execute(
+            "INSERT INTO transcription_logs (date, word_count, wpm) VALUES (?, ?, ?)",
+            (date, words, wpm),
+        )
+        conn.commit()
+        conn.close()
+
+    def test_chart_uses_json_days_that_sqlite_never_saw(self):
+        self._insert(_day(1), 50)
+        self._write_json()
+        data = self.controller.get_chart_data(14)
+        by_date = dict(zip(data["dates"], data["datasets"][0]["data"]))
+        self.assertEqual(by_date[_day(3)], 2976)
+        self.assertEqual(by_date[_day(1)], 135)
+
+    def test_a_day_present_in_both_stores_takes_the_larger_not_the_sum(self):
+        self._insert(_day(0), 60)
+        self._write_json()
+        data = self.controller.get_chart_data(14)
+        by_date = dict(zip(data["dates"], data["datasets"][0]["data"]))
+        self.assertEqual(by_date[_day(0)], 60)
+        self.assertEqual(self.controller.get_today_words(), 60)
+
+    def test_best_day_considers_json_history(self):
+        self._insert(_day(0), 60)
+        self._write_json()
+        self.assertEqual(self.controller.get_best_day(), {"words": 2976, "date": _day(3)})
+
+    def test_totals_prefer_the_larger_store_and_fall_back_to_json_wpm(self):
+        self._insert(_day(0), 60)
+        self._write_json()
+        totals = self.controller.get_totals()
+        self.assertEqual(totals["totalWords"], 9925)
+        self.assertEqual(totals["totalSessions"], 110)
+        self.assertEqual(totals["avgWpm"], round((163 + 166) / 2))
+        self.assertEqual(totals["bestWpm"], 281)
+
+    def test_measured_sqlite_speed_beats_the_json_fallback(self):
+        self._insert(_day(0), 60, wpm=120.0)
+        self._write_json()
+        self.assertEqual(self.controller.get_totals()["avgWpm"], 120)

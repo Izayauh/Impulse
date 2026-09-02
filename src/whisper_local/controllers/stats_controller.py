@@ -94,6 +94,48 @@ class StatsController:
         except (json.JSONDecodeError, OSError):
             return {}
 
+    # -- JSON reconciliation -------------------------------------------------
+
+    def _json_daily_words(self) -> Dict[str, int]:
+        """Per-day words the dictation engine kept in the JSON stats file.
+
+        Builds before the redesign wrote every take to the JSON file only, so
+        the SQLite store can be missing days the user really dictated. Reads
+        merge the two stores by taking the larger figure per day. Both stores
+        now receive the same increments for each take, so the larger one is
+        the complete one; summing them would double count.
+        """
+        daily = self._load_json_stats().get("daily_words") or {}
+        out: Dict[str, int] = {}
+        if isinstance(daily, dict):
+            for key, value in daily.items():
+                try:
+                    out[str(key)] = int(value or 0)
+                except (TypeError, ValueError):
+                    continue
+        return out
+
+    def _merged_daily_words(self, cutoff: str | None = None) -> Dict[str, int]:
+        """{date: words} from SQLite and the JSON file, larger value per day."""
+        conn = self._connect()
+        if cutoff:
+            rows = conn.execute(
+                "SELECT date, SUM(word_count) FROM transcription_logs "
+                "WHERE date >= ? GROUP BY date",
+                (cutoff,),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT date, SUM(word_count) FROM transcription_logs GROUP BY date"
+            ).fetchall()
+        conn.close()
+        merged = {r[0]: int(r[1] or 0) for r in rows}
+        for key, value in self._json_daily_words().items():
+            if cutoff and key < cutoff:
+                continue
+            merged[key] = max(merged.get(key, 0), value)
+        return merged
+
     # -- write API (called by dictation engine) -----------------------------
 
     def record_transcription(
@@ -125,19 +167,8 @@ class StatsController:
         names the older Chart.js shape used.
         """
         days = max(1, int(days or 1))
-        conn = self._connect()
         cutoff = (datetime.now() - timedelta(days=days - 1)).strftime("%Y-%m-%d")
-        rows = conn.execute(
-            "SELECT date, SUM(word_count) as total_words "
-            "FROM transcription_logs "
-            "WHERE date >= ? "
-            "GROUP BY date "
-            "ORDER BY date ASC",
-            (cutoff,),
-        ).fetchall()
-        conn.close()
-
-        lookup = {r[0]: int(r[1] or 0) for r in rows}
+        lookup = self._merged_daily_words(cutoff)
         labels = []
         dates = []
         data = []
@@ -171,18 +202,11 @@ class StatsController:
 
         An empty store returns 0 words and a None date.
         """
-        conn = self._connect()
-        row = conn.execute(
-            "SELECT date, SUM(word_count) AS total "
-            "FROM transcription_logs "
-            "GROUP BY date "
-            "ORDER BY total DESC, date DESC "
-            "LIMIT 1"
-        ).fetchone()
-        conn.close()
-        if not row or not row[1]:
+        merged = self._merged_daily_words()
+        best = max(merged.items(), key=lambda kv: (kv[1], kv[0]), default=None)
+        if not best or not best[1]:
             return {"words": 0, "date": None}
-        return {"words": int(row[1]), "date": row[0]}
+        return {"words": int(best[1]), "date": best[0]}
 
     def get_home_summary(self) -> Dict[str, Any]:
         """Everything the Home hero card reads, in one bridge call."""
@@ -214,13 +238,7 @@ class StatsController:
     def get_today_words(self) -> int:
         """Words logged today, for the pill's landed moment."""
         today = datetime.now().strftime("%Y-%m-%d")
-        conn = self._connect()
-        row = conn.execute(
-            "SELECT COALESCE(SUM(word_count),0) FROM transcription_logs WHERE date = ?",
-            (today,),
-        ).fetchone()
-        conn.close()
-        return int(row[0] or 0)
+        return int(self._merged_daily_words(today).get(today, 0))
 
     def get_totals(self) -> Dict[str, Any]:
         """All-time totals. avgWpm only averages takes that measured a speed:
@@ -237,11 +255,23 @@ class StatsController:
             "SELECT COALESCE(AVG(wpm),0) FROM transcription_logs WHERE wpm > 0"
         ).fetchone()
         conn.close()
+
+        # The JSON file was the only store for takes made by older builds, so
+        # its running totals can exceed what SQLite has. Larger wins; never sum.
+        legacy = self._load_json_stats()
+        legacy_words = int(legacy.get("total_words") or 0)
+        legacy_sessions = int(legacy.get("total_sessions") or 0)
+        legacy_best_wpm = float(legacy.get("best_wpm") or 0)
+        avg_wpm = float(avg_row[0] or 0)
+        if avg_wpm <= 0:
+            history = [float(v) for v in (legacy.get("wpm_history") or []) if isinstance(v, (int, float)) and v > 0]
+            if history:
+                avg_wpm = sum(history) / len(history)
         return {
-            "totalWords": int(row[0] or 0),
-            "totalSessions": int(row[1] or 0),
-            "avgWpm": round(avg_row[0] or 0),
-            "bestWpm": round(row[2] or 0),
+            "totalWords": max(int(row[0] or 0), legacy_words),
+            "totalSessions": max(int(row[1] or 0), legacy_sessions),
+            "avgWpm": round(avg_wpm),
+            "bestWpm": round(max(float(row[2] or 0), legacy_best_wpm)),
         }
 
     # -- lifecycle ----------------------------------------------------------

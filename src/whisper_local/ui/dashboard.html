@@ -1053,8 +1053,6 @@
       mountAnimatedNode(c, t, 2300);
     }
 
-    function minimizeWindow() { Bridge.system.minimize(); }
-    function closeWindow() { if (Bridge.ready()) Bridge.system.close(); else window.close(); }
 
     async function exportHistory() {
       const result = await Bridge.system.exportCsv();

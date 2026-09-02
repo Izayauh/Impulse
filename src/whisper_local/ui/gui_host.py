@@ -690,11 +690,12 @@ def _run_webview_dashboard() -> None:
         api = AppApi()
         _api_instance = api
 
-        # Impulse dashboard has a sidebar layout and needs wider window
-        win_w = 1200 if is_impulse else 1100
-        win_h = 800 if is_impulse else 740
-        min_w = 900 if is_impulse else 900
-        min_h = 600 if is_impulse else 600
+        # pywebview sizes the outer frame; the legacy dashboard is designed for
+        # an 1100 x 740 client area, so add the Windows frame (18 x 46 at 100%).
+        win_w = 1200 if is_impulse else 1118
+        win_h = 800 if is_impulse else 786
+        min_w = 900 if is_impulse else 918
+        min_h = 600 if is_impulse else 646
 
         window = webview.create_window(
             title="Impulse Dashboard",
