@@ -5,11 +5,6 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Impulse Dashboard</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link
-    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@500;700;800&display=swap"
-    rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
   <script src="dashboard_stats.js" onerror="console.log('No exported stats file')"></script>
 </head>
@@ -17,7 +12,7 @@
 <body>
   <div id="toast-container"></div>
   <div id="paywall-overlay"
-    style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 10000; align-items: center; justify-content: center; backdrop-filter: blur(4px);">
+    style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 10000; align-items: center; justify-content: center;">
     <div class="card" style="width: 400px; text-align: center; padding: 32px;">
       <h2>Activation Required</h2>
       <p style="margin: 16px 0; color: var(--text-secondary);">Please enter your license key to unlock Impulse.</p>
@@ -143,7 +138,7 @@
     let vocabularyWords = [];
     const settingsState = {
       launchBehavior: 'start_minimized',
-      theme: 'hot_pink',
+      theme: 'system',
       commandMode: true,
       autoCopy: true,
       microphone: 'Default System Microphone',
@@ -574,11 +569,11 @@
         </select>
       </div>
       <div class="settings-row">
-        <div><h4>Theme</h4><p>Choose your dashboard color scheme.</p></div>
+        <div><h4>Appearance</h4><p>System follows your Windows light or dark setting.</p></div>
         <select onchange="updateSetting('theme', this.value)">
-          <option value="hot_pink" ${settingsState.theme === 'hot_pink' ? 'selected' : ''}>Hot Pink</option>
-          <option value="neon_dark" ${settingsState.theme === 'neon_dark' ? 'selected' : ''}>Neon Dark</option>
-          <option value="midnight_green" ${settingsState.theme === 'midnight_green' ? 'selected' : ''}>Midnight Green</option>
+          <option value="system" ${settingsState.theme === 'system' ? 'selected' : ''}>System</option>
+          <option value="dark" ${settingsState.theme === 'dark' ? 'selected' : ''}>Dark</option>
+          <option value="light" ${settingsState.theme === 'light' ? 'selected' : ''}>Light</option>
         </select>
       </div>
       <div class="settings-row">
@@ -674,10 +669,25 @@
       await Bridge.settings.update(backendKeyMap[key] || key, value);
     }
 
+    // Stored values: 'system' (default), 'dark', 'light'. The old theme ids
+    // (hot_pink, neon_dark, midnight_green) all resolve to dark so existing
+    // settings files keep working; settings_manager.py rewrites them on load.
+    const systemThemeQuery = window.matchMedia ? window.matchMedia('(prefers-color-scheme: light)') : null;
+    function normalizeTheme(name) {
+      return (name === 'light' || name === 'dark' || name === 'system') ? name : 'dark';
+    }
     function applyTheme(name) {
-      const valid = ['hot_pink', 'neon_dark', 'midnight_green'];
-      if (!valid.includes(name)) name = 'hot_pink';
-      document.body.dataset.theme = name;
+      name = normalizeTheme(name);
+      settingsState.theme = name;
+      let resolved = name;
+      if (name === 'system') resolved = (systemThemeQuery && systemThemeQuery.matches) ? 'light' : 'dark';
+      document.documentElement.dataset.theme = resolved;
+      document.body.dataset.theme = resolved;
+    }
+    if (systemThemeQuery) {
+      const onSystemThemeChange = () => { if (settingsState.theme === 'system') applyTheme('system'); };
+      if (systemThemeQuery.addEventListener) systemThemeQuery.addEventListener('change', onSystemThemeChange);
+      else if (systemThemeQuery.addListener) systemThemeQuery.addListener(onSystemThemeChange);
     }
 
     function applyModelSettingsPayload(payload, emitAutoToast = false) {

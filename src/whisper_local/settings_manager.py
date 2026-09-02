@@ -31,7 +31,7 @@ class AppSettings(BaseModel):
     """Top-level settings schema with validation."""
     whisper_model: str = "turbo"
     input_device: str = "default"
-    theme: Literal["hot_pink", "neon_dark", "midnight_green"] = "hot_pink"
+    theme: Literal["system", "dark", "light"] = "system"
     vad_enabled: bool = True
     hotkey: str = "ctrl+win"
     save_to_file: bool = False
@@ -94,6 +94,10 @@ class SettingsManager:
             old_profile = filtered.get("stylization_profile")
             if old_profile in _profile_migration:
                 filtered["stylization_profile"] = _profile_migration[old_profile]
+            # Migrate the retired colour themes (2026-09 redesign) to dark so an
+            # old settings file does not fail validation and reset everything.
+            if filtered.get("theme") in ("hot_pink", "neon_dark", "midnight_green"):
+                filtered["theme"] = "dark"
             return AppSettings(**filtered)
         except (json.JSONDecodeError, OSError, IOError):
             return AppSettings()

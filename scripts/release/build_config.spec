@@ -130,6 +130,9 @@ datas = [
     (os.path.join(ROOT_DIR, 'src', 'whisper_local', 'ui', 'dashboard.html'), os.path.join('whisper_local', 'ui')),
     (os.path.join(ROOT_DIR, 'src', 'whisper_local', 'ui', 'dashboard_stats.js'), os.path.join('whisper_local', 'ui')),
     (os.path.join(ROOT_DIR, 'src', 'whisper_local', 'ui', 'styles.css'), os.path.join('whisper_local', 'ui')),
+    # styles.css loads Geist and Geist Mono via url("assets/fonts/...") relative
+    # to itself, so the folder must sit next to it in the bundle.
+    (os.path.join(ROOT_DIR, 'src', 'whisper_local', 'ui', 'assets', 'fonts'), os.path.join('whisper_local', 'ui', 'assets', 'fonts')),
     # start_tray resolves this via res_path('ui/assets/mic_logo.png'), which is
     # relative to the bundle root rather than the package dir.
     (os.path.join(ROOT_DIR, 'src', 'whisper_local', 'ui', 'assets', 'mic_logo.png'), os.path.join('ui', 'assets')),

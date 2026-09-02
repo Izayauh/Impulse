@@ -1,26 +1,156 @@
 /* ================================================================
-   Theme: Hot Pink (default) — matches the app's original Tkinter pill
-   accent palette: #FF1493 primary, #FF69B4 light, #CC1177 dark
+   Fonts. Bundled locally (fontsource 5.3.0 Latin subsets, OFL-1.1) so
+   the dashboard never needs the network. Paths are relative to this
+   stylesheet: ui/assets/fonts next to it in source and in the frozen
+   build (see scripts/release/build_config.spec).
+   ================================================================ */
+@font-face {
+  font-family: "Geist";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("assets/fonts/geist-sans-latin-400-normal.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Geist";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("assets/fonts/geist-sans-latin-500-normal.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Geist";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("assets/fonts/geist-sans-latin-600-normal.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Geist Mono";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("assets/fonts/geist-mono-latin-400-normal.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Geist Mono";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("assets/fonts/geist-mono-latin-500-normal.woff2") format("woff2");
+}
+
+/* ================================================================
+   Tokens. Two themes only (docs/DESIGN_BRIEF_2026-09.md, values lifted
+   from docs/design/canvas-2026-09/Main.dc.html and LightHome.dc.html).
+   "system" is resolved to dark or light by applyTheme() in dashboard.html
+   from prefers-color-scheme, so the stylesheet only knows these two.
+
+   Legacy names (--muted, --border, --accent-light, --accent-glow, ...)
+   are kept as aliases so every existing rule still resolves.
    ================================================================ */
 :root,
-[data-theme="hot_pink"] {
-  --bg: #0A0A0C;
-  --sidebar: #101014;
-  --card: #17171B;
-  --text: #FAFAFC;
-  --muted: #9C9DB2;
-  --border: #33333C;
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  /* Surfaces */
+  --bg: #0A0A0B;
+  --sidebar: #0F0F11;
+  --card: #131316;
+  --line: rgba(255, 255, 255, 0.07);
+
+  /* Text */
+  --text: #EDEDEF;
+  --text-2: #9A9AA3;
+  --text-3: #8A8A93;
+
+  /* Brand */
   --accent: #FF1493;
-  --accent-light: #FF69B4;
-  --accent-glow: rgba(255, 20, 147, 0.14);
+  --accent-hover: #FF2E9F;
+  --accent-bg: rgba(255, 20, 147, 0.10);
+  --accent-bg-strong: rgba(255, 20, 147, 0.18);
   --accent-border: rgba(255, 20, 147, 0.35);
-  --accent-hover: rgba(255, 20, 147, 0.6);
-  --accent-bg: rgba(255, 20, 147, 0.13);
-  --accent-bg-strong: rgba(255, 20, 147, 0.2);
-  --green: #00E676;
+  --green: #34D399;
   --red: #FF5252;
-  /* Legacy alias so existing var(--purple) refs pick up the theme accent */
-  --purple: #FF1493;
+
+  /* Interaction steps (hover is a background step, never a lift) */
+  --hover: rgba(255, 255, 255, 0.05);
+  --active: rgba(255, 255, 255, 0.07);
+  --control-bg: rgba(255, 255, 255, 0.04);
+  --control-line: rgba(255, 255, 255, 0.09);
+  --control-hover: rgba(255, 255, 255, 0.08);
+  --control-line-hover: rgba(255, 255, 255, 0.14);
+  --kbd-bg: #1A1A1E;
+  --kbd-line: rgba(255, 255, 255, 0.14);
+  --bar: #3A3A42;
+  --track: rgba(255, 255, 255, 0.08);
+  --dashed: rgba(255, 255, 255, 0.2);
+  --tip-bg: #EDEDEF;
+  --tip-text: #0A0A0B;
+
+  /* Type */
+  --font-sans: "Geist", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+
+  /* Shape and motion */
+  --radius-card: 8px;
+  --radius-control: 6px;
+  --radius-kbd: 5px;
+  --radius-pill: 999px;
+  --ease: 120ms ease-out;
+  --press: 80ms ease-out;
+
+  /* Legacy aliases used across the stylesheet and dashboard.html */
+  --muted: var(--text-2);
+  --border: var(--line);
+  --accent-light: var(--accent-hover);
+  --accent-glow: var(--accent-bg);
+  --purple: var(--accent);
+  --text-primary: var(--text);
+  --text-secondary: var(--text-2);
+  --bg-crust: var(--bg);
+  --border-subtle: var(--line);
+  --accent-error: var(--red);
+  --accent-success: var(--green);
+}
+
+[data-theme="light"] {
+  color-scheme: light;
+
+  --bg: #F4F4F5;
+  --sidebar: #FAFAFA;
+  --card: #FFFFFF;
+  --line: rgba(0, 0, 0, 0.08);
+
+  --text: #18181B;
+  --text-2: #5F5F68;
+  --text-3: #5F5F68;
+
+  --accent: #E0117F;
+  --accent-hover: #C90F72;
+  --accent-bg: rgba(224, 17, 127, 0.08);
+  --accent-bg-strong: rgba(224, 17, 127, 0.14);
+  --accent-border: rgba(224, 17, 127, 0.35);
+  --green: #059669;
+  --red: #DC2626;
+
+  --hover: rgba(0, 0, 0, 0.05);
+  --active: rgba(0, 0, 0, 0.07);
+  --control-bg: #FAFAFA;
+  --control-line: rgba(0, 0, 0, 0.12);
+  --control-hover: #F4F4F5;
+  --control-line-hover: rgba(0, 0, 0, 0.18);
+  --kbd-bg: #FFFFFF;
+  --kbd-line: rgba(0, 0, 0, 0.14);
+  --bar: #D4D4D8;
+  --track: rgba(0, 0, 0, 0.08);
+  --dashed: rgba(0, 0, 0, 0.22);
+  --tip-bg: #18181B;
+  --tip-text: #FFFFFF;
 }
 
 /* Light type on a dark ground is what subpixel antialiasing handles worst;
@@ -29,85 +159,6 @@ html {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
-}
-
-/* Theme: Neon Dark — purple/teal neon (the previous default) */
-[data-theme="neon_dark"] {
-  --bg: #111116;
-  --sidebar: #1a1a20;
-  --card: #25252e;
-  --text: #f5f6ff;
-  --muted: #a6a7bf;
-  --border: #333447;
-  --accent: #bb86fc;
-  --accent-light: #d4b0ff;
-  --accent-glow: rgba(187, 134, 252, 0.12);
-  --accent-border: rgba(187, 134, 252, 0.34);
-  --accent-hover: rgba(187, 134, 252, 0.6);
-  --accent-bg: rgba(187, 134, 252, 0.13);
-  --accent-bg-strong: rgba(187, 134, 252, 0.2);
-  --green: #03dac6;
-  --red: #cf6679;
-  --purple: #bb86fc;
-}
-
-/* Theme: Midnight Green — deep green accent */
-[data-theme="midnight_green"] {
-  --bg: #0a1210;
-  --sidebar: #0f1a16;
-  --card: #162420;
-  --text: #e8f5e9;
-  --muted: #81a896;
-  --border: #1e3a2f;
-  --accent: #00e676;
-  --accent-light: #69f0ae;
-  --accent-glow: rgba(0, 230, 118, 0.12);
-  --accent-border: rgba(0, 230, 118, 0.35);
-  --accent-hover: rgba(0, 230, 118, 0.6);
-  --accent-bg: rgba(0, 230, 118, 0.13);
-  --accent-bg-strong: rgba(0, 230, 118, 0.2);
-  --green: #00e676;
-  --red: #ef5350;
-  --purple: #00e676;
-}
-
-@keyframes float {
-
-  0%,
-  100% {
-    transform: translateY(0);
-  }
-
-  50% {
-    transform: translateY(-6px);
-  }
-}
-
-@keyframes pulse-glow {
-
-  0%,
-  100% {
-    opacity: 1;
-    filter: drop-shadow(0 0 8px var(--accent-border));
-  }
-
-  50% {
-    opacity: 0.9;
-    filter: drop-shadow(0 0 16px var(--accent-hover));
-  }
-}
-
-@keyframes ping-soft {
-  0% {
-    transform: scale(1);
-    opacity: 0.8;
-  }
-
-  75%,
-  100% {
-    transform: scale(2);
-    opacity: 0;
-  }
 }
 
 * {
@@ -122,36 +173,74 @@ body {
 }
 
 body {
-  background: radial-gradient(1200px 500px at 80% -20%, var(--accent-glow), transparent 60%), radial-gradient(ellipse at 15% 15%, var(--accent-glow) 0%, transparent 40%), var(--bg);
+  background: var(--bg);
   color: var(--text);
-  font-family: "Inter", "Segoe UI", system-ui, sans-serif;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  line-height: 1.45;
   overflow-x: hidden;
 }
 
-body::before {
-  content: "";
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  z-index: 50;
-  mix-blend-mode: overlay;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.25'/%3E%3C/svg%3E");
-  opacity: 0.3;
-}
-
+/* ================================================================
+   Type scale
+   ================================================================ */
 h1,
 h2,
 h3,
 h4,
 .mini-activity-head strong {
-  font-family: "Outfit", "Inter", sans-serif;
-  letter-spacing: -0.02em;
+  font-family: var(--font-sans);
+  font-weight: 600;
+  color: var(--text);
+}
+
+h3 {
+  font-size: 14px;
+  letter-spacing: -0.01em;
+}
+
+h4 {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.mono,
+kbd,
+code {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.stat-value {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 22px;
+  line-height: 26px;
+  font-weight: 500;
+  color: var(--text);
+}
+
+.label {
+  font-size: 12px;
+  color: var(--text-2);
+}
+
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
 }
 
 body.modal-open {
   overflow: hidden;
 }
 
+/* ================================================================
+   Shell
+   ================================================================ */
 #app-shell {
   display: grid;
   grid-template-columns: 250px 1fr;
@@ -164,90 +253,83 @@ body.modal-open {
   top: 0;
   bottom: 0;
   left: 0;
-  background: linear-gradient(180deg, rgba(16, 16, 20, 0.6), rgba(10, 10, 12, 0.9));
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
-  border-right: 1px solid rgba(255, 255, 255, 0.03);
-  padding: 24px 18px;
+  background: var(--sidebar);
+  border-right: 1px solid var(--line);
+  padding: 20px 14px;
   display: flex;
   flex-direction: column;
   z-index: 10;
-  box-shadow: 4px 0 24px rgba(0, 0, 0, 0.3);
 }
 
 .sidebar-brand {
   display: flex;
   align-items: center;
-  gap: 12px;
-  margin-bottom: 24px;
+  gap: 10px;
+  margin-bottom: 20px;
 }
 
 .sidebar-brand h1 {
   margin: 0;
-  font-size: 22px;
-  font-weight: 800;
-  background: linear-gradient(135deg, #fff 30%, var(--accent) 150%);
-  background-clip: text;
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  letter-spacing: -0.02em;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--text);
 }
 
 .sidebar-brand p {
-  margin: 3px 0 0;
-  color: var(--muted);
-  font-size: 13px;
-  font-weight: 600;
+  margin: 2px 0 0;
+  color: var(--text-2);
+  font-size: 12px;
+  font-weight: 400;
   display: flex;
   align-items: center;
   gap: 6px;
 }
 
 .brand-dot {
-  width: 12px;
-  height: 12px;
-  border-radius: 999px;
-  background: radial-gradient(circle at 35% 30%, #fff, var(--accent) 45%, color-mix(in srgb, var(--accent) 60%, #000) 100%);
-  box-shadow: inset 0 0 0 1px var(--accent-border);
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-pill);
+  background: var(--accent);
 }
 
 .sidebar-nav {
   display: grid;
-  gap: 6px;
+  gap: 2px;
 }
 
 .nav-item {
-  border: 1px solid transparent;
+  border: 0;
   background: transparent;
-  color: var(--muted);
-  border-radius: 12px;
-  padding: 10px 14px;
+  color: var(--text-2);
+  border-radius: var(--radius-control);
+  height: 32px;
+  padding: 0 10px;
   text-align: left;
   cursor: pointer;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: 14px;
+  gap: 10px;
+  font-size: 13px;
   font-weight: 500;
-  transition: all 0.2s ease;
+  transition: background-color var(--ease), color var(--ease);
 }
 
 .nav-item:hover {
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--hover);
   color: var(--text);
-  transform: translateX(2px);
 }
 
 .nav-item.active {
-  background: var(--accent-bg);
-  border-color: var(--accent-border);
+  background: var(--active);
   color: var(--text);
 }
 
 .nav-count {
-  color: var(--muted);
+  color: var(--text-3);
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 400;
 }
 
 .sidebar-footer {
@@ -255,43 +337,66 @@ body.modal-open {
 }
 
 .profile-card {
-  border: 1px solid rgba(255, 255, 255, 0.05);
-  border-radius: 12px;
-  background: rgba(20, 20, 26, 0.8);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  background: var(--card);
   padding: 10px;
   display: grid;
   grid-template-columns: 40px 1fr 36px;
   gap: 10px;
   align-items: center;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.05);
-  transition: all 0.3s ease;
+  transition: background-color var(--ease), border-color var(--ease);
 }
 
 .profile-card:hover {
-  background: rgba(30, 30, 38, 0.9);
-  border-color: rgba(255, 255, 255, 0.1);
+  background: var(--hover);
 }
 
+/* ================================================================
+   Controls
+   ================================================================ */
 .gear-btn,
 .ghost-btn,
 .primary-btn,
 .copy-btn,
 .close-btn,
 .window-controls button {
-  border: 1px solid var(--border);
-  background: rgba(37, 37, 46, 0.9);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--control-line);
+  background: var(--control-bg);
   color: var(--text);
-  border-radius: 10px;
+  font-weight: 500;
+  border-radius: var(--radius-control);
   cursor: pointer;
+  transition: background-color var(--ease), border-color var(--ease), color var(--ease), transform var(--press);
+}
+
+.gear-btn:hover,
+.ghost-btn:hover,
+.copy-btn:hover,
+.close-btn:hover,
+.window-controls button:hover {
+  background: var(--control-hover);
+  border-color: var(--control-line-hover);
+}
+
+.gear-btn:active,
+.ghost-btn:active,
+.primary-btn:active,
+.copy-btn:active,
+.close-btn:active,
+.window-controls button:active {
+  transform: scale(0.98);
 }
 
 .gear-btn {
-  width: 36px;
-  height: 36px;
-}
-
-.gear-btn:hover {
-  border-color: var(--accent);
+  width: 28px;
+  padding: 0;
 }
 
 .main-panel {
@@ -309,18 +414,14 @@ body.modal-open {
   margin-bottom: 14px;
 }
 
-.ghost-btn {
-  padding: 8px 12px;
-}
-
 .window-controls {
   display: flex;
   gap: 8px;
 }
 
 .window-controls button {
-  width: 34px;
-  height: 34px;
+  width: 28px;
+  padding: 0;
 }
 
 #tab-content {
@@ -349,55 +450,35 @@ body.modal-open {
   align-content: start;
 }
 
+/* ================================================================
+   Cards
+   ================================================================ */
 .card {
-  background: linear-gradient(180deg, rgba(20, 20, 26, 0.6), rgba(10, 10, 14, 0.85));
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
-  border: 1px solid rgba(255, 255, 255, 0.05);
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 20px;
-  padding: 24px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.05);
-  transition: all 0.3s ease;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  padding: 16px;
   position: relative;
   overflow: hidden;
-}
-
-.card::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.02);
-  pointer-events: none;
-}
-
-.card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.08);
-  border-color: rgba(255, 255, 255, 0.08);
 }
 
 .view-header h2,
 .home-header h2,
 .WelcomeHeader h2 {
   margin: 0 0 4px;
-  font-size: 36px;
-  font-weight: 800;
-  letter-spacing: -0.04em;
-  background: linear-gradient(135deg, #fff 30%, rgba(255, 255, 255, 0.5));
-  background-clip: text;
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  animation: float 6s ease-in-out infinite;
+  font-size: 20px;
+  line-height: 24px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--text);
 }
 
 .view-header p,
 .home-header p,
 .WelcomeHeader p {
   margin: 0;
-  color: var(--muted);
-  font-size: 16px;
+  color: var(--text-2);
+  font-size: 13px;
 }
 
 .welcome-row,
@@ -422,32 +503,24 @@ body.modal-open {
 }
 
 .hero-card p {
-  margin: 6px 0 0;
-  color: var(--muted);
+  margin: 4px 0 0;
+  color: var(--text-2);
 }
 
 .primary-btn {
-  padding: 12px 20px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: linear-gradient(180deg, var(--accent), var(--accent-light));
-  color: #fff;
-  font-weight: 700;
-  border-radius: 14px;
-  transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-  box-shadow: 0 4px 15px var(--accent-glow), inset 0 1px 0 rgba(255, 255, 255, 0.2);
-  cursor: pointer;
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #FFFFFF;
 }
 
 .primary-btn:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 25px var(--accent-hover), inset 0 1px 0 rgba(255, 255, 255, 0.3);
-  filter: brightness(1.1);
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
 }
 
-.primary-btn:active {
-  transform: translateY(0) scale(0.98);
-}
-
+/* ================================================================
+   Activity graph
+   ================================================================ */
 .mini-bars {
   display: flex;
   align-items: flex-end;
@@ -469,7 +542,9 @@ body.modal-open {
 
 .mini-bar-value,
 .ActivityGraph__value {
-  color: var(--green);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-2);
   font-size: 11px;
   line-height: 1;
   margin-bottom: 6px;
@@ -480,20 +555,24 @@ body.modal-open {
 
 .mini-bar {
   width: 100%;
-  border-radius: 7px 7px 2px 2px;
-  background: var(--accent-hover);
+  border-radius: 3px 3px 0 0;
+  background: var(--bar);
   min-height: 4px;
+  transition: background-color var(--ease);
 }
 
+.mini-bar-col:hover .mini-bar,
 .mini-bar-col.is-today .mini-bar,
 .ActivityGraph__bar--today .mini-bar {
-  background: rgba(3, 218, 198, 0.85);
+  background: var(--accent);
 }
 
 .mini-day,
 .ActivityGraph__label {
-  color: var(--muted);
-  font-size: 11px;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-3);
+  font-size: 12px;
   margin-top: 5px;
   display: inline-block;
 }
@@ -506,15 +585,18 @@ body.modal-open {
 }
 
 .section-head span {
-  color: var(--muted);
+  color: var(--text-3);
   font-size: 12px;
 }
 
+/* ================================================================
+   Recent dictations
+   ================================================================ */
 .activity-section,
 .RecentTimeline {
-  background: linear-gradient(180deg, rgba(37, 37, 46, 0.96), rgba(27, 27, 34, 0.96));
-  border: 1px solid var(--border);
-  border-radius: 14px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
   padding: 16px;
   min-height: 100%;
 }
@@ -522,7 +604,7 @@ body.modal-open {
 .timeline-list,
 .RecentTimeline__list {
   display: grid;
-  gap: 10px;
+  gap: 8px;
 }
 
 .timeline-list,
@@ -542,56 +624,67 @@ body.modal-open {
 }
 
 .home-right .timeline-list::-webkit-scrollbar-thumb {
-  background: #36374a;
-  border-radius: 999px;
+  background: var(--track);
+  border-radius: var(--radius-pill);
 }
 
 .timeline-card,
 .RecentTimeline__card {
-  background: linear-gradient(180deg, rgba(37, 37, 46, 0.92), rgba(28, 28, 35, 0.95));
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 12px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  padding: 10px 12px;
   display: grid;
-  grid-template-columns: 90px 1fr auto;
+  grid-template-columns: 64px 1fr auto;
   gap: 12px;
   align-items: start;
+  transition: background-color var(--ease), border-color var(--ease);
+}
+
+.timeline-card:hover,
+.RecentTimeline__card:hover {
+  background: var(--hover);
 }
 
 .timeline-time,
 .RecentTimeline__time {
-  color: var(--muted);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-3);
   font-size: 12px;
-  letter-spacing: 0.3px;
+  padding-top: 2px;
 }
 
 .timeline-body p,
 .RecentTimeline__body p {
   margin: 0;
-  line-height: 1.4;
-  font-size: 14px;
+  line-height: 1.45;
+  font-size: 13px;
 }
 
 .timeline-meta,
 .RecentTimeline__meta {
-  margin-top: 7px;
-  color: var(--muted);
+  margin-top: 6px;
+  color: var(--text-3);
   font-size: 12px;
 }
 
 .copy-btn {
-  padding: 7px 10px;
+  padding: 0 8px;
   font-size: 12px;
 }
 
+/* ================================================================
+   Snippets
+   ================================================================ */
 .snippet-banner h3 {
-  margin: 0 0 6px;
-  font-size: 24px;
+  margin: 0 0 4px;
+  font-size: 14px;
 }
 
 .snippet-banner p {
   margin: 0 0 12px;
-  color: var(--muted);
+  color: var(--text-2);
 }
 
 .snippet-pill-row {
@@ -600,13 +693,13 @@ body.modal-open {
 }
 
 .snippet-pill {
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  background: rgba(26, 26, 32, 0.75);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  background: var(--control-bg);
   padding: 8px 10px;
   display: flex;
   gap: 8px;
-  color: var(--muted);
+  color: var(--text-2);
   font-size: 13px;
 }
 
@@ -624,13 +717,25 @@ body.modal-open {
 }
 
 .scope-tabs button {
-  border: 1px solid var(--border);
-  background: rgba(37, 37, 46, 0.7);
+  border: 1px solid var(--control-line);
+  background: var(--control-bg);
   color: var(--text);
-  border-radius: 999px;
-  padding: 7px 11px;
+  border-radius: var(--radius-pill);
+  height: 28px;
+  padding: 0 11px;
   cursor: pointer;
   font-size: 12px;
+  font-weight: 500;
+  transition: background-color var(--ease), border-color var(--ease), color var(--ease), transform var(--press);
+}
+
+.scope-tabs button:hover {
+  background: var(--control-hover);
+  border-color: var(--control-line-hover);
+}
+
+.scope-tabs button:active {
+  transform: scale(0.98);
 }
 
 .scope-tabs button.active {
@@ -640,11 +745,18 @@ body.modal-open {
 
 .snippet-controls input {
   width: 100%;
-  border: 1px solid var(--border);
-  background: #181821;
+  border: 1px solid var(--control-line);
+  background: var(--control-bg);
   color: var(--text);
-  border-radius: 10px;
-  padding: 9px 10px;
+  border-radius: var(--radius-control);
+  height: 28px;
+  padding: 0 10px;
+  outline: none;
+  transition: border-color var(--ease);
+}
+
+.snippet-controls input:focus {
+  border-color: var(--accent);
 }
 
 .snippet-row {
@@ -652,8 +764,8 @@ body.modal-open {
   grid-template-columns: minmax(120px, 210px) 22px 1fr auto;
   gap: 10px;
   align-items: center;
-  border-bottom: 1px solid rgba(60, 61, 79, 0.65);
-  padding: 11px 0;
+  border-bottom: 1px solid var(--line);
+  padding: 10px 0;
 }
 
 .snippet-row:last-child {
@@ -661,34 +773,35 @@ body.modal-open {
 }
 
 .snippet-key {
-  color: var(--green);
+  color: var(--accent);
   font-weight: 600;
 }
 
 .snippet-value {
-  color: var(--muted);
+  color: var(--text-2);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .snippet-arrow {
-  color: var(--muted);
+  color: var(--text-3);
   text-align: center;
 }
 
+/* ================================================================
+   Settings (modal today; lane 5 turns it into a page)
+   ================================================================ */
 .settings-modal {
   position: fixed;
   inset: 0;
   display: none;
   align-items: center;
   justify-content: center;
-  background: rgba(6, 6, 11, 0.45);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  background: rgba(0, 0, 0, 0.6);
   z-index: 50;
   opacity: 0;
-  transition: opacity 0.25s ease;
+  transition: opacity var(--ease);
 }
 
 .settings-modal.is-open {
@@ -701,55 +814,38 @@ body.modal-open {
   max-height: calc(100vh - 24px);
   display: grid;
   grid-template-rows: auto 1fr;
-  background: linear-gradient(135deg, rgba(37, 37, 46, 0.65), rgba(26, 26, 32, 0.85));
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 20px;
-  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.4);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
   overflow: hidden;
-  transform: translateY(12px) scale(0.98);
-  transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-}
-
-.settings-modal.is-open .settings-dialog {
-  transform: translateY(0) scale(1);
 }
 
 .settings-head {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 16px 24px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--line);
 }
 
 .settings-head h2 {
   margin: 0;
-  font-family: "Outfit", "Inter", sans-serif;
-  font-size: 24px;
+  font-size: 20px;
+  line-height: 24px;
+  font-weight: 600;
   letter-spacing: -0.02em;
 }
 
 .close-btn {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.05);
-  border: none;
-  color: var(--muted);
-  cursor: pointer;
-  transition: all 0.2s;
-  display: grid;
-  place-items: center;
+  width: 28px;
+  padding: 0;
+  color: var(--text-2);
   font-size: 16px;
   font-weight: 300;
 }
 
 .close-btn:hover {
-  background: rgba(255, 255, 255, 0.15);
-  color: #fff;
-  transform: scale(1.05);
+  color: var(--text);
 }
 
 .settings-body {
@@ -759,95 +855,96 @@ body.modal-open {
 }
 
 .settings-nav {
-  border-right: 1px solid rgba(255, 255, 255, 0.04);
-  background: rgba(20, 20, 26, 0.3);
-  padding: 18px 12px;
+  border-right: 1px solid var(--line);
+  background: var(--sidebar);
+  padding: 14px 10px;
   display: grid;
-  gap: 4px;
+  gap: 2px;
   align-content: start;
 }
 
 .settings-nav button {
-  border: none;
+  border: 0;
   background: transparent;
-  color: var(--muted);
-  border-radius: 8px;
-  padding: 10px 14px;
+  color: var(--text-2);
+  border-radius: var(--radius-control);
+  height: 32px;
+  padding: 0 10px;
   text-align: left;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background-color var(--ease), color var(--ease);
   font-weight: 500;
 }
 
 .settings-nav button:hover {
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--hover);
   color: var(--text);
-  padding-left: 18px;
 }
 
 .settings-nav button.active {
-  background: var(--accent-bg);
+  background: var(--active);
   color: var(--text);
-  box-shadow: inset 3px 0 0 var(--accent);
-  padding-left: 14px;
 }
 
 .settings-panel {
-  padding: 24px 32px;
+  padding: 20px 24px;
   overflow-y: auto;
   scrollbar-gutter: stable;
 }
 
 .settings-panel h3 {
-  margin: 0 0 20px;
-  font-family: "Outfit", sans-serif;
-  font-size: 22px;
+  margin: 0 0 16px;
+  font-size: 14px;
   font-weight: 600;
   color: var(--text);
   letter-spacing: -0.01em;
 }
 
 .settings-row {
-  border: 1px solid rgba(255, 255, 255, 0.04);
-  border-radius: 14px;
-  background: rgba(37, 37, 46, 0.3);
-  padding: 16px 20px;
-  margin-bottom: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  background: var(--card);
+  padding: 12px 16px;
+  margin-bottom: 8px;
   display: grid;
   grid-template-columns: 1fr auto;
   gap: 16px;
   align-items: center;
-  transition: all 0.2s ease;
+  transition: background-color var(--ease), border-color var(--ease);
 }
 
 .settings-row:hover {
-  background: rgba(43, 43, 53, 0.4);
-  border-color: rgba(255, 255, 255, 0.08);
+  background: var(--hover);
 }
 
 .settings-row h4 {
-  margin: 0 0 4px;
-  font-family: "Outfit", sans-serif;
+  margin: 0 0 2px;
   font-weight: 500;
-  font-size: 16px;
+  font-size: 13px;
 }
 
 .settings-row p {
   margin: 0;
-  color: var(--muted);
-  font-size: 13px;
-  line-height: 1.4;
+  color: var(--text-2);
+  font-size: 12px;
+  line-height: 1.45;
 }
 
 .settings-row select {
-  background: rgba(20, 20, 26, 0.6);
+  background: var(--control-bg);
   color: var(--text);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 10px;
-  padding: 10px 14px;
+  border: 1px solid var(--control-line);
+  border-radius: var(--radius-control);
+  height: 28px;
+  padding: 0 10px;
   outline: none;
-  transition: border-color 0.2s;
+  transition: border-color var(--ease), background-color var(--ease);
   cursor: pointer;
+}
+
+.settings-row select:hover {
+  background: var(--control-hover);
+  border-color: var(--control-line-hover);
 }
 
 .settings-row select:focus {
@@ -864,14 +961,15 @@ body.modal-open {
 
 .hotkey-input {
   width: 100%;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(20, 20, 26, 0.6);
+  border: 1px solid var(--control-line);
+  background: var(--control-bg);
   color: var(--text);
-  border-radius: 10px;
-  padding: 10px 14px;
+  border-radius: var(--radius-control);
+  height: 28px;
+  padding: 0 10px;
   outline: none;
   font-family: inherit;
-  transition: border-color 0.2s;
+  transition: border-color var(--ease);
 }
 
 .hotkey-input:focus {
@@ -879,8 +977,8 @@ body.modal-open {
 }
 
 .hotkey-record-btn.is-recording {
-  border-color: rgba(3, 218, 198, 0.6);
-  background: rgba(3, 218, 198, 0.2);
+  border-color: var(--green);
+  background: var(--green);
 }
 
 .slider-wrap {
@@ -893,11 +991,12 @@ body.modal-open {
 
 .slider-wrap input {
   width: 100%;
+  accent-color: var(--accent);
 }
 
 .model-grid {
   display: grid;
-  gap: 12px;
+  gap: 8px;
   grid-template-columns: repeat(3, 1fr);
 }
 
@@ -906,55 +1005,59 @@ body.modal-open {
 }
 
 .model-card {
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 14px;
-  background: rgba(37, 37, 46, 0.4);
-  backdrop-filter: blur(8px);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  background: var(--card);
   color: var(--text);
   text-align: left;
   cursor: pointer;
-  padding: 14px;
-  transition: all 0.2s;
+  padding: 12px;
+  transition: background-color var(--ease), border-color var(--ease), transform var(--press);
 }
 
 .model-card:hover {
-  transform: translateY(-2px);
-  border-color: rgba(255, 255, 255, 0.15);
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
+  background: var(--hover);
+  border-color: var(--control-line-hover);
+}
+
+.model-card:active {
+  transform: scale(0.98);
 }
 
 .model-card.active {
   border-color: var(--accent);
   background: var(--accent-bg);
-  box-shadow: 0 0 0 1px var(--accent) inset;
 }
 
 .model-card h4 {
-  margin: 0 0 6px;
-  font-size: 16px;
+  margin: 0 0 4px;
+  font-size: 13px;
+  font-weight: 600;
 }
 
 .model-card p {
   margin: 0;
-  color: var(--muted);
-  font-size: 13px;
-  line-height: 1.4;
+  color: var(--text-2);
+  font-size: 12px;
+  line-height: 1.45;
 }
 
 .model-card .model-meta {
   display: inline-block;
-  margin-top: 10px;
-  color: var(--green);
+  margin-top: 8px;
+  color: var(--text-3);
   font-size: 11px;
-  font-weight: 600;
+  font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
 
+/* Toggle: 34 x 20, pink when on. The knob slide is state motion, not a
+   hover lift, so it keeps a transform transition. */
 .switch {
   position: relative;
-  width: 44px;
-  height: 24px;
+  width: 34px;
+  height: 20px;
   display: inline-block;
   cursor: pointer;
 }
@@ -968,34 +1071,31 @@ body.modal-open {
 .switch span {
   position: absolute;
   inset: 0;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.05);
-  transition: all 0.3s cubic-bezier(0.4, 0.0, 0.2, 1);
-  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2);
+  border-radius: var(--radius-pill);
+  background: var(--track);
+  border: 1px solid var(--control-line);
+  transition: background-color var(--ease), border-color var(--ease);
 }
 
 .switch span::before {
   content: "";
   position: absolute;
-  width: 18px;
-  height: 18px;
-  left: 3px;
+  width: 14px;
+  height: 14px;
+  left: 2px;
   top: 2px;
   border-radius: 50%;
-  background: #fff;
-  transition: transform 0.3s cubic-bezier(0.4, 0.0, 0.2, 1), background-color 0.3s ease;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  background: #FFFFFF;
+  transition: transform var(--ease);
 }
 
 .switch input:checked+span {
   background: var(--accent);
-  border-color: var(--accent-border);
-  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1);
+  border-color: var(--accent);
 }
 
 .switch input:checked+span::before {
-  transform: translateX(20px);
+  transform: translateX(14px);
 }
 
 .switch input:focus-visible+span {
@@ -1004,10 +1104,13 @@ body.modal-open {
 }
 
 .empty-card {
-  color: var(--muted);
+  color: var(--text-2);
   text-align: center;
 }
 
+/* ================================================================
+   Toasts
+   ================================================================ */
 #toast-container {
   position: fixed;
   top: 12px;
@@ -1018,23 +1121,23 @@ body.modal-open {
 }
 
 .toast-notification {
-  border: 1px solid rgba(207, 102, 121, 0.45);
-  border-radius: 10px;
-  background: rgba(20, 20, 29, 0.95);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  background: var(--card);
   padding: 8px 10px;
   font-size: 12px;
-  color: #fff;
+  color: var(--text);
   opacity: 0;
-  transform: translate3d(0, -10px, 0);
-  transition: transform 180ms ease, opacity 180ms ease;
-  will-change: transform, opacity;
+  transition: opacity var(--ease);
 }
 
 .toast-notification.is-visible {
   opacity: 1;
-  transform: translate3d(0, 0, 0);
 }
 
+/* ================================================================
+   Snippets and dictionary views
+   ================================================================ */
 .snippets-view {
   grid-template-columns: minmax(360px, 460px) minmax(0, 1fr);
   align-items: start;
@@ -1048,7 +1151,7 @@ body.modal-open {
 
 .dictionary-editor p {
   margin: 8px 0 0;
-  color: var(--muted);
+  color: var(--text-2);
   font-size: 12px;
 }
 
@@ -1061,11 +1164,18 @@ body.modal-open {
 
 .dictionary-input-row input {
   width: 100%;
-  border: 1px solid var(--border);
-  background: #181821;
+  border: 1px solid var(--control-line);
+  background: var(--control-bg);
   color: var(--text);
-  border-radius: 10px;
-  padding: 10px 12px;
+  border-radius: var(--radius-control);
+  height: 28px;
+  padding: 0 10px;
+  outline: none;
+  transition: border-color var(--ease);
+}
+
+.dictionary-input-row input:focus {
+  border-color: var(--accent);
 }
 
 .dictionary-list {
@@ -1076,10 +1186,10 @@ body.modal-open {
 }
 
 .dictionary-pill {
-  border: 1px solid rgba(3, 218, 198, 0.42);
-  background: rgba(31, 44, 46, 0.72);
-  border-radius: 999px;
-  padding: 6px 10px;
+  border: 1px solid var(--control-line);
+  background: var(--control-bg);
+  border-radius: var(--radius-pill);
+  padding: 4px 10px;
   font-size: 12px;
   color: var(--text);
 }
@@ -1107,7 +1217,7 @@ body.modal-open {
     position: static;
     width: 100%;
     border-right: 0;
-    border-bottom: 1px solid var(--border);
+    border-bottom: 1px solid var(--line);
   }
 
   .sidebar-nav {
@@ -1155,7 +1265,7 @@ body.modal-open {
 
   .settings-nav {
     border-right: 0;
-    border-bottom: 1px solid var(--border);
+    border-bottom: 1px solid var(--line);
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 
@@ -1179,29 +1289,28 @@ body.modal-open {
     gap: 6px;
   }
 }
+
 /* ---------------------------------------------------------------------------
    Dictation-first header
    Replaces the old "Welcome back, <name>" block. The product's primary action
    is dictating, so the header states the shortcut instead of greeting the user,
    and it surfaces the hands-free latch, which nothing in the UI mentioned.
-   Styling follows the Live Feed rows: one solid surface, one hairline border,
-   no glow.
 --------------------------------------------------------------------------- */
 .DictateLead__eyebrow {
   margin: 0 0 6px;
   font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.14em;
+  font-weight: 600;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--muted);
+  color: var(--text-3);
 }
 
 .WelcomeHeader h2.DictateLead__primary {
-  margin: 0 0 10px;
-  font-size: 26px;
-  font-weight: 700;
+  margin: 0 0 8px;
+  font-size: 20px;
+  font-weight: 600;
   letter-spacing: -0.02em;
-  line-height: 1.25;
+  line-height: 24px;
   color: var(--text);
   display: flex;
   align-items: center;
@@ -1212,31 +1321,33 @@ body.modal-open {
 .DictateLead__secondary {
   margin: 0;
   font-size: 13px;
-  line-height: 1.6;
-  color: var(--muted);
+  line-height: 1.45;
+  color: var(--text-2);
   max-width: 44ch;
 }
 
-/* Physical-key treatment, so the shortcut reads as something you press. */
+/* kbd caps: mono, 1 px border with a 2 px bottom edge. */
 .Key {
   display: inline-flex;
   align-items: center;
-  font-family: inherit;
-  font-size: 0.95em;
-  font-weight: 600;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+  line-height: 18px;
+  font-weight: 500;
   color: var(--text);
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid var(--border);
-  border-bottom-color: rgba(0, 0, 0, 0.6);
-  border-radius: 7px;
-  padding: 4px 10px;
+  background: var(--kbd-bg);
+  border: 1px solid var(--kbd-line);
+  border-bottom-width: 2px;
+  border-radius: var(--radius-kbd);
+  padding: 1px 7px;
   white-space: nowrap;
 }
 
 .Key--sm {
-  font-size: 0.9em;
-  padding: 2px 7px;
-  border-radius: 6px;
+  font-size: 11px;
+  line-height: 16px;
+  padding: 0 6px;
 }
 
 /* The dictation header spans both home columns. */
