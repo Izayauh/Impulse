@@ -4,7 +4,7 @@ import { CONTACT_EMAIL, GITHUB_REPO_URL } from '@/src/lib/site';
 const faqs = [
   {
     q: 'Does it really work offline?',
-    a: 'Yes. A speech model ships inside the installer, so after setup nothing requires a connection. The demo video on this page is filmed with airplane mode on.',
+    a: 'Yes. A speech model ships inside the installer, so after setup nothing requires a connection. Turn on airplane mode and try it. That is the one test a cloud app cannot pass.',
   },
   {
     q: 'What do I need to run it?',

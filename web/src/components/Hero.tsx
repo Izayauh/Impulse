@@ -1,12 +1,8 @@
 import { motion } from 'motion/react';
-import { Play } from 'lucide-react';
-import { useRef, useState } from 'react';
 import { PRICE } from '@/src/lib/site';
+import { HeroDemo } from './HeroDemo';
 
 export function Hero() {
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const [playing, setPlaying] = useState(false);
-
   return (
     <section className="relative pt-36 pb-24 overflow-hidden flex flex-col items-center">
       {/* Background glows */}
@@ -39,59 +35,36 @@ export function Hero() {
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-4">
             <a
               href="#pricing"
-              className="bg-white text-black px-8 py-4 rounded-2xl font-bold text-lg hover:bg-white/90 transition-all active:scale-95 shadow-[0_0_40px_rgba(255,255,255,0.15)] w-full sm:w-auto text-center"
+              className="bg-brand hover:bg-brand-dark text-white px-8 py-4 rounded-2xl font-bold text-lg transition-all active:scale-95 shadow-[0_0_40px_rgba(246,51,154,0.35)] w-full sm:w-auto text-center"
             >
               Get Impulse for {PRICE}
             </a>
             <a
-              href="#demo"
+              href="#beta"
               className="glass px-8 py-4 rounded-2xl font-bold text-lg hover:bg-white/10 transition-all active:scale-95 w-full sm:w-auto text-center"
             >
-              Watch the demo
+              Try the beta free
             </a>
           </div>
 
           <p className="text-sm text-white/40 mb-20">
-            Windows 10/11 &middot; works fully offline &middot; or{' '}
-            <a href="#beta" className="underline underline-offset-4 hover:text-white/70 transition-colors">
-              try the beta free
-            </a>
+            Windows 10/11 &middot; works fully offline &middot; licence key by email in seconds
           </p>
         </motion.div>
 
-        {/* Real product footage, not a mockup */}
+        {/* The whole product, drawn instead of filmed, so it stays sharp at any size */}
         <motion.div
           id="demo"
-          initial={{ opacity: 0, scale: 0.95, y: 40 }}
+          initial={{ opacity: 0, scale: 0.97, y: 30 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
-          transition={{ delay: 0.3, duration: 0.8 }}
+          transition={{ delay: 0.25, duration: 0.7, ease: 'easeOut' }}
           className="relative w-full max-w-5xl mx-auto scroll-mt-32"
         >
-          <div className="relative rounded-3xl overflow-hidden border border-white/10 shadow-2xl shadow-brand/10 bg-black">
-            <video
-              ref={videoRef}
-              src="/demo.mp4"
-              poster="/demo-poster.jpg"
-              controls={playing}
-              preload="metadata"
-              playsInline
-              className="w-full h-auto block"
-              onPlay={() => setPlaying(true)}
-            />
-            {!playing && (
-              <button
-                aria-label="Play the demo video"
-                onClick={() => videoRef.current?.play()}
-                className="absolute inset-0 flex items-center justify-center group cursor-pointer"
-              >
-                <span className="w-20 h-20 rounded-full bg-brand flex items-center justify-center shadow-2xl shadow-brand/40 group-hover:scale-110 transition-transform">
-                  <Play className="w-8 h-8 text-white translate-x-0.5" fill="currentColor" />
-                </span>
-              </button>
-            )}
-          </div>
-          <p className="text-sm text-white/40 mt-4">
-            Unedited screen capture. The airplane-mode part is the point: it keeps working with the network off.
+          <HeroDemo />
+          <p className="text-sm text-white/40 mt-5 max-w-2xl mx-auto">
+            The whole product in one loop: hold <span className="text-white/70 font-semibold">Ctrl+Win</span>, talk, let go.
+            Filler words come out, punctuation goes in, and the text lands where your cursor is.
+            Airplane mode stays on the entire time.
           </p>
 
           <div className="absolute -top-10 -right-10 w-40 h-40 bg-brand/20 blur-3xl rounded-full -z-10" />

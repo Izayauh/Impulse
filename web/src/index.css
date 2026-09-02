@@ -4,9 +4,12 @@
 @theme {
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-display: "Space Grotesk", sans-serif;
-  
-  --color-brand: #ff4b82; /* Vibrant pink from logo */
-  --color-brand-dark: #cc3c68;
+
+  /* The app is pink, not coral. These match the dashboard's pink-500 family
+     (src/whisper_local/ui/impulse-dashboard) so the site and the product agree. */
+  --color-brand: #f6339a;
+  --color-brand-dark: #e60076;
+  --color-brand-light: #fb64b6;
   --color-surface: #0a0a0a;
   --color-surface-muted: #1a1a1a;
 }
@@ -26,9 +29,22 @@
 }
 
 .glow-pink {
-  box-shadow: 0 0 20px rgba(255, 75, 130, 0.3);
+  box-shadow: 0 0 20px rgba(246, 51, 154, 0.3);
 }
 
 .text-gradient {
   @apply bg-clip-text text-transparent bg-gradient-to-r from-white to-white/50;
+}
+
+/* Text caret in the hero demo */
+@keyframes caret {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+.caret {
+  animation: caret 1s steps(1) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .caret { animation: none; }
 }

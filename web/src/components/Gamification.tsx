@@ -44,20 +44,30 @@ export function Gamification() {
           <div className="glass rounded-[40px] p-8 aspect-square flex flex-col items-center justify-center text-center relative overflow-hidden">
             <div className="absolute inset-0 bg-gradient-to-br from-brand/10 to-blue-500/10 -z-10" />
             
-            <motion.div
-              animate={{ 
-                scale: [1, 1.05, 1],
-                rotate: [0, 5, -5, 0]
-              }}
-              transition={{ duration: 4, repeat: Infinity }}
-              className="w-48 h-48 rounded-full border-4 border-brand/20 flex items-center justify-center mb-8 relative"
-            >
-              <div className="absolute inset-0 border-4 border-brand rounded-full border-t-transparent animate-spin" style={{ animationDuration: '3s' }} />
-              <div className="text-center">
+            <div className="w-48 h-48 relative mb-8">
+              <svg viewBox="0 0 100 100" className="absolute inset-0 -rotate-90" aria-hidden>
+                <circle cx="50" cy="50" r="45" fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="5" />
+                <motion.circle
+                  cx="50"
+                  cy="50"
+                  r="45"
+                  fill="none"
+                  stroke="var(--color-brand)"
+                  strokeWidth="5"
+                  strokeLinecap="round"
+                  pathLength={1}
+                  strokeDasharray="1"
+                  initial={{ strokeDashoffset: 1 }}
+                  whileInView={{ strokeDashoffset: 0.25 }}
+                  viewport={{ once: true }}
+                  transition={{ duration: 1.4, ease: 'easeOut' }}
+                />
+              </svg>
+              <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
                 <span className="block text-5xl font-display font-bold">842</span>
                 <span className="text-white/40 uppercase tracking-widest text-xs font-bold">Words Today</span>
               </div>
-            </motion.div>
+            </div>
 
             <h3 className="text-2xl font-bold mb-2">Level 24 Achieved</h3>
             <p className="text-white/60 mb-8">1,864 words spoken today.</p>
@@ -78,16 +88,16 @@ export function Gamification() {
           
           {/* Floating Badges */}
           <motion.div
-            animate={{ y: [0, -10, 0] }}
-            transition={{ duration: 3, repeat: Infinity }}
+            animate={{ y: [0, -6, 0] }}
+            transition={{ duration: 6, repeat: Infinity, ease: 'easeInOut' }}
             className="absolute -top-6 -right-6 glass p-4 rounded-2xl shadow-2xl border-white/10"
           >
             <Zap className="w-6 h-6 text-brand" />
           </motion.div>
           
           <motion.div
-            animate={{ y: [0, 10, 0] }}
-            transition={{ duration: 4, repeat: Infinity, delay: 0.5 }}
+            animate={{ y: [0, 6, 0] }}
+            transition={{ duration: 7, repeat: Infinity, ease: 'easeInOut', delay: 0.5 }}
             className="absolute -bottom-6 -left-6 glass p-4 rounded-2xl shadow-2xl border-white/10"
           >
             <Star className="w-6 h-6 text-yellow-500" />

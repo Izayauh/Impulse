@@ -50,7 +50,7 @@ export default function App() {
       <div className="fixed bottom-6 left-6 right-6 z-50 md:hidden animate-in slide-in-from-bottom-10 fade-in duration-500">
         <a
           href="#pricing"
-          className="w-full bg-brand/90 backdrop-blur-md text-white px-6 py-4 rounded-2xl font-bold shadow-[0_0_30px_rgba(233,30,99,0.3)] border border-white/10 flex items-center justify-center gap-2 active:scale-95 transition-transform"
+          className="w-full bg-brand/90 backdrop-blur-md text-white px-6 py-4 rounded-2xl font-bold shadow-[0_0_30px_rgba(246,51,154,0.3)] border border-white/10 flex items-center justify-center gap-2 active:scale-95 transition-transform"
         >
           Get Impulse &middot; {PRICE}
         </a>
