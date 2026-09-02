@@ -7,7 +7,9 @@ Handles hotkey, vocabulary, and snippets as sub-domains.
 from __future__ import annotations
 
 from typing import Any, Dict, List
+from urllib import request
 
+from whisper_local.config import APP_VERSION
 from whisper_local.settings_manager import SettingsManager
 from whisper_local.hotkey_settings import (
     load_hotkey,
@@ -54,6 +56,29 @@ class SettingsController:
     def save(self, data: Dict[str, Any]) -> Dict[str, Any]:
         ok = self._mgr.update_many(data)
         return {"ok": ok, "settings": self._mgr.get_all()}
+
+    # -- settings page helpers ---------------------------------------------
+
+    def get_app_version(self) -> str:
+        """Version string for the About row on the Settings page."""
+        return APP_VERSION
+
+    def check_ollama(self, timeout_sec: float = 0.5) -> bool:
+        """True when the stored Ollama endpoint answers GET /api/tags.
+
+        The Settings page calls this once when it opens and hides the
+        stylization rows when it returns False, so the probe is short: a
+        half-second budget, any failure reads as unreachable.
+        """
+        endpoint = str(self._mgr.get_all().get("ollama_endpoint") or "").strip().rstrip("/")
+        if not endpoint:
+            return False
+        try:
+            req = request.Request(f"{endpoint}/api/tags", method="GET")
+            with request.urlopen(req, timeout=float(timeout_sec)):
+                return True
+        except Exception:
+            return False
 
     # -- hotkey -------------------------------------------------------------
 

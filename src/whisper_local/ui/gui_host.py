@@ -415,6 +415,12 @@ class AppApi:
             return self.set_model_mode(str(value or "auto"))
         return self.settings.update(key, value)
 
+    def get_app_version(self) -> str:
+        return self.settings.get_app_version()
+
+    def check_ollama(self) -> bool:
+        return self.settings.check_ollama()
+
     def get_vocabulary(self) -> List[str]:
         return self.settings.get_vocabulary()
 

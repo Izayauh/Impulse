@@ -11,15 +11,13 @@
 
 <body>
   <div id="toast-container"></div>
-  <div id="paywall-overlay"
-    style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 10000; align-items: center; justify-content: center;">
-    <div class="card" style="width: 400px; text-align: center; padding: 32px;">
+  <div id="paywall-overlay" class="paywall" style="display: none;">
+    <div class="card paywall-card">
       <h2>Activation Required</h2>
-      <p style="margin: 16px 0; color: var(--text-secondary);">Please enter your license key to unlock Impulse.</p>
-      <input type="text" id="paywall-key" placeholder="License Key"
-        style="width: 100%; margin-bottom: 16px; padding: 12px; background: var(--bg-crust); color: var(--text-primary); border: 1px solid var(--border-subtle); border-radius: 8px;">
-      <button class="primary-btn" onclick="activateFromPaywall()" style="width: 100%;">Activate License</button>
-      <p id="paywall-error" style="color: var(--accent-error); margin-top: 12px; font-size: 0.9em; display: none;"></p>
+      <p>Please enter your license key to unlock Impulse.</p>
+      <input type="text" id="paywall-key" class="field" placeholder="License Key" autocomplete="off" spellcheck="false">
+      <button class="btn primary" onclick="activateFromPaywall()">Activate License</button>
+      <p id="paywall-error" class="paywall-error" style="display: none;"></p>
     </div>
   </div>
 
@@ -88,25 +86,6 @@
     </main>
   </div>
 
-  <div id="settings-modal" class="settings-modal" onclick="handleModalBackdrop(event)">
-    <div class="settings-dialog" role="dialog" aria-modal="true" aria-labelledby="settings-title">
-      <div class="settings-head">
-        <h2 id="settings-title">Settings</h2>
-        <button class="close-btn" onclick="closeSettings()" aria-label="Close settings" title="Close settings">×</button>
-      </div>
-      <div class="settings-body">
-        <aside class="settings-nav">
-          <button id="settings-nav-general" onclick="setSettingsTab('general')">General</button>
-          <button id="settings-nav-audio" onclick="setSettingsTab('audio')">Audio</button>
-          <button id="settings-nav-models" onclick="setSettingsTab('models')">Models</button>
-          <button id="settings-nav-data" onclick="setSettingsTab('data')">Data</button>
-          <button id="settings-nav-license" onclick="setSettingsTab('license')">License</button>
-        </aside>
-        <section id="settings-panel" class="settings-panel"></section>
-      </div>
-    </div>
-  </div>
-
   <script>
     let currentView = 'home';
     let settingsTab = 'general';
@@ -126,6 +105,13 @@
     let hotkeyRecording = false;
     let hotkeyCapturePressed = new Set();
     let hotkeyCaptureDraft = [];
+    // Settings page state. ollamaReachable gates the stylization rows and is
+    // probed once each time the view opens; licenseEditingForKey is the key
+    // the Change button was pressed for, so a successful activation (which
+    // changes the key) drops the field on its own.
+    let ollamaReachable = false;
+    let appVersion = '';
+    let licenseEditingForKey = null;
 
     let licenseState = { active: false, is_valid: false, key: null, reason: null, message: null, expires_at: null };
 
@@ -263,6 +249,8 @@
           getSnippets: () => invoke(a => a.get_snippets()),
           addSnippet: (t, r) => invoke(a => a.add_snippet(t, r)),
           deleteSnippet: (id) => invoke(a => a.delete_snippet(id)),
+          checkOllama: () => invoke(a => a.check_ollama()),
+          getAppVersion: () => invoke(a => a.get_app_version()),
         },
 
         transcription: {
@@ -342,7 +330,7 @@
     }
 
     function updateNav() {
-      ['home', 'snippets', 'dictionary'].forEach((v) => {
+      ['home', 'snippets', 'dictionary', 'settings'].forEach((v) => {
         const b = document.getElementById('nav-' + v);
         if (!b) return;
         b.classList.toggle('active', v === currentView);
@@ -362,12 +350,16 @@
       if (views.includes(currentView)) scheduleRender();
     }
 
-    function isModelsSettingsVisible() {
-      const modal = document.getElementById('settings-modal');
-      return Boolean(modal && modal.classList.contains('is-open') && settingsTab === 'models');
-    }
+    function isSettingsTabVisible(tab) { return currentView === 'settings' && settingsTab === tab; }
+    function isModelsSettingsVisible() { return isSettingsTabVisible('models'); }
 
-    function switchView(v) { currentView = v; scheduleRender(); if (v === 'dictionary') loadVocabularyFromPython(); if (v === 'snippets') loadSnippetsFromPython(); }
+    function switchView(v) {
+      currentView = v;
+      scheduleRender();
+      if (v === 'dictionary') loadVocabularyFromPython();
+      if (v === 'snippets') loadSnippetsFromPython();
+      if (v === 'settings') { loadOllamaReachability(); loadAppVersion(); }
+    }
 
     // ================================================================
     // Home view. Layout and values lifted from
@@ -607,110 +599,208 @@
       const content = document.getElementById('tab-content');
       if (!content) return;
       const y = content.scrollTop;
-      content.innerHTML = currentView === 'snippets' ? renderSnippets() : currentView === 'dictionary' ? renderDictionary() : renderHome();
+      content.innerHTML = currentView === 'snippets' ? renderSnippets()
+        : currentView === 'dictionary' ? renderDictionary()
+        : currentView === 'settings' ? renderSettings()
+        : renderHome();
       updateSidebar();
       updateNav();
       content.scrollTop = y;
     }
 
-    function renderSettingsPanel() {
-      ['general', 'audio', 'models', 'data', 'license'].forEach((t) => { const b = document.getElementById('settings-nav-' + t); if (b) b.classList.toggle('active', settingsTab === t); });
-      const panel = document.getElementById('settings-panel');
-      if (!panel) return;
-      if (settingsTab === 'general') {
-        panel.innerHTML = `
-      <h3>General</h3>
-      <div class="settings-row">
-        <div><h4>Launch Behavior</h4><p>Choose startup behavior.</p></div>
-        <select onchange="updateSetting('launchBehavior', this.value)">
-          <option value="start_minimized" ${settingsState.launchBehavior === 'start_minimized' ? 'selected' : ''}>Start minimized</option>
-          <option value="open_dashboard" ${settingsState.launchBehavior === 'open_dashboard' ? 'selected' : ''}>Open dashboard</option>
-        </select>
-      </div>
-      <div class="settings-row">
-        <div><h4>Appearance</h4><p>System follows your Windows light or dark setting.</p></div>
-        <select onchange="updateSetting('theme', this.value)">
-          <option value="system" ${settingsState.theme === 'system' ? 'selected' : ''}>System</option>
-          <option value="dark" ${settingsState.theme === 'dark' ? 'selected' : ''}>Dark</option>
-          <option value="light" ${settingsState.theme === 'light' ? 'selected' : ''}>Light</option>
-        </select>
-      </div>
-      <div class="settings-row">
-        <div><h4>Record Shortcut</h4><p>Press and hold this combo to start dictation.</p></div>
-        <div class="hotkey-control">
-          <input id="hotkey-record-input" class="hotkey-input" type="text" readonly value="${esc(hotkeyDisplay(settingsState.hotkey))}">
-          <button class="primary-btn hotkey-record-btn ${hotkeyRecording ? 'is-recording' : ''}" onclick="toggleHotkeyRecording()">${hotkeyRecording ? 'Press keys...' : 'Record Shortcut'}</button>
-        </div>
-      </div>
-      <div class="settings-row">
-        <div><h4>Command Mode</h4><p>Edit with voice commands.</p></div>
-        <label class="switch"><input type="checkbox" ${settingsState.commandMode ? 'checked' : ''} onchange="toggleSetting('commandMode')"><span></span></label>
-      </div>
-      <div class="settings-row">
-        <div><h4>Auto-copy transcript</h4><p>Copy latest output automatically.</p></div>
-        <label class="switch"><input type="checkbox" ${settingsState.autoCopy ? 'checked' : ''} onchange="toggleSetting('autoCopy')"><span></span></label>
-      </div>
-      <div class="settings-row">
-        <div><h4>Stylization Profile</h4><p>Clean: fillers removed, human text. Polished: light grammar fix via Ollama. (Ctrl+Win+Shift to cycle)</p></div>
-        <select onchange="updateSetting('stylizationProfile', this.value)">
-          ${['off', 'clean', 'polished'].map(p => '<option value="' + p + '"' + (settingsState.stylizationProfile === p ? ' selected' : '') + '>' + p.charAt(0).toUpperCase() + p.slice(1) + '</option>').join('')}
-        </select>
-      </div>
-      <div class="settings-row">
-        <div><h4>Ollama Model</h4><p>Model used for stylization.</p></div>
-        <input type="text" value="${esc(settingsState.ollamaModel)}" onchange="updateSetting('ollamaModel', this.value)" style="width:160px;background:var(--bg-secondary);color:var(--text-primary);border:1px solid var(--border);border-radius:6px;padding:4px 8px;">
-      </div>
-      <div class="settings-row">
-        <div><h4>Ollama Endpoint</h4><p>Base URL for Ollama API.</p></div>
-        <input type="text" value="${esc(settingsState.ollamaEndpoint)}" onchange="updateSetting('ollamaEndpoint', this.value)" style="width:220px;background:var(--bg-secondary);color:var(--text-primary);border:1px solid var(--border);border-radius:6px;padding:4px 8px;">
+    // ================================================================
+    // Settings view. Markup and control values lifted from
+    // docs/design/canvas-2026-09/SettingsPage.dc.html: page title with
+    // the tab row at its right, a .card of .setting rows, an uppercase
+    // section label before the Audio card. Model, Data and License reuse
+    // the same row pattern. Audio lives inside General as in the canvas.
+    // ================================================================
+
+    const SETTINGS_TABS = [
+      { id: 'general', label: 'General' },
+      { id: 'models', label: 'Model' },
+      { id: 'data', label: 'Data' },
+      { id: 'license', label: 'License' }
+    ];
+    const MODEL_OPTIONS = [
+      { id: 'auto', title: 'Auto', desc: 'Picks the best model for this machine (recommended).' },
+      { id: 'turbo', title: 'Turbo', desc: 'Highest accuracy. Needs a GPU to stay fast.' },
+      { id: 'base', title: 'Base', desc: 'Fast and light. Best on machines without a GPU.' }
+    ];
+    // Real range inputs; min/max drive the accent fill, text formats the readout.
+    const SLIDERS = {
+      vadSensitivity: { min: 1, max: 100, step: 1, text: (v) => String(Math.round(v)) },
+      vadSilenceMs: { min: 250, max: 2000, step: 50, text: (v) => (Number(v) / 1000).toFixed(1) + 's' }
+    };
+    const CHEVRON_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg>';
+
+    const settingRow = (name, help, control) => `<div class="setting">
+        <div class="setting-text"><div class="name">${esc(name)}</div>${help ? `<div class="help">${esc(help)}</div>` : ''}</div>
+        ${control ? `<div class="setting-control">${control}</div>` : ''}
       </div>`;
-        return;
-      }
-      if (settingsTab === 'audio') {
-        panel.innerHTML = `<h3>Audio</h3><div class="settings-row"><div><h4>Microphone Input</h4><p>Select the microphone source.</p></div><select onchange="updateSetting('microphone', this.value)">${microphones.map((m) => `<option value="${esc(m)}" ${settingsState.microphone === m ? 'selected' : ''}>${esc(m)}</option>`).join('')}</select></div><div class="settings-row slider-row"><div><h4>VAD Sensitivity</h4><p>Higher catches quieter speech.</p></div><div class="slider-wrap"><input type="range" min="1" max="100" value="${settingsState.vadSensitivity}" oninput="updateSetting('vadSensitivity', this.value, true)"><span id="value-vadSensitivity">${settingsState.vadSensitivity}</span></div></div><div class="settings-row slider-row"><div><h4>Silence Timeout (ms)</h4><p>Silence needed to stop capture.</p></div><div class="slider-wrap"><input type="range" min="250" max="2000" step="50" value="${settingsState.vadSilenceMs}" oninput="updateSetting('vadSilenceMs', this.value, true)"><span id="value-vadSilenceMs">${settingsState.vadSilenceMs}</span></div></div>`;
-        return;
-      }
-      if (settingsTab === 'models') {
-        const rows = [
-          { id: 'auto', title: 'Auto', desc: 'Picks the best model for this machine (recommended).' },
-          { id: 'turbo', title: 'Turbo', desc: 'Highest accuracy. Needs a GPU to stay fast.' },
-          { id: 'base', title: 'Base', desc: 'Fast and light. Best on machines without a GPU.' }
-        ];
-        const grid = rows.map((m) => `<button class="model-card ${settingsState.modelMode === m.id ? 'active' : ''}" onclick="selectModel('${m.id}')"><h4>${m.title}</h4><p>${m.desc}</p>${m.id === 'auto' ? `<span class="model-meta">Current: ${modelLabel(settingsState.activeModel)}${settingsState.vramTotalGb > 0 ? ` (${settingsState.vramTotalGb.toFixed(1)} GB VRAM)` : ''}</span>` : ''}</button>`).join('');
-        panel.innerHTML = `<h3>Models</h3><div class="model-grid model-grid-4">${grid}</div>`;
-        return;
-      }
-      if (settingsTab === 'data') {
-        panel.innerHTML = `<h3>Data</h3><div class="settings-row"><div><h4>Export History</h4><p>Download transcripts and snippets.</p></div><button class="primary-btn" onclick="exportHistory()">Export History</button></div><div class="settings-row"><div><h4>Share Telemetry</h4><p>Opt in to anonymous crash/error diagnostics and setup-progress events (install, activation, first dictation). No audio or transcript content is ever sent.</p></div><label class="switch"><input type="checkbox" ${settingsState.telemetryEnabled ? 'checked' : ''} onchange="toggleSetting('telemetryEnabled')"><span></span></label></div><div class="settings-row"><div><h4>Snapshot</h4><p>${Number(stats.totalWords || 0).toLocaleString()} total words, ${(stats.recentTranscripts || []).length} recent transcripts.</p></div></div>`;
-        return;
-      }
-      if (settingsTab === 'license') {
-        const betaMessage = betaExpiryMessage();
-        const expiryRow = betaMessage
-          ? `<div class="settings-row"><div><h4>Beta Window</h4><p style="color:${licenseState.is_valid ? 'var(--accent-warning)' : 'var(--text-secondary)'}">${esc(betaMessage)}</p></div></div>`
-          : '';
-        const expiryStamp = licenseState.expires_at
-          ? `<div class="settings-row"><div><h4>Expires At</h4><p>${esc(licenseState.expires_at)}</p></div></div>`
-          : '';
-        if (licenseState.is_valid) {
-          panel.innerHTML = `<h3>License</h3><div class="settings-row"><div><h4>Status</h4><p style="color:var(--accent-success)">Active and Valid</p><p style="color:var(--text-secondary);margin-top:4px;">${esc(licenseState.message || 'License validated and dictation is unlocked.')}</p></div></div>${expiryRow}${expiryStamp}<div class="settings-row"><div><h4>License Key</h4><p>${licenseState.key || 'Hidden'}</p></div><button class="primary-btn" onclick="deactivateLicense()">Deactivate</button></div>`;
-        } else {
-          panel.innerHTML = `<h3>License</h3><div class="settings-row"><div><h4>Status</h4><p style="color:var(--accent-error)">Inactive / Unlicensed</p><p style="color:var(--text-secondary);margin-top:4px;">${esc(licenseState.message || 'Enter your beta key to unlock dictation.')}</p></div></div>${expiryRow}${expiryStamp}<div class="settings-row"><div><h4>Activate</h4><p>Enter your license key to unlock.</p></div><div style="display:flex;gap:8px;flex-wrap:wrap;"><input type="text" id="settings-license-key" placeholder="License Key..." class="hotkey-input" aria-label="License key"><button class="primary-btn" onclick="activateLicenseSettings()">Activate</button></div></div>`;
-        }
-        return;
-      }
+    const toggleControl = (key, on, label) => `<button type="button" class="toggle${on ? ' on' : ''}" role="switch" aria-checked="${on ? 'true' : 'false'}" aria-label="${esc(label)}" onclick="toggleSetting('${key}')"></button>`;
+    const segControl = (key, options, current, label) => `<span class="seg" role="radiogroup" aria-label="${esc(label)}">${options.map((o) => `<button type="button" class="${o.value === current ? 'on' : ''}" role="radio" aria-checked="${o.value === current ? 'true' : 'false'}" onclick="updateSetting('${key}', '${esc(o.value)}')">${esc(o.label)}</button>`).join('')}</span>`;
+    const selectControl = (key, options, current, label) => {
+      const found = options.find((o) => o.value === current);
+      return `<span class="select"><span class="select-label">${esc(found ? found.label : current)}</span>${CHEVRON_ICON}<select aria-label="${esc(label)}" onchange="updateSetting('${key}', this.value)">${options.map((o) => `<option value="${esc(o.value)}" ${o.value === current ? 'selected' : ''}>${esc(o.label)}</option>`).join('')}</select></span>`;
+    };
+    // The thumb travels (track - 14 px), so the fill ends under its centre.
+    const sliderFill = (key, value) => {
+      const s = SLIDERS[key];
+      const pct = Math.max(0, Math.min(1, (Number(value) - s.min) / (s.max - s.min)));
+      return `calc((100% - 14px) * ${pct.toFixed(4)} + 7px)`;
+    };
+    const sliderControl = (key, label) => {
+      const s = SLIDERS[key];
+      const value = Number(settingsState[key]);
+      return `<span class="track"><i id="fill-${key}" style="width:${sliderFill(key, value)};"></i><input type="range" min="${s.min}" max="${s.max}" step="${s.step}" value="${value}" aria-label="${esc(label)}" oninput="updateSetting('${key}', this.value, true)"></span><span class="mono track-value" id="value-${key}">${esc(s.text(value))}</span>`;
+    };
+
+    function renderGeneralTab() {
+      const recordKeys = hotkeyDisplay(settingsState.hotkey).split(' + ').filter(Boolean);
+      const draftKeys = hotkeyRecording ? hotkeyDisplay(hotkeyCaptureDraft.join('+')).split(' + ').filter(Boolean) : [];
+      const recordControl = `<span class="keys" id="hotkey-record-keys">${kbdCaps(draftKeys.length ? draftKeys : recordKeys)}</span><button class="btn${hotkeyRecording ? ' is-recording' : ''}" onclick="toggleHotkeyRecording()">${hotkeyRecording ? 'Press keys...' : 'Change'}</button>`;
+      const micOptions = microphones.map((m) => ({ value: m, label: m }));
+      if (!micOptions.some((o) => o.value === settingsState.microphone)) micOptions.unshift({ value: settingsState.microphone, label: settingsState.microphone });
+      const themeOptions = [{ value: 'system', label: 'System' }, { value: 'dark', label: 'Dark' }, { value: 'light', label: 'Light' }];
+
+      const general = `<div class="card settings-card">
+        ${settingRow('Record shortcut', 'Hold to dictate. Release to paste.', recordControl)}
+        ${settingRow('Hands-free shortcut', 'Tap once to start, tap again to stop.', `<span class="keys">${kbdCaps([...recordKeys, 'Alt'])}</span>`)}
+        ${settingRow('Start with Windows', 'Launch minimized to the tray at sign-in.', toggleControl('launchBehavior', settingsState.launchBehavior === 'start_minimized', 'Start with Windows'))}
+        ${settingRow('Copy each dictation to the clipboard', 'In addition to pasting it where the cursor is.', toggleControl('autoCopy', settingsState.autoCopy, 'Copy each dictation to the clipboard'))}
+        ${settingRow('Command mode', 'Edit and interact with voice commands.', toggleControl('commandMode', settingsState.commandMode, 'Command mode'))}
+        ${settingRow('Appearance', 'Follows Windows by default.', segControl('theme', themeOptions, normalizeTheme(settingsState.theme), 'Appearance'))}
+      </div>`;
+
+      const audio = `<div class="section-label">Audio</div>
+      <div class="card settings-card">
+        ${settingRow('Microphone', 'Which input Impulse listens to.', selectControl('microphone', micOptions, settingsState.microphone, 'Microphone'))}
+        ${settingRow('Sensitivity', 'Higher picks up quieter speech.', sliderControl('vadSensitivity', 'Sensitivity'))}
+        ${settingRow('Stop after silence', 'How long a pause ends a hands-free take.', sliderControl('vadSilenceMs', 'Stop after silence'))}
+      </div>`;
+
+      // Only when the stored endpoint answered /api/tags on open.
+      const stylization = !ollamaReachable ? '' : `<div class="section-label">Stylization</div>
+      <div class="card settings-card">
+        ${settingRow('Stylization profile', 'Clean removes fillers. Polished adds a light grammar pass through Ollama. Ctrl + Win + Shift cycles.', selectControl('stylizationProfile', [{ value: 'off', label: 'Off' }, { value: 'clean', label: 'Clean' }, { value: 'polished', label: 'Polished' }], settingsState.stylizationProfile, 'Stylization profile'))}
+        ${settingRow('Ollama model', 'Model used for the polished profile.', `<input type="text" class="field" style="width:160px;" value="${esc(settingsState.ollamaModel)}" aria-label="Ollama model" onchange="updateSetting('ollamaModel', this.value)">`)}
+        ${settingRow('Ollama endpoint', 'Base URL for the Ollama API.', `<input type="text" class="field" style="width:220px;" value="${esc(settingsState.ollamaEndpoint)}" aria-label="Ollama endpoint" onchange="updateSetting('ollamaEndpoint', this.value)">`)}
+      </div>`;
+
+      return general + audio + stylization;
     }
 
-    function setSettingsTab(t) { settingsTab = t; renderSettingsPanel(); }
+    function renderModelsTab() {
+      const vram = settingsState.vramTotalGb > 0 ? `, ${settingsState.vramTotalGb.toFixed(1)} GB VRAM` : '';
+      const current = `Currently ${modelLabel(settingsState.activeModel).toLowerCase()}${vram}`;
+      const rows = MODEL_OPTIONS.map((m) => {
+        const on = settingsState.modelMode === m.id;
+        return `<button type="button" class="setting choice${on ? ' on' : ''}" role="radio" aria-checked="${on ? 'true' : 'false'}" onclick="selectModel('${m.id}')">
+          <div class="setting-text"><div class="name">${esc(m.title)}</div><div class="help">${esc(m.desc)}</div></div>
+          <span class="check" aria-hidden="true"></span>
+        </button>`;
+      }).join('');
+      return `<div class="settings-current">${esc(current)}</div><div class="card settings-card" role="radiogroup" aria-label="Model">${rows}</div>`;
+    }
+
+    function renderDataTab() {
+      const snapshot = `${fmtInt(stats.totalWords)} total words, ${(stats.recentTranscripts || []).length} recent transcripts.`;
+      return `<div class="card settings-card">
+        ${settingRow('Export history', 'Transcripts and snippets as a CSV.', `<button class="btn" onclick="exportHistory()">Export</button>`)}
+        ${settingRow('Share telemetry', 'Opt in to anonymous crash/error diagnostics and setup-progress events (install, activation, first dictation). No audio or transcript content is ever sent.', toggleControl('telemetryEnabled', settingsState.telemetryEnabled, 'Share telemetry'))}
+        ${settingRow('Snapshot', snapshot, '')}
+      </div>`;
+    }
+
+    function renderLicenseTab() {
+      const valid = Boolean(licenseState.is_valid);
+      const betaMessage = betaExpiryMessage();
+      const statusHelp = licenseState.message || (valid ? 'License validated and dictation is unlocked.' : 'Enter your license key to unlock dictation.');
+      const status = `<div class="card settings-card">
+        <div class="setting"><div class="setting-text"><div class="name ${valid ? 'status-on' : 'status-off'}">${valid ? 'Active' : 'Not active'}</div><div class="help">${esc(statusHelp)}</div></div></div>
+        ${betaMessage ? settingRow('Beta window', betaMessage, '') : ''}
+        ${licenseState.expires_at ? settingRow('Expires at', String(licenseState.expires_at), '') : ''}
+      </div>`;
+
+      const editing = valid && licenseEditingForKey !== null && licenseEditingForKey === licenseState.key;
+      const keyField = `<input type="text" id="settings-license-key" class="field" placeholder="License key" aria-label="License key" autocomplete="off" spellcheck="false"><button class="btn primary" onclick="activateLicenseSettings()">Activate</button>`;
+      let keyRow;
+      if (!valid) {
+        keyRow = settingRow('License key', 'Enter your license key to unlock.', keyField);
+      } else if (editing) {
+        keyRow = settingRow('License key', 'Enter a new key to replace the current one.', `${keyField}<button class="btn" onclick="setLicenseKeyEditing(false)">Cancel</button>`);
+      } else {
+        keyRow = settingRow('License key', String(licenseState.key || 'Hidden'), `<button class="btn" onclick="setLicenseKeyEditing(true)">Change</button><button class="btn" onclick="deactivateLicense()">Deactivate</button>`);
+      }
+      const key = `<div class="card settings-card">${keyRow}</div>`;
+      const about = `<div class="card settings-card">${settingRow('About Impulse', appVersion ? `Version ${appVersion}` : '', '')}</div>`;
+      return status + key + about;
+    }
+
+    function renderSettings() {
+      const tabs = SETTINGS_TABS.map((t) => `<button class="tab${settingsTab === t.id ? ' active' : ''}" onclick="setSettingsTab('${t.id}')">${esc(t.label)}</button>`).join('');
+      const body = settingsTab === 'models' ? renderModelsTab()
+        : settingsTab === 'data' ? renderDataTab()
+        : settingsTab === 'license' ? renderLicenseTab()
+        : renderGeneralTab();
+      return `
+    <section class="settings-view">
+      <header class="settings-head">
+        <h2>Settings</h2>
+        <div class="tabs">${tabs}</div>
+      </header>
+      ${body}
+    </section>`;
+    }
+
+    // Re-renders the Settings view when it is on screen. Kept under the
+    // old name so every caller (model, hotkey and license refreshes) is
+    // unchanged.
+    function renderSettingsPanel() { if (currentView === 'settings') scheduleRender(); }
+
+    function setLicenseKeyEditing(on) {
+      licenseEditingForKey = on ? licenseState.key : null;
+      renderSettingsPanel();
+    }
+
+    async function loadOllamaReachability() {
+      const reachable = Bridge.ready() ? Boolean(await Bridge.settings.checkOllama()) : false;
+      if (reachable === ollamaReachable) return;
+      ollamaReachable = reachable;
+      renderSettingsPanel();
+    }
+
+    async function loadAppVersion() {
+      if (appVersion) return;
+      const v = await Bridge.settings.getAppVersion();
+      if (!v) return;
+      appVersion = String(v);
+      renderSettingsPanel();
+    }
+
+    function setSettingsTab(t) { settingsTab = t; setHotkeyRecording(false); renderSettingsPanel(); }
+    // Sliders (n = true) update their fill and readout in place: a re-render
+    // mid-drag would replace the input under the pointer.
     function updateSetting(k, v, n = false) {
       settingsState[k] = n ? Number(v) : v;
-      const e = document.getElementById('value-' + k);
-      if (e) e.textContent = String(settingsState[k]);
-      if (k === 'theme') applyTheme(settingsState[k]);
+      if (n && SLIDERS[k]) {
+        const e = document.getElementById('value-' + k);
+        if (e) e.textContent = SLIDERS[k].text(settingsState[k]);
+        const fill = document.getElementById('fill-' + k);
+        if (fill) fill.style.width = sliderFill(k, settingsState[k]);
+      } else {
+        if (k === 'theme') applyTheme(settingsState[k]);
+        renderSettingsPanel();
+      }
       persistSettingToBackend(k, settingsState[k]);
     }
+    // Start with Windows is the stored launch_behavior string: on is
+    // start_minimized, off is open_dashboard. The other toggles are booleans.
     function toggleSetting(k) {
-      settingsState[k] = !settingsState[k];
+      if (k === 'launchBehavior') settingsState.launchBehavior = settingsState.launchBehavior === 'start_minimized' ? 'open_dashboard' : 'start_minimized';
+      else settingsState[k] = !settingsState[k];
+      renderSettingsPanel();
       persistSettingToBackend(k, settingsState[k]);
     }
 
@@ -791,7 +881,7 @@
         hotkeyCapturePressed = new Set();
         hotkeyCaptureDraft = [];
       }
-      if (settingsTab === 'general') renderSettingsPanel();
+      renderSettingsPanel();
     }
 
     async function saveHotkeySetting(value) {
@@ -799,6 +889,7 @@
       if (!Bridge.ready()) {
         settingsState.hotkey = normalized || settingsState.hotkey;
         updateListeningLabel();
+        renderSettingsPanel();
         showToast('Shortcut updated');
         return true;
       }
@@ -809,6 +900,7 @@
       }
       settingsState.hotkey = String(result.hotkey || settingsState.hotkey);
       updateListeningLabel();
+      renderSettingsPanel();
       showToast('Shortcut set to ' + hotkeyDisplay(settingsState.hotkey));
       return true;
     }
@@ -842,8 +934,8 @@
       e.stopPropagation();
       hotkeyCapturePressed.add(key);
       hotkeyCaptureDraft = orderHotkeyTokens(Array.from(hotkeyCapturePressed));
-      const input = document.getElementById('hotkey-record-input');
-      if (input) input.value = hotkeyDisplay(hotkeyCaptureDraft.join('+'));
+      const keys = document.getElementById('hotkey-record-keys');
+      if (keys) keys.innerHTML = kbdCaps(hotkeyDisplay(hotkeyCaptureDraft.join('+')).split(' + ').filter(Boolean));
     }
 
     function onHotkeyCaptureKeyUp(e) {
@@ -858,23 +950,13 @@
       }
     }
 
+    // Settings is a view. This stays a named global because the sidebar row
+    // and the gui_host open_settings bridge method both address it by name.
     function openSettings() {
-      const m = document.getElementById('settings-modal');
-      if (!m) return;
-      m.classList.add('is-open');
-      document.body.classList.add('modal-open');
       settingsTab = 'general';
       setHotkeyRecording(false);
-      renderSettingsPanel();
+      switchView('settings');
     }
-    function closeSettings() {
-      const m = document.getElementById('settings-modal');
-      if (!m) return;
-      setHotkeyRecording(false);
-      m.classList.remove('is-open');
-      document.body.classList.remove('modal-open');
-    }
-    function handleModalBackdrop(e) { if (e.target && e.target.id === 'settings-modal') closeSettings(); }
 
     // Reads the add form; a successful add re-renders the view, which
     // rebuilds (and so clears) the form. Failures leave the text in place.
@@ -1060,7 +1142,7 @@
       lastHotkeyDigest = d;
       settingsState.hotkey = nextHotkey || settingsState.hotkey;
       updateListeningLabel();
-      if (settingsTab === 'general') renderSettingsPanel();
+      renderSettingsPanel();
     }
 
     async function loadSnippetsFromPython() {
@@ -1089,6 +1171,7 @@
       if (typeof s.vad_sensitivity === 'number') settingsState.vadSensitivity = s.vad_sensitivity;
       if (typeof s.vad_silence_ms === 'number') settingsState.vadSilenceMs = s.vad_silence_ms;
       if (s.stylization_profile) settingsState.stylizationProfile = s.stylization_profile;
+      if (s.ollama_model) settingsState.ollamaModel = s.ollama_model;
       if (s.ollama_endpoint) settingsState.ollamaEndpoint = s.ollama_endpoint;
       if (typeof s.telemetry_enabled === 'boolean') settingsState.telemetryEnabled = s.telemetry_enabled;
     }
@@ -1198,7 +1281,6 @@
       }
     };
 
-    window.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeSettings(); });
     window.addEventListener('keydown', onHotkeyCaptureKeyDown, true);
     window.addEventListener('keyup', onHotkeyCaptureKeyUp, true);
 
@@ -1219,7 +1301,7 @@
           const shouldPollStats = currentView === 'home' || (pollTick % 15 === 0);
           const shouldPollModels = isModelsSettingsVisible() || (pollTick % 30 === 0);
           const shouldPollVocabulary = currentView === 'dictionary' || (pollTick % 30 === 0);
-          const shouldPollHotkey = (settingsTab === 'general' && document.body.classList.contains('modal-open')) || (pollTick % 30 === 0);
+          const shouldPollHotkey = isSettingsTabVisible('general') || (pollTick % 30 === 0);
           const shouldPollSnippets = currentView === 'snippets' || (pollTick % 30 === 0);
           const shouldPollUserSettings = (pollTick % 60 === 0);
 
