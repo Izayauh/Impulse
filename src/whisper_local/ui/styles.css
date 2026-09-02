@@ -67,6 +67,8 @@
   --text: #EDEDEF;
   --text-2: #9A9AA3;
   --text-3: #8A8A93;
+  --text-body: #D6D6DA;
+  --on-accent: #FFFFFF;
 
   /* Brand */
   --accent: #FF1493;
@@ -95,6 +97,7 @@
   --control-track: #2A2A30;
   --control-track-hover: #34343B;
   --knob: #EDEDEF;
+  --knob-line: #0A0A0B;
 
   /* Type */
   --font-sans: "Geist", "Segoe UI", system-ui, sans-serif;
@@ -133,6 +136,8 @@
   --text: #18181B;
   --text-2: #5F5F68;
   --text-3: #5F5F68;
+  --text-body: #2A2A2F;
+  --on-accent: #FFFFFF;
 
   --accent: #E0117F;
   --accent-hover: #C90F72;
@@ -159,6 +164,7 @@
   --control-track: #D4D4D8;
   --control-track-hover: #C8C8CD;
   --knob: #FFFFFF;
+  --knob-line: rgba(0, 0, 0, 0.25);
 }
 
 /* Light type on a dark ground is what subpixel antialiasing handles worst;
@@ -195,8 +201,7 @@ body {
 h1,
 h2,
 h3,
-h4,
-.mini-activity-head strong {
+h4 {
   font-family: var(--font-sans);
   font-weight: 600;
   color: var(--text);
@@ -217,15 +222,6 @@ kbd,
 code {
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
-}
-
-.stat-value {
-  font-family: var(--font-mono);
-  font-variant-numeric: tabular-nums;
-  font-size: 22px;
-  line-height: 26px;
-  font-weight: 500;
-  color: var(--text);
 }
 
 .label {
@@ -290,7 +286,7 @@ textarea {
   flex: none;
   border-radius: var(--radius-control);
   background: var(--accent);
-  color: #FFFFFF;
+  color: var(--on-accent);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -320,7 +316,6 @@ textarea {
   align-items: center;
   gap: 10px;
   font-size: 13px;
-  font-weight: 500;
   transition: background-color var(--ease), color var(--ease);
 }
 
@@ -406,7 +401,7 @@ textarea {
 .btn.primary {
   background: var(--accent);
   border-color: var(--accent);
-  color: #FFFFFF;
+  color: var(--on-accent);
 }
 
 .btn.primary:hover {
@@ -524,6 +519,7 @@ textarea {
 .rec {
   position: relative;
   flex: 1;
+  min-width: 60px;
   max-width: 260px;
   height: 4px;
   border-radius: var(--radius-pill);
@@ -540,9 +536,12 @@ textarea {
 }
 
 .rec-text {
+  min-width: 0;
   color: var(--text-2);
   font-size: 12px;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .hero-divider {
@@ -584,7 +583,6 @@ textarea {
 }
 
 .stat .value .unit {
-  font-family: var(--font-sans);
   font-size: 13px;
   font-weight: 400;
   color: var(--text-2);
@@ -790,7 +788,7 @@ textarea {
 }
 
 .row .text {
-  color: var(--text);
+  color: var(--text-body);
   overflow: hidden;
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -1316,7 +1314,7 @@ textarea {
   margin-top: -5.5px;
   border-radius: var(--radius-pill);
   background: var(--knob);
-  border: 1px solid var(--bg);
+  border: 1px solid var(--knob-line);
   box-sizing: border-box;
 }
 
@@ -1335,7 +1333,7 @@ textarea {
   height: 14px;
   border-radius: var(--radius-pill);
   background: var(--knob);
-  border: 1px solid var(--bg);
+  border: 1px solid var(--knob-line);
   box-sizing: border-box;
 }
 

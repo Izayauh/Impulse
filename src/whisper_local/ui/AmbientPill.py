@@ -8,7 +8,6 @@ import queue
 import time
 from enum import Enum
 from typing import Any, Callable, Optional
-from whisper_local.settings_manager import SettingsManager
 
 # ============================================================================
 # CONFIGURATION
@@ -38,7 +37,12 @@ _SWEEP_MS = 900              # one left-to-right pass of the working sweep
 _SWEEP_SEGMENT = 0.4         # pink segment as a fraction of the line
 _PILL_PAD = 16               # inner padding for the working and landed layouts
 _SMALL_ICON = 16
+_RING_ICON = 18              # the working arc (PillStates.dc.html .ring)
+_ICON_STROKE = 2.4
 _ICON_GAP = 10
+_ACCENT = "#FF1493"          # the only brand colour; the pill is dark in both themes
+_ACCENT_HOVER = "#FF2E9F"
+_WORKING_BORDER_ALPHA = 26   # rgba(255,255,255,0.1)
 _TEXT_COLOR = "#EDEDEF"
 _MUTED_COLOR = "#9A9AA3"
 # SENSITIVITY above is a fixed multiplier tuned for consumer mics with automatic
@@ -223,22 +227,9 @@ if is_qt_available():
             self._glow = 0.0
             self._audio_level_target = 0.0
             self._audio_level_display = 0.0
-            
-            try:
-                theme_id = SettingsManager().get_setting("theme")
-            except Exception:
-                theme_id = "hot_pink"
-                
-            if theme_id == "neon_dark":
-                self._base_accent = "#bb86fc"
-                self._base_hover = "#d4b0ff"
-            elif theme_id == "midnight_green":
-                self._base_accent = "#00e676"
-                self._base_hover = "#69f0ae"
-            else:
-                self._base_accent = "#FF1493"
-                self._base_hover = "#FF69B4"
-                
+            self._base_accent = _ACCENT
+            self._base_hover = _ACCENT_HOVER
+
             self._pill_color = QtGui.QColor("#D6DCE4")
             self._base_size = QtCore.QSize(*IDLE_DIMENSIONS)
             self._last_target_size = QtCore.QSize(*IDLE_DIMENSIONS)
@@ -602,7 +593,7 @@ if is_qt_available():
             border = QtGui.QColor(self._pill_color)
             border.setAlpha(80)
             if self._state == PillState.PROCESSING:
-                border.setAlpha(120)
+                border = QtGui.QColor(255, 255, 255, _WORKING_BORDER_ALPHA)
             elif self._state == PillState.LANDED:
                 border = QtGui.QColor(self._base_accent)
                 border.setAlpha(115)
@@ -671,13 +662,13 @@ if is_qt_available():
             """Working: the bars fold into a 2 px line with a pink sweep, an arc spins where the mic was."""
             elapsed_ms = max(0.0, time.monotonic() - self._phase_started) * 1000.0
             fold = max(0.0, min(1.0, elapsed_ms / ANIMATION_SPEED_MS))
-            icon_rect = QtCore.QRectF(bounds.left() + _PILL_PAD, center_y - _SMALL_ICON / 2.0, _SMALL_ICON, _SMALL_ICON)
+            icon_rect = QtCore.QRectF(bounds.left() + _PILL_PAD, center_y - _RING_ICON / 2.0, _RING_ICON, _RING_ICON)
 
             painter.save()
             painter.translate(icon_rect.center())
             painter.rotate((elapsed_ms / _SWEEP_MS * 360.0) % 360.0)
             painter.translate(-icon_rect.center())
-            painter.setPen(QtGui.QPen(accent, 2.0, QtCore.Qt.PenStyle.SolidLine, QtCore.Qt.PenCapStyle.RoundCap))
+            painter.setPen(QtGui.QPen(accent, _ICON_STROKE, QtCore.Qt.PenStyle.SolidLine, QtCore.Qt.PenCapStyle.RoundCap))
             painter.setBrush(QtCore.Qt.BrushStyle.NoBrush)
             painter.drawArc(icon_rect.adjusted(1, 1, -1, -1), 0, 90 * 16)
             painter.restore()
@@ -724,7 +715,7 @@ if is_qt_available():
             check.moveTo(icon_rect.left() + 5 * k, icon_rect.top() + 12 * k)
             check.lineTo(icon_rect.left() + 10 * k, icon_rect.top() + 17 * k)
             check.lineTo(icon_rect.left() + 19 * k, icon_rect.top() + 7 * k)
-            painter.setPen(QtGui.QPen(accent, 2.0, QtCore.Qt.PenStyle.SolidLine, QtCore.Qt.PenCapStyle.RoundCap, QtCore.Qt.PenJoinStyle.RoundJoin))
+            painter.setPen(QtGui.QPen(accent, _ICON_STROKE, QtCore.Qt.PenStyle.SolidLine, QtCore.Qt.PenCapStyle.RoundCap, QtCore.Qt.PenJoinStyle.RoundJoin))
             painter.setBrush(QtCore.Qt.BrushStyle.NoBrush)
             painter.drawPath(check)
 
