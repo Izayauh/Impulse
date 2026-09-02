@@ -75,3 +75,6 @@ ui-ux-pro-max-skill/
 # the orphaned blobs are still fetchable, so committing it to this public repo
 # would publish a map to the leak it exists to close. Keep it local.
 docs/github-support-request.md
+
+# Local UI review captures (contain personal dictations, never commit)
+docs/UI_Screenshots/2026-09-01_review/

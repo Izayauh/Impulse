@@ -675,10 +675,10 @@ def _run_webview_dashboard() -> None:
         _api_instance = api
 
         # Impulse dashboard has a sidebar layout and needs wider window
-        win_w = 1200 if is_impulse else 420
-        win_h = 800 if is_impulse else 700
-        min_w = 900 if is_impulse else 380
-        min_h = 600 if is_impulse else 500
+        win_w = 1200 if is_impulse else 1100
+        win_h = 800 if is_impulse else 740
+        min_w = 900 if is_impulse else 900
+        min_h = 600 if is_impulse else 600
 
         window = webview.create_window(
             title="Impulse Dashboard",
