@@ -30,7 +30,19 @@ Button: 28 px tall, 6 px radius, 1 px line, background step on hover. Primary: s
 Toggle: 34 x 20, pink when on. Segmented control for Appearance. Slider: 3 px track, 14 px thumb.
 kbd caps: mono, 1 px border with a 2 px bottom edge.
 
+## Round two (memos 226 and 227, 2026-09-02)
+
+- The whole app is built around one number: words. Home leads with today's word count at 40 px Geist Mono, a record bar showing progress against the user's best day (not an XP bar), and "N dictations" beside it. Speed, time saved (labelled "estimate") and streak sit to the right in a three-column strip inside the same card. All-time words is the streak card's subline.
+- The 14-day graph carries a dashed best-day line with the label at its left end.
+- Recent dictations stay on Home: copying an earlier take back out is the reason Home exists.
+- Pill (`AmbientPill.py`): four moments. Listening: mic plus level bars, as today. Working: bars fold into a single line with a pink sweep and a spinning arc, no "processing" text. Landed: for one second show "+N" words and today's total ("+42  1,326 today"), then hide. Idle: nothing on screen. Never persistent.
+- Cut on purpose: network lights and byte counters, per-app formatting, per-dictation timers, search, speech analysis, phone messaging. Sound cue stays, minimal.
+
+The exact markup and values are in `docs/design/canvas-2026-09/*.dc.html` (Main = Home dark, LightHome, SettingsPage, PillStates). Lift values from those files, never from memory.
+
 ## Implementation split (one agent each)
+
+Order matters because lanes 1 to 6 all edit `dashboard.html` and `styles.css`: run 6, then 1, then 2, then 3, then 4, then 5, then 7, each on the `dashboard-redesign` branch with its own commit. Lane 8 touches only the pill and runs in parallel from the start.
 
 1. Tokens and type: replace `styles.css` `:root` themes with the two above, remove every gradient, blur, shadow and the body noise overlay, load Geist and Geist Mono.
 2. Shell: sidebar, nav, listening indicator, remove the toolbar row and window buttons, remove the mobile breakpoint's horizontal nav (window is 1100 px now).
@@ -39,3 +51,4 @@ kbd caps: mono, 1 px border with a 2 px bottom edge.
 5. Settings page with tabs, replacing the modal; hide Ollama rows when unreachable.
 6. Removal: achievements and challenges views, their nav entries, XP and level rendering, the related polling.
 7. QA: relaunch, screenshot every view at 1100 x 740 in both themes, compare against the canvas, fix drift.
+8. Pill: the four moments above in `AmbientPill.py`, with the landed moment fed by the transcript word count and today's total from the stats controller.
