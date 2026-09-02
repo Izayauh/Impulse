@@ -441,6 +441,16 @@ class AppApi:
     # These stay at root until a dedicated controller absorbs them.
     # ======================================================================
 
+    @staticmethod
+    def _clock_label(timestamp: str) -> str:
+        """'2026-09-01T16:12:33.123456' -> '4:12 PM'. Anything unparseable -> 'recent'."""
+        try:
+            stamp = datetime.fromisoformat(str(timestamp))
+        except (TypeError, ValueError):
+            return "recent"
+        hour = stamp.hour % 12 or 12
+        return f"{hour}:{stamp.minute:02d} {'PM' if stamp.hour >= 12 else 'AM'}"
+
     def _format_recent_transcripts(self, raw_stats: Dict[str, Any]) -> List[Dict[str, Any]]:
         recent = raw_stats.get("recent_transcripts", [])
         formatted: List[Dict[str, Any]] = []
@@ -454,7 +464,7 @@ class AppApi:
                         "text": preview,
                         "fullText": full_text,
                         "words": item.get("word_count", len(full_text.split())),
-                        "time": timestamp[-5:] if timestamp else "recent",
+                        "time": self._clock_label(timestamp) if timestamp else "recent",
                     }
                 )
             elif isinstance(item, str):

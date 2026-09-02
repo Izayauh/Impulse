@@ -117,9 +117,16 @@ class StatsController:
     # -- read API (exposed to JS) -------------------------------------------
 
     def get_chart_data(self, days: int = 7) -> Dict[str, Any]:
-        """Return pre-aggregated data for Chart.js (Research §5.3)."""
+        """Words per day for the last ``days`` days, oldest first, today last.
+
+        Every day is present (zero-filled), so the Home graph always draws
+        the full window. ``dates`` carries the ISO date for each point so the
+        axis can print "Aug 19" style labels; ``labels`` keeps the weekday
+        names the older Chart.js shape used.
+        """
+        days = max(1, int(days or 1))
         conn = self._connect()
-        cutoff = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
+        cutoff = (datetime.now() - timedelta(days=days - 1)).strftime("%Y-%m-%d")
         rows = conn.execute(
             "SELECT date, SUM(word_count) as total_words "
             "FROM transcription_logs "
@@ -130,19 +137,63 @@ class StatsController:
         ).fetchall()
         conn.close()
 
-        lookup = {r[0]: r[1] for r in rows}
+        lookup = {r[0]: int(r[1] or 0) for r in rows}
         labels = []
+        dates = []
         data = []
         day_names = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
         for i in range(days - 1, -1, -1):
             day_obj = datetime.now() - timedelta(days=i)
             key = day_obj.strftime("%Y-%m-%d")
             labels.append(day_names[day_obj.weekday()])
+            dates.append(key)
             data.append(lookup.get(key, 0))
 
         return {
             "labels": labels,
+            "dates": dates,
             "datasets": [{"label": "Words", "data": data}],
+        }
+
+    def get_today_takes(self) -> int:
+        """Number of dictations logged today."""
+        today = datetime.now().strftime("%Y-%m-%d")
+        conn = self._connect()
+        row = conn.execute(
+            "SELECT COUNT(*) FROM transcription_logs WHERE date = ?",
+            (today,),
+        ).fetchone()
+        conn.close()
+        return int(row[0] or 0)
+
+    def get_best_day(self) -> Dict[str, Any]:
+        """The single date with the most words, as {"words": N, "date": "YYYY-MM-DD"}.
+
+        An empty store returns 0 words and a None date.
+        """
+        conn = self._connect()
+        row = conn.execute(
+            "SELECT date, SUM(word_count) AS total "
+            "FROM transcription_logs "
+            "GROUP BY date "
+            "ORDER BY total DESC, date DESC "
+            "LIMIT 1"
+        ).fetchone()
+        conn.close()
+        if not row or not row[1]:
+            return {"words": 0, "date": None}
+        return {"words": int(row[1]), "date": row[0]}
+
+    def get_home_summary(self) -> Dict[str, Any]:
+        """Everything the Home hero card reads, in one bridge call."""
+        totals = self.get_totals()
+        return {
+            "todayWords": self.get_today_words(),
+            "todayTakes": self.get_today_takes(),
+            "bestDay": self.get_best_day(),
+            "totalWords": totals["totalWords"],
+            "totalSessions": totals["totalSessions"],
+            "avgWpm": totals["avgWpm"],
         }
 
     def get_daily_usage(self, days: int = 30) -> List[List[Any]]:
@@ -172,18 +223,25 @@ class StatsController:
         return int(row[0] or 0)
 
     def get_totals(self) -> Dict[str, Any]:
+        """All-time totals. avgWpm only averages takes that measured a speed:
+        rows migrated from the JSON file and takes with no duration carry
+        wpm 0, and letting them into the mean would report a speed nobody
+        dictated at. With no measured takes at all avgWpm is 0."""
         conn = self._connect()
         row = conn.execute(
             "SELECT COALESCE(SUM(word_count),0), COUNT(*), "
-            "COALESCE(AVG(wpm),0), COALESCE(MAX(wpm),0) "
+            "COALESCE(MAX(wpm),0) "
             "FROM transcription_logs"
+        ).fetchone()
+        avg_row = conn.execute(
+            "SELECT COALESCE(AVG(wpm),0) FROM transcription_logs WHERE wpm > 0"
         ).fetchone()
         conn.close()
         return {
-            "totalWords": row[0],
-            "totalSessions": row[1],
-            "avgWpm": round(row[2]),
-            "bestWpm": round(row[3]),
+            "totalWords": int(row[0] or 0),
+            "totalSessions": int(row[1] or 0),
+            "avgWpm": round(avg_row[0] or 0),
+            "bestWpm": round(row[2] or 0),
         }
 
     # -- lifecycle ----------------------------------------------------------

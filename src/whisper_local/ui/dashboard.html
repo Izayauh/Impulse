@@ -131,16 +131,23 @@
 
     let licenseState = { active: false, is_valid: false, key: null, reason: null, message: null, expires_at: null };
 
+    // Everything Home renders. Zeros and empty arrays until a loader fills
+    // them, so a fresh install shows no activity rather than fake activity.
+    //   todayWords, todayTakes, bestDay, totalWords, totalSessions, avgWpm
+    //     come from Bridge.stats.getHomeSummary() (SQLite);
+    //   last14Days from Bridge.stats.getChartData(14) (SQLite);
+    //   dayStreak from Bridge.stats.get() (JSON stats file);
+    //   recentTranscripts from Bridge.stats.getHistory() (JSON stats file).
     let stats = {
-      userName: 'User',
-      today: 823, thisWeek: 10430, thisMonth: 28490, avgWpm: 142, bestWpm: 187, totalWords: 54620,
-      totalSessions: 441, totalTime: '47h 23m', dayStreak: 8, weekStreak: 2,
-      recentTranscripts: [
-        { text: "Let's make this really interactive and fun...", words: 18, time: '03:33 PM' },
-        { text: 'The achievement system should feel rewarding', words: 12, time: '03:27 PM' },
-        { text: 'Please fix the syntax error for the audio pipeline', words: 10, time: '03:25 PM' }
-      ],
-      last7Days: [{ day: 'Sun', words: 737 }, { day: 'Mon', words: 5460 }, { day: 'Tue', words: 90 }, { day: 'Wed', words: 4177 }, { day: 'Thu', words: 12 }, { day: 'Fri', words: 1853 }, { day: 'Sat', words: 923 }]
+      todayWords: 0,
+      todayTakes: 0,
+      bestDay: { words: 0, date: null },
+      totalWords: 0,
+      totalSessions: 0,
+      avgWpm: 0,
+      dayStreak: 0,
+      last14Days: [],
+      recentTranscripts: []
     };
 
     let snippets = [
@@ -171,12 +178,7 @@
 
     const esc = (v) => String(v || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
     const digest = (v) => { try { return JSON.stringify(v); } catch { return String(Date.now()); } };
-    const weekWords = () => {
-      const explicit = Number(stats.thisWeek);
-      if (Number.isFinite(explicit) && explicit > 0) return explicit;
-      const series = Array.isArray(stats.last7Days) ? stats.last7Days : [];
-      return series.reduce((total, day) => total + (Number(day.words) || 0), 0);
-    };
+    const fmtInt = (n) => Math.round(Number(n) || 0).toLocaleString('en-US');
     const modelLabel = (m) => {
       const map = { auto: 'Auto', turbo: 'Turbo', fast: 'Fast', base: 'Base', small: 'Small', medium: 'Medium', large: 'Large' };
       return map[String(m || '').toLowerCase()] || 'Base';
@@ -276,10 +278,9 @@
 
         stats: {
           get: () => invoke(a => a.get_stats()),
-          getChartData: (d) => invoke(a => a.stats ? a.stats.get_chart_data(d || 7) : null),
-          getTotals: () => invoke(a => a.stats ? a.stats.get_totals() : null),
+          getHomeSummary: () => invoke(a => a.stats ? a.stats.get_home_summary() : null),
+          getChartData: (d) => invoke(a => a.stats ? a.stats.get_chart_data(d || 14) : null),
           getHistory: () => invoke(a => a.get_transcription_history()),
-          getActivity: () => invoke(a => a.get_activity_data()),
         },
 
         system: {
@@ -313,61 +314,15 @@
       },
     };
 
-    function normalize7(source) {
-      if (!Array.isArray(source) || source.length === 0) return [{ day: 'Sun', words: 0 }, { day: 'Mon', words: 0 }, { day: 'Tue', words: 0 }, { day: 'Wed', words: 0 }, { day: 'Thu', words: 0 }, { day: 'Fri', words: 0 }, { day: 'Sat', words: 0 }];
-      const out = source.map((x) => ({ day: String((x.day || 'NA')).slice(0, 3), words: Number(x.words) || 0 })).filter(Boolean);
-      if (out.length >= 7) return out.slice(-7);
-      while (out.length < 7) out.unshift({ day: 'NA', words: 0 });
-      return out;
-    }
-
-    // ================================================================
-    // Format adapters – translate SQLite controller responses into the
-    // shapes that renderHome() and updateSidebar() already consume.
-    // ================================================================
-
     /**
-     * Converts StatsController.get_chart_data(7) response to stats.last7Days format.
-     * Input:  {labels: ["Mon","Tue",...], datasets: [{label:"Words", data:[0,1234,...]}]}
-     * Output: [{day:"Mon", words:0}, {day:"Tue", words:1234}, ...]
+     * StatsController.get_chart_data(14) -> stats.last14Days.
+     * Input:  {dates: ["2026-08-19", ...], datasets: [{data: [620, ...]}]}
+     * Output: [{date: "2026-08-19", words: 620}, ...], oldest first, today last.
      */
-    function chartDataToLast7Days(chartData) {
-      if (!chartData || !Array.isArray(chartData.labels)) return null;
+    function chartDataToSeries(chartData) {
+      if (!chartData || !Array.isArray(chartData.dates)) return null;
       const values = (chartData.datasets && chartData.datasets[0] && chartData.datasets[0].data) || [];
-      return chartData.labels.map((label, i) => ({
-        day: String(label).slice(0, 3),
-        words: Number(values[i]) || 0,
-      }));
-    }
-
-    /**
-     * Merges StatsController.get_totals() into the global stats object.
-     * Input:  {totalWords: N, totalSessions: N, avgWpm: N, bestWpm: N}
-     * Effect: Updates stats.totalWords, stats.totalSessions, stats.avgWpm, stats.bestWpm
-     */
-    function mergeSqlTotals(totals) {
-      if (!totals || typeof totals !== 'object') return;
-      if (typeof totals.totalWords === 'number') stats.totalWords = totals.totalWords;
-      if (typeof totals.totalSessions === 'number') stats.totalSessions = totals.totalSessions;
-      if (typeof totals.avgWpm === 'number') stats.avgWpm = totals.avgWpm;
-      if (typeof totals.bestWpm === 'number') stats.bestWpm = totals.bestWpm;
-    }
-
-    /**
-     * Converts get_activity_data() response to stats.last7Days format.
-     * Input:  [["2026-02-08", 500], ["2026-02-09", 1200], ...]
-     * Output: [{day:"Sat", words:500}, {day:"Sun", words:1200}, ...]
-     */
-    function activityPairsToLast7Days(pairs) {
-      if (!Array.isArray(pairs)) return null;
-      const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-      return pairs.map((pair) => {
-        const dateStr = Array.isArray(pair) ? pair[0] : '';
-        const words = Array.isArray(pair) ? (Number(pair[1]) || 0) : 0;
-        const d = new Date(dateStr + 'T12:00:00');
-        const dayLabel = isNaN(d.getTime()) ? 'NA' : dayNames[d.getDay()];
-        return { day: dayLabel, words };
-      });
+      return chartData.dates.map((date, i) => ({ date: String(date), words: Number(values[i]) || 0 }));
     }
 
     function updateSidebar() {
@@ -416,96 +371,166 @@
       return Boolean(modal && modal.classList.contains('is-open') && settingsTab === 'models');
     }
 
-    function actTime(t, i) { if (typeof t === 'string' && /\d{1,2}:\d{2}\s*[AP]M/i.test(t)) return t.toUpperCase(); if (typeof t === 'string' && /^\d+$/.test(t)) return 'RECENT'; return t || (i === 0 ? 'NOW' : i + 'm AGO'); }
-
     function switchView(v) { currentView = v; scheduleRender(); if (v === 'dictionary') loadVocabularyFromPython(); if (v === 'snippets') loadSnippetsFromPython(); }
     function setSnippetScope(s) { snippetScope = s; scheduleRender(); }
     function setSnippetSearch(s) { snippetSearch = String(s || ''); scheduleRender(); }
 
     // ================================================================
-    // Home view sub-renderers – each owns one visual region.
-    // renderHome() composes them into the full home layout.
+    // Home view. Layout and values lifted from
+    // docs/design/canvas-2026-09/Main.dc.html: header row, hero card
+    // (words today + record bar + three-column strip), 14-day graph,
+    // recent dictations. Each sub-renderer owns one card.
     // ================================================================
 
-    function renderWelcomeHeader() {
+    const COPY_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"></rect><path d="M5 15V5a2 2 0 0 1 2-2h10"></path></svg>';
+    const TYPING_WPM = 40;
+
+    const kbdCaps = (keys) => keys.map((k) => `<span class="kbd">${esc(k)}</span>`).join('');
+    const shortDate = (iso) => {
+      const d = new Date(String(iso) + 'T12:00:00');
+      return isNaN(d.getTime()) ? '' : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    };
+
+    function renderHomeHeader() {
+      const today = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+      const recordKeys = hotkeyDisplay(settingsState.hotkey).split(' + ').filter(Boolean);
       return `
-    <header class="card home-header WelcomeHeader" data-source="Bridge.stats.get" data-update-fn="renderWelcomeHeader" style="position:relative;">
-      <div class="welcome-row WelcomeHeader__row">
-        <div class="DictateLead">
-          <p class="DictateLead__eyebrow">Dictate anywhere</p>
-          <h2 class="DictateLead__primary">
-            Hold <kbd class="Key">${esc(hotkeyDisplay(settingsState.hotkey))}</kbd> and talk
-          </h2>
-          <p class="DictateLead__secondary">
-            Or tap <kbd class="Key Key--sm">${esc(hotkeyDisplay(settingsState.hotkey))} + Alt</kbd>
-            once to record hands-free, and again to stop.
-          </p>
-        </div>
+    <header class="home-head">
+      <div class="home-title">
+        <h2>Today</h2>
+        <span class="home-date">${esc(today)}</span>
+      </div>
+      <div class="home-hint">
+        <span>Hold</span>${kbdCaps(recordKeys)}<span>and talk</span>
+        <span class="home-hint-divider" aria-hidden="true"></span>
+        ${kbdCaps([...recordKeys, 'Alt'])}<span>hands-free</span>
       </div>
     </header>`;
     }
 
     /**
-     * Renders the 7-day activity bar chart.
-     * Data source: Bridge.stats.getChartData(7) → stats.last7Days
-     * @param {Array} series - normalized 7-element array from normalize7()
-     * @param {number} weeklyTotal - sum of words this week
+     * Hero card: words today, dictation count, record bar against the best
+     * day, then Speed / Time saved / Streak.
+     *   speed      = avgWpm from the store; "--" until a take has measured one
+     *   time saved = todayWords / 40 - todayWords / avgWpm, minutes, floored at 0
+     *   streak     = stats.dayStreak, subline is all-time words
      */
-    function renderActivityGraph(series, weeklyTotal) {
-      const m = Math.max(1, ...series.map((s) => s.words));
-      const barMaxPx = 100;
-      const bars = series.map((s, i) => {
-        const words = Number(s.words) || 0;
-        const heightPx = words === 0 ? 2 : Math.max(4, Math.round((words / m) * barMaxPx));
-        return `<div class="mini-bar-col ActivityGraph__bar ${i === series.length - 1 ? 'is-today ActivityGraph__bar--today' : ''}" data-bind="stats.last7Days[${i}].words" title="${esc(s.day)}: ${words.toLocaleString()} words">
-          <div class="mini-bar-value ActivityGraph__value" style="font-weight:600;">${words > 0 ? words.toLocaleString() : ''}</div>
-          <div class="mini-bar" style="height:${heightPx}px; border-radius:4px; background:${i === series.length - 1 ? 'linear-gradient(180deg, rgba(3,218,198,0.9), rgba(3,218,198,0.2))' : 'linear-gradient(180deg, var(--accent), var(--accent-bg-strong))'}; transition:all 0.4s ease;"></div>
-          <span class="mini-day ActivityGraph__label" style="font-weight:500;">${esc(s.day)}</span>
-        </div>`;
-      }).join('');
+    function renderHeroCard() {
+      const words = Number(stats.todayWords) || 0;
+      const takes = Number(stats.todayTakes) || 0;
+      const best = Number(stats.bestDay && stats.bestDay.words) || 0;
+      const avgWpm = Number(stats.avgWpm) || 0;
+      const streak = Number(stats.dayStreak) || 0;
+
+      // bestDay includes today, so a record day reads words === best.
+      let recordPct = 0;
+      let recordText = 'No best day yet';
+      if (best > 0 && words >= best) {
+        recordPct = 100;
+        recordText = 'New best day';
+      } else if (best > 0) {
+        recordPct = Math.min(100, Math.round((words / best) * 100));
+        recordText = `${recordPct}% of your best day, ${fmtInt(best)}`;
+      }
+
+      const hasSpeed = avgWpm > 0;
+      const speedValue = hasSpeed ? `${fmtInt(avgWpm)} <span class="unit">wpm</span>` : '--';
+      const speedSub = hasSpeed ? `${(avgWpm / TYPING_WPM).toFixed(1)}x typing` : 'no data yet';
+      const savedMin = hasSpeed ? Math.max(0, words / TYPING_WPM - words / avgWpm) : null;
+      const savedValue = hasSpeed ? `${fmtInt(savedMin)} <span class="unit">min</span>` : '--';
+      const savedSub = hasSpeed ? 'estimate' : 'no data yet';
+
       return `
-    <section class="card home-right-chart ActivityGraph" data-source="Bridge.stats.get" data-update-fn="renderActivityGraph" style="position:relative; overflow:hidden;">
-      <div class="hero-card" style="position:relative; z-index:2; margin-bottom:16px;">
-        <div>
-          <h3 style="font-weight:800; font-size:22px;">Velocity</h3>
-          <p style="color:var(--muted); font-size:13px;">Words transcribed last 7 days</p>
+    <section class="card hero" data-source="Bridge.stats.getHomeSummary">
+      <div class="hero-words">
+        <span class="label">Words today</span>
+        <div class="hero-count">
+          <span class="hero-number mono">${fmtInt(words)}</span>
+          <span class="label">${fmtInt(takes)} ${takes === 1 ? 'dictation' : 'dictations'}</span>
         </div>
-        <div style="font-size:28px; ">📈</div>
+        <div class="hero-record">
+          <span class="rec"><i style="width:${recordPct}%;"></i></span>
+          <span class="mono rec-text">${esc(recordText)}</span>
+        </div>
       </div>
-      <div class="mini-bars" style="position:relative; z-index:2; height:140px; align-items:flex-end;">${bars}</div>
+      <div class="hero-divider" aria-hidden="true"></div>
+      <div class="hero-strip">
+        <div class="stat">
+          <span class="label">Speed</span>
+          <span class="value mono">${speedValue}</span>
+          <span class="delta">${esc(speedSub)}</span>
+        </div>
+        <div class="stat">
+          <span class="label">Time saved</span>
+          <span class="value mono">${savedValue}</span>
+          <span class="delta">${esc(savedSub)}</span>
+        </div>
+        <div class="stat">
+          <span class="label">Streak</span>
+          <span class="value mono">${fmtInt(streak)} <span class="unit">${streak === 1 ? 'day' : 'days'}</span></span>
+          <span class="delta">${fmtInt(stats.totalWords)} all time</span>
+        </div>
+      </div>
     </section>`;
     }
 
     /**
-     * Renders the right-column recent transcription timeline.
-     * Data source: Bridge.stats.getHistory() → stats.recentTranscripts
-     * @param {Array} transcripts - array of {text, fullText, words, time}
+     * Last 14 days. Bars scale to the best day so the tallest possible bar
+     * meets the dashed best-day line; today's bar is accent and keeps its
+     * tooltip open. Data: Bridge.stats.getChartData(14) -> stats.last14Days.
      */
-    function renderRecentTimeline(transcripts) {
-      const cards = (transcripts || []).map((t, i) => `<article class="timeline-card RecentTimeline__card" style="position:relative; overflow:hidden; transition:all 0.3s ease; cursor:pointer;" onmouseenter="this.style.borderColor='var(--accent-hover)'" onmouseleave="this.style.borderColor='transparent'">
-        <div style="position:absolute; inset:0; background:linear-gradient(90deg, transparent, rgba(255,255,255,0.03)); pointer-events:none;"></div>
-        <div class="timeline-time RecentTimeline__time" style="font-weight:600; color:var(--muted);">${esc(actTime(t.time, i))}</div>
-        <div class="timeline-body RecentTimeline__body">
-          <p style="color:var(--text);">${esc(t.fullText || t.text || 'No transcript')}</p>
-          <div class="timeline-meta RecentTimeline__meta" style="color:var(--accent); font-weight:bold; display:flex; align-items:center; gap:4px;">
-            <span style="font-size:16px;">+</span>${Number(t.words || 0)} words
-          </div>
-        </div>
-        <button class="copy-btn" onclick="copyTranscriptItem(${i})">Copy</button>
-      </article>`).join('');
+    function renderChartCard() {
+      const series = Array.isArray(stats.last14Days) ? stats.last14Days : [];
+      const best = Number(stats.bestDay && stats.bestDay.words) || 0;
+      const barMaxPx = 88;
+      const total = series.reduce((sum, d) => sum + (Number(d.words) || 0), 0);
+      const avg = series.length ? Math.round(total / series.length) : 0;
+      const bars = series.map((d, i) => {
+        const w = Number(d.words) || 0;
+        const h = (best > 0 && w > 0) ? Math.max(2, Math.round((w / best) * barMaxPx)) : 2;
+        const isToday = i === series.length - 1;
+        return `<div class="bar${isToday ? ' today' : ''}" title="${esc(shortDate(d.date))}"><i style="height:${h}px;"><span class="tip mono">${fmtInt(w)}</span></i></div>`;
+      }).join('');
+      const first = series.length ? shortDate(series[0].date) : '';
+      const mid = series.length > 2 ? shortDate(series[Math.floor(series.length / 2)].date) : '';
       return `
-    <section class="activity-section RecentTimeline" data-source="Bridge.stats.getHistory" data-update-fn="renderRecentTimeline" style="position:relative; overflow:hidden;">
-      <div class="section-head" style="position:relative; z-index:2; margin-bottom:16px;">
-        <div style="display:flex; flex-direction:column;">
-          <h3 style="font-size:20px; font-weight:800; color:var(--text);">Live Feed</h3>
-          <span style="font-size:12px;">Recent Dictations</span>
-        </div>
-        <div style="display:flex; align-items:center; gap:6px; background:rgba(255,255,255,0.05); padding:4px 8px; border-radius:99px; border:1px solid rgba(255,255,255,0.1);">
-          <div style="width:8px; height:8px; background:var(--accent); border-radius:50%; animation:ping-soft 2s cubic-bezier(0, 0, 0.2, 1) infinite;"></div>
-          <span style="color:var(--accent); font-weight:bold; font-size:10px; letter-spacing:1px; text-transform:uppercase;">Live</span>
-        </div>
+    <section class="card chart" data-source="Bridge.stats.getChartData">
+      <div class="chart-head">
+        <div class="chart-title"><h3>Last 14 days</h3><span>words per day</span></div>
+        <span class="mono chart-avg">avg ${fmtInt(avg)} / day</span>
       </div>
-      <div class="timeline-list RecentTimeline__list" style="position:relative; z-index:2;">${cards || '<div class="card empty-card" style="text-align:center;">No recent activity yet. Start speaking!</div>'}</div>
+      <div class="bars">
+        <span class="best"><span class="mono">best day ${fmtInt(best)}</span></span>
+        ${bars}
+      </div>
+      <div class="axis mono">
+        <span>${esc(first)}</span><span>${esc(mid)}</span><span class="axis-today">Today</span>
+      </div>
+    </section>`;
+    }
+
+    /**
+     * Recent dictations: time, two-line text, Copy on hover.
+     * Data: Bridge.stats.getHistory() -> stats.recentTranscripts (newest first).
+     */
+    function renderRecentCard() {
+      const items = Array.isArray(stats.recentTranscripts) ? stats.recentTranscripts : [];
+      const rows = items.map((t, i) => `<div class="row">
+        <span class="time mono">${esc(t.time || '')}</span>
+        <span class="text">${esc(t.fullText || t.text || '')}</span>
+        <button class="btn copy" onclick="copyTranscriptItem(${i})">${COPY_ICON}Copy</button>
+      </div>`).join('');
+      const empty = `<div class="row-empty">
+        <span>No dictations yet</span>
+        <span class="label">Hold ${esc(hotkeyDisplay(settingsState.hotkey))} and talk. Your takes show up here.</span>
+      </div>`;
+      return `
+    <section class="card recent" data-source="Bridge.stats.getHistory">
+      <div class="recent-head">
+        <h3>Recent dictations</h3>
+        <button class="btn" onclick="copyLast()" ${items.length ? '' : 'disabled'}>${COPY_ICON}Copy last</button>
+      </div>
+      ${rows || empty}
     </section>`;
     }
 
@@ -514,17 +539,12 @@
      * This is the entry point called by renderContent() when currentView === 'home'.
      */
     function renderHome() {
-      const series = normalize7(stats.last7Days);
-      const weeklyTotal = weekWords();
       return `
     <section class="home-view">
-      ${renderWelcomeHeader()}
-      <div class="home-left">
-        ${renderActivityGraph(series, weeklyTotal)}
-      </div>
-      <div class="home-right">
-        ${renderRecentTimeline(stats.recentTranscripts)}
-      </div>
+      ${renderHomeHeader()}
+      ${renderHeroCard()}
+      ${renderChartCard()}
+      ${renderRecentCard()}
     </section>`;
     }
 
@@ -948,17 +968,21 @@
       showToast('History exported');
     }
 
+    // The JSON stats payload (get_stats / dashboard_stats.js) still carries
+    // the old XP fields; Home only reads the streak and the recent takes.
+    function applyJsonStats(data) {
+      stats.dayStreak = Number(data.dayStreak) || 0;
+      stats.recentTranscripts = Array.isArray(data.recentTranscripts) ? data.recentTranscripts : [];
+      lastRecentDigest = digest(stats.recentTranscripts.map((t) => t.fullText || t.text || ''));
+      renderIfCurrentViewIn(['home']);
+    }
+
     function loadStatsFromJSFile() {
       if (!window.WHISPER_STATS) return false;
       const d = digest(window.WHISPER_STATS);
       if (d === lastStatsDigest) return true;
-      Object.assign(stats, window.WHISPER_STATS);
-      stats.last7Days = normalize7(stats.last7Days || stats.last7_days || stats.last7DaysSeries);
-      if (!Array.isArray(stats.recentTranscripts)) stats.recentTranscripts = [];
       lastStatsDigest = d;
-      lastRecentDigest = digest((stats.recentTranscripts || []).map((t) => t.fullText || t.text || ''));
-      updateSidebar();
-      renderIfCurrentViewIn(['home']);
+      applyJsonStats(window.WHISPER_STATS);
       return true;
     }
 
@@ -968,13 +992,8 @@
       if (!data) { loadStatsFromJSFile(); return; }
       const d = digest(data);
       if (d === lastStatsDigest) return;
-      Object.assign(stats, data);
-      stats.last7Days = normalize7(data.last7Days || data.last7_days || data.last7DaysSeries);
-      if (!Array.isArray(stats.recentTranscripts)) stats.recentTranscripts = [];
       lastStatsDigest = d;
-      lastRecentDigest = digest((stats.recentTranscripts || []).map((t) => t.fullText || t.text || ''));
-      updateSidebar();
-      renderIfCurrentViewIn(['home']);
+      applyJsonStats(data);
     }
 
     async function loadRecentTranscriptionsFromPython() {
@@ -1057,29 +1076,35 @@
     // ================================================================
 
     let lastChartDataDigest = '';
-    let lastTotalsDigest = '';
+    let lastHomeSummaryDigest = '';
 
     async function loadChartDataFromSqlite() {
-      const data = await Bridge.stats.getChartData(7);
+      const data = await Bridge.stats.getChartData(14);
       if (!data) return;
       const d = digest(data);
       if (d === lastChartDataDigest) return;
       lastChartDataDigest = d;
-      const converted = chartDataToLast7Days(data);
+      const converted = chartDataToSeries(data);
       if (converted) {
-        stats.last7Days = converted;
+        stats.last14Days = converted;
         renderIfCurrentViewIn(['home']);
       }
     }
 
-    async function loadTotalsFromSqlite() {
-      const totals = await Bridge.stats.getTotals();
-      if (!totals) return;
-      const d = digest(totals);
-      if (d === lastTotalsDigest) return;
-      lastTotalsDigest = d;
-      mergeSqlTotals(totals);
-      updateSidebar();
+    async function loadHomeSummaryFromSqlite() {
+      const summary = await Bridge.stats.getHomeSummary();
+      if (!summary || typeof summary !== 'object') return;
+      const d = digest(summary);
+      if (d === lastHomeSummaryDigest) return;
+      lastHomeSummaryDigest = d;
+      stats.todayWords = Number(summary.todayWords) || 0;
+      stats.todayTakes = Number(summary.todayTakes) || 0;
+      stats.bestDay = summary.bestDay && typeof summary.bestDay === 'object'
+        ? { words: Number(summary.bestDay.words) || 0, date: summary.bestDay.date || null }
+        : { words: 0, date: null };
+      stats.totalWords = Number(summary.totalWords) || 0;
+      stats.totalSessions = Number(summary.totalSessions) || 0;
+      stats.avgWpm = Number(summary.avgWpm) || 0;
       renderIfCurrentViewIn(['home']);
     }
 
@@ -1155,7 +1180,6 @@
     window.addEventListener('DOMContentLoaded', () => {
       applyTheme(settingsState.theme);
       updateListeningLabel();
-      stats.last7Days = normalize7(stats.last7Days);
       renderContent();
       lastStatsDigest = digest(stats);
       lastRecentDigest = digest((stats.recentTranscripts || []).map((t) => t.fullText || t.text || ''));
@@ -1177,7 +1201,7 @@
           if (shouldPollStats) {
             jobs.push(loadStatsFromPython());
             jobs.push(loadChartDataFromSqlite());
-            jobs.push(loadTotalsFromSqlite());
+            jobs.push(loadHomeSummaryFromSqlite());
           }
           if (currentView === 'home') jobs.push(loadRecentTranscriptionsFromPython());
           if (shouldPollModels) jobs.push(loadModelSettingsFromPython());
@@ -1200,7 +1224,7 @@
         pythonPollingStarted = true;
         loadStatsFromPython();
         loadChartDataFromSqlite();
-        loadTotalsFromSqlite();
+        loadHomeSummaryFromSqlite();
         loadRecentTranscriptionsFromPython();
         loadModelSettingsFromPython();
         loadVocabularyFromPython();

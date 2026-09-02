@@ -102,10 +102,40 @@ class TestDashboardRealtimeRefreshPath(unittest.TestCase):
                 recent = api.get_transcription_history()
                 self.assertGreaterEqual(len(recent), 1)
                 self.assertEqual(recent[0]["fullText"], "delta epsilon")
+                # The tracker stamps ISO timestamps; Home shows a clock time.
+                self.assertRegex(recent[0]["time"], r"^\d{1,2}:\d{2} [AP]M$")
 
                 ping = api.bridge_ping()
                 self.assertTrue(ping.get("ok"))
                 self.assertEqual(ping.get("bridge"), "pywebview")
+
+    def test_home_bridge_surface_is_exposed_under_stats(self):
+        """dashboard.html calls pywebview.api.stats.get_home_summary() and
+        stats.get_chart_data(14); both must exist on the mounted controller."""
+        import whisper_local.ui.gui_host as gui_host
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            stats_file = os.path.join(tmp_dir, "whisper_stats.json")
+            with patch.object(gui_host, "get_user_data_dir", return_value=tmp_dir), patch.object(
+                gui_host, "STATS_FILE", stats_file
+            ):
+                api = gui_host.DashboardAPI()
+                summary = api.stats.get_home_summary()
+                self.assertEqual(summary["todayWords"], 0)
+                self.assertEqual(summary["todayTakes"], 0)
+                self.assertEqual(summary["bestDay"]["words"], 0)
+                chart = api.stats.get_chart_data(14)
+                self.assertEqual(len(chart["dates"]), 14)
+                self.assertEqual(chart["datasets"][0]["data"], [0] * 14)
+
+    def test_clock_label_formats_iso_timestamps(self):
+        import whisper_local.ui.gui_host as gui_host
+
+        label = gui_host.AppApi._clock_label
+        self.assertEqual(label("2026-09-01T16:12:33.123456"), "4:12 PM")
+        self.assertEqual(label("2026-09-01T00:05:00"), "12:05 AM")
+        self.assertEqual(label("2026-09-01T12:00:00"), "12:00 PM")
+        self.assertEqual(label("not a time"), "recent")
 
     def test_dashboard_api_migrates_legacy_stats_into_canonical_state_file(self):
         import whisper_local.ui.gui_host as gui_host
