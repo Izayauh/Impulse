@@ -32,7 +32,7 @@ def debug_print(*args, **kwargs):
 # ============================================================================
 APP_NAME = "Impulse"
 LEGACY_APP_NAME = "WhisperLocal"  # pre-rename data dir name; migrated on first run
-APP_VERSION = "1.0.7"
+APP_VERSION = "1.0.8"
 APP_AUTHOR = "Impulse"
 
 

@@ -66,6 +66,9 @@ REQUIRED_FILES = [
     ("_internal/whisper-cli.exe", "whisper.cpp binary"),
     ("_internal/whisper.dll", "whisper.cpp library"),
     ("_internal/Impulse.ico", "application icon"),
+    # play_recording_stop_sound falls back to a plain beep when this is
+    # missing, which is what every installer did until 1.0.8.
+    ("_internal/message-send.mp3", "stop-take sound"),
 ]
 
 # Families that ship per-architecture variants, so they are matched by glob

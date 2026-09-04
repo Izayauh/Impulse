@@ -5,6 +5,12 @@ All notable changes to Impulse will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.8] - 2026-09-04
+
+### Fixed
+
+- The stop-take sound now plays in the installed app. The bundled message-send.mp3 sat at the bundle root while the app looked beside its own module, so every installer since the first frozen build fell back to a plain beep. The release gate now checks the file is where the app reads it.
+
 ## [1.0.7] - 2026-09-04
 
 ### Changed

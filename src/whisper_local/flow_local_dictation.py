@@ -119,8 +119,21 @@ def debug_print(*args, **kwargs):
 # ============================================================================
 # SOUND EFFECTS
 # ============================================================================
-# Path to the message-send sound effect
-_SOUND_EFFECT_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "message-send.mp3")
+# Path to the message-send sound effect. From source it sits beside this
+# module; the frozen build (build_config.spec) places it at the bundle root,
+# so both locations are tried. Before this, every installer fell back to the
+# plain beep because only the module-relative path was checked.
+def resolve_sound_effect_path() -> str:
+    candidates = [os.path.join(os.path.dirname(os.path.abspath(__file__)), "message-send.mp3")]
+    meipass = getattr(sys, "_MEIPASS", None)
+    if meipass:
+        candidates.append(os.path.join(meipass, "message-send.mp3"))
+    for path in candidates:
+        if os.path.exists(path):
+            return path
+    return candidates[0]
+
+_SOUND_EFFECT_PATH = resolve_sound_effect_path()
 _pygame_mixer_initialized = False
 
 def play_recording_stop_sound():
