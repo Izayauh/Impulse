@@ -132,7 +132,7 @@ export function BetaSignup() {
                   <button
                     type="submit"
                     disabled={state === 'submitting'}
-                    className="w-full bg-brand hover:bg-brand-dark text-white font-bold py-4 rounded-xl transition-all active:scale-95 shadow-[0_0_20px_rgba(255,75,130,0.3)] disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                    className="w-full bg-brand hover:bg-brand-dark text-white font-bold py-4 rounded-xl transition-all active:scale-95 shadow-[0_0_20px_rgba(246,51,154,0.3)] disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                   >
                     {state === 'submitting' ? (
                       <>
