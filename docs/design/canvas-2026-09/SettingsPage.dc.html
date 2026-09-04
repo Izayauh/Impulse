@@ -1,0 +1,147 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap">
+  <style>
+    body { margin: 0; background: #0A0A0B; }
+    a { color: #FF1493; } a:hover { color: #FF4DAA; }
+    .app { font-family: "Geist", "Segoe UI", system-ui, sans-serif; font-size: 13px; line-height: 1.45; color: #EDEDEF; -webkit-font-smoothing: antialiased; }
+    .mono { font-family: "Geist Mono", ui-monospace, "Cascadia Mono", Consolas, monospace; font-variant-numeric: tabular-nums; }
+    .nav { display: flex; align-items: center; gap: 10px; height: 32px; padding: 0 10px; border-radius: 6px; color: #9A9AA3; cursor: default; transition: background-color 120ms ease-out, color 120ms ease-out; }
+    .nav:hover { background: rgba(255,255,255,0.05); color: #EDEDEF; }
+    .nav.active { background: rgba(255,255,255,0.07); color: #EDEDEF; }
+    .nav svg { width: 16px; height: 16px; flex: none; }
+    .nav .count { margin-left: auto; color: #8A8A93; font-size: 12px; }
+    .dot { width: 6px; height: 6px; border-radius: 999px; background: #34D399; box-shadow: 0 0 0 3px rgba(52,211,153,0.15); }
+    .tab { height: 28px; padding: 0 10px; display: inline-flex; align-items: center; border-radius: 6px; color: #9A9AA3; cursor: default; transition: background-color 120ms ease-out, color 120ms ease-out; }
+    .tab:hover { color: #EDEDEF; background: rgba(255,255,255,0.05); }
+    .tab.active { color: #EDEDEF; background: rgba(255,255,255,0.08); }
+    .btn { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.09); background: rgba(255,255,255,0.04); color: #EDEDEF; font: inherit; font-weight: 500; cursor: default; transition: background-color 120ms ease-out, border-color 120ms ease-out, transform 80ms ease-out; }
+    .btn:hover { background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.14); }
+    .btn:active { transform: scale(0.98); }
+    .kbd { display: inline-block; padding: 1px 7px; border-radius: 5px; border: 1px solid rgba(255,255,255,0.14); border-bottom-width: 2px; background: #1A1A1E; color: #EDEDEF; font-family: "Geist Mono", ui-monospace, monospace; font-size: 12px; line-height: 18px; }
+    .card { background: #131316; border: 1px solid rgba(255,255,255,0.07); border-radius: 8px; }
+    .setting { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 12px 16px; border-top: 1px solid rgba(255,255,255,0.06); transition: background-color 120ms ease-out; }
+    .setting:first-child { border-top: 0; }
+    .setting:hover { background: rgba(255,255,255,0.02); }
+    .setting .name { font-weight: 500; color: #EDEDEF; }
+    .setting .help { color: #8A8A93; font-size: 12px; margin-top: 2px; }
+    .select { display: inline-flex; align-items: center; gap: 8px; height: 28px; padding: 0 8px 0 10px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.09); background: #0F0F11; color: #EDEDEF; min-width: 150px; justify-content: space-between; transition: border-color 120ms ease-out; }
+    .select:hover { border-color: rgba(255,255,255,0.18); }
+    .toggle { width: 34px; height: 20px; border-radius: 999px; background: #2A2A30; position: relative; transition: background-color 120ms ease-out; }
+    .toggle::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 999px; background: #EDEDEF; transition: transform 120ms ease-out; }
+    .toggle.on { background: #FF1493; }
+    .toggle.on::after { transform: translateX(14px); }
+    .toggle:hover { background: #34343B; }
+    .toggle.on:hover { background: #FF2E9F; }
+    .seg { display: inline-flex; padding: 2px; border-radius: 7px; background: #0F0F11; border: 1px solid rgba(255,255,255,0.07); }
+    .seg span { height: 24px; padding: 0 10px; display: inline-flex; align-items: center; border-radius: 5px; color: #9A9AA3; transition: background-color 120ms ease-out, color 120ms ease-out; }
+    .seg span:hover { color: #EDEDEF; }
+    .seg span.on { background: rgba(255,255,255,0.09); color: #EDEDEF; }
+    .track { position: relative; width: 180px; height: 3px; border-radius: 999px; background: #2A2A30; }
+    .track i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 999px; background: #FF1493; }
+    .track b { position: absolute; top: 50%; width: 14px; height: 14px; border-radius: 999px; background: #EDEDEF; border: 1px solid #0A0A0B; transform: translate(-50%, -50%); box-sizing: border-box; }
+    .track:hover i { background: #FF2E9F; }
+  </style>
+</helmet>
+
+<div class="app" style="width: 1100px; height: 740px; display: flex; background: #0A0A0B; overflow: hidden;">
+
+  <aside style="width: 220px; flex: none; display: flex; flex-direction: column; padding: 16px 12px; background: #0F0F11; border-right: 1px solid rgba(255,255,255,0.07);">
+    <div style="display: flex; align-items: center; gap: 10px; padding: 4px 10px 18px;">
+      <div style="width: 22px; height: 22px; border-radius: 6px; background: #FF1493; display: flex; align-items: center; justify-content: center;">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="#FFFFFF" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"></rect><path d="M5 11a7 7 0 0 0 14 0"></path><path d="M12 18v3"></path></svg>
+      </div>
+      <div style="font-weight: 600; font-size: 14px; letter-spacing: -0.01em;">Impulse</div>
+    </div>
+
+    <nav style="display: flex; flex-direction: column; gap: 2px;">
+      <div class="nav">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V9l8-6 8 6v10"></path><path d="M10 19v-6h4v6"></path></svg>
+        <span>Home</span>
+      </div>
+      <div class="nav">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16"></path><path d="M4 12h10"></path><path d="M4 17h7"></path></svg>
+        <span>Snippets</span><span class="count">5</span>
+      </div>
+      <div class="nav">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5z"></path><path d="M4 20.5V5.5"></path></svg>
+        <span>Dictionary</span><span class="count">13</span>
+      </div>
+    </nav>
+
+    <div style="flex: 1;"></div>
+
+    <div style="display: flex; flex-direction: column; gap: 2px;">
+      <div class="nav active">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"></path></svg>
+        <span>Settings</span>
+      </div>
+      <div style="display: flex; align-items: center; gap: 8px; padding: 10px 10px 4px; color: #8A8A93; font-size: 12px;">
+        <span class="dot"></span><span>Listening for Ctrl + Win</span>
+      </div>
+    </div>
+  </aside>
+
+  <main style="flex: 1; min-width: 0; padding: 26px 32px 32px; overflow: auto; display: flex; flex-direction: column; gap: 16px;">
+
+    <div style="display: flex; align-items: center; justify-content: space-between; gap: 16px;">
+      <div style="font-size: 20px; font-weight: 600; letter-spacing: -0.02em; line-height: 24px;">Settings</div>
+      <div style="display: flex; gap: 2px;">
+        <span class="tab active">General</span>
+        <span class="tab">Model</span>
+        <span class="tab">Data</span>
+        <span class="tab">License</span>
+      </div>
+    </div>
+
+    <div class="card" style="display: flex; flex-direction: column;">
+      <div class="setting">
+        <div><div class="name">Record shortcut</div><div class="help">Hold to dictate. Release to paste.</div></div>
+        <div style="display: flex; align-items: center; gap: 10px;"><span class="kbd">Ctrl</span><span class="kbd">Win</span><span class="btn">Change</span></div>
+      </div>
+      <div class="setting">
+        <div><div class="name">Hands-free shortcut</div><div class="help">Tap once to start, tap again to stop.</div></div>
+        <div style="display: flex; align-items: center; gap: 10px;"><span class="kbd">Ctrl</span><span class="kbd">Win</span><span class="kbd">Alt</span><span class="btn">Change</span></div>
+      </div>
+      <div class="setting">
+        <div><div class="name">Start with Windows</div><div class="help">Launch minimized to the tray at sign-in.</div></div>
+        <span class="toggle on"></span>
+      </div>
+      <div class="setting">
+        <div><div class="name">Copy each dictation to the clipboard</div><div class="help">In addition to pasting it where the cursor is.</div></div>
+        <span class="toggle"></span>
+      </div>
+      <div class="setting">
+        <div><div class="name">Appearance</div><div class="help">Follows Windows by default.</div></div>
+        <span class="seg"><span>System</span><span class="on">Dark</span><span>Light</span></span>
+      </div>
+    </div>
+
+    <div style="color: #9A9AA3; font-weight: 500; font-size: 12px; padding: 4px 2px 0; text-transform: uppercase; letter-spacing: 0.04em;">Audio</div>
+    <div class="card" style="display: flex; flex-direction: column;">
+      <div class="setting">
+        <div><div class="name">Microphone</div><div class="help">Which input Impulse listens to.</div></div>
+        <span class="select"><span>Audient iD14</span><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="#9A9AA3" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg></span>
+      </div>
+      <div class="setting">
+        <div><div class="name">Sensitivity</div><div class="help">Higher picks up quieter speech.</div></div>
+        <div style="display: flex; align-items: center; gap: 12px;"><span class="track"><i style="width: 65%;"></i><b style="left: 65%;"></b></span><span class="mono" style="color: #9A9AA3; font-size: 12px; width: 32px; text-align: right;">65</span></div>
+      </div>
+      <div class="setting">
+        <div><div class="name">Stop after silence</div><div class="help">How long a pause ends a hands-free take.</div></div>
+        <div style="display: flex; align-items: center; gap: 12px;"><span class="track"><i style="width: 26%;"></i><b style="left: 26%;"></b></span><span class="mono" style="color: #9A9AA3; font-size: 12px; width: 32px; text-align: right;">0.7s</span></div>
+      </div>
+    </div>
+
+  </main>
+</div>
+</x-dc>
+</body>
+</html>

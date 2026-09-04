@@ -5,123 +5,92 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Impulse Dashboard</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link
-    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@500;700;800&display=swap"
-    rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
   <script src="dashboard_stats.js" onerror="console.log('No exported stats file')"></script>
 </head>
 
 <body>
-  <div id="confetti-container"></div>
-  <div id="achievement-popup"></div>
-  <div id="achievement-toast-container"></div>
   <div id="toast-container"></div>
-  <div id="paywall-overlay"
-    style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 10000; align-items: center; justify-content: center; backdrop-filter: blur(4px);">
-    <div class="card" style="width: 400px; text-align: center; padding: 32px;">
+  <div id="paywall-overlay" class="paywall" style="display: none;">
+    <div class="card paywall-card">
       <h2>Activation Required</h2>
-      <p style="margin: 16px 0; color: var(--text-secondary);">Please enter your license key to unlock Impulse.</p>
-      <input type="text" id="paywall-key" placeholder="License Key"
-        style="width: 100%; margin-bottom: 16px; padding: 12px; background: var(--bg-crust); color: var(--text-primary); border: 1px solid var(--border-subtle); border-radius: 8px;">
-      <button class="primary-btn" onclick="activateFromPaywall()" style="width: 100%;">Activate License</button>
-      <p id="paywall-error" style="color: var(--accent-error); margin-top: 12px; font-size: 0.9em; display: none;"></p>
+      <p>Please enter your license key to unlock Impulse.</p>
+      <input type="text" id="paywall-key" class="field" placeholder="License Key" autocomplete="off" spellcheck="false">
+      <button class="btn primary" onclick="activateFromPaywall()">Activate License</button>
+      <p id="paywall-error" class="paywall-error" style="display: none;"></p>
     </div>
   </div>
 
   <div id="app-shell">
     <aside class="sidebar">
       <div class="sidebar-brand">
-        <div class="brand-logo"
-          style="display: flex; align-items: center; justify-content: center; width: 36px; height: 36px; margin-right: 4px; border-radius: 12px; background: linear-gradient(135deg, var(--bg) 0%, rgba(20, 20, 26, 0.8) 100%); border: 1px solid var(--accent-border); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);">
-          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
-            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-            style="color: var(--accent); filter: drop-shadow(0 0 4px var(--accent));">
-            <path d="M12 5a3 3 0 1 0-5.997.125 4 4 0 0 0-2.526 5.77 4 4 0 0 0 .556 6.588A4 4 0 1 0 12 18Z" />
-            <path d="M12 5a3 3 0 1 1 5.997.125 4 4 0 0 1 2.526 5.77 4 4 0 0 1-.556 6.588A4 4 0 1 1 12 18Z" />
-            <path d="M15 13a4.5 4.5 0 0 1-3-4 4.5 4.5 0 0 1-3 4" />
-            <path d="M17.599 6.5a3 3 0 0 0 .399-1.375" />
-            <path d="M6.003 5.125A3 3 0 0 0 6.401 6.5" />
-            <path d="M3.477 10.896a4 4 0 0 1 .585-.396" />
-            <path d="M19.938 10.5a4 4 0 0 1 .585.396" />
-            <path d="M6 18a4 4 0 0 1-1.967-.516" />
-            <path d="M19.967 17.484A4 4 0 0 1 18 18" />
+        <div class="brand-tile" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2"
+            stroke-linecap="round" stroke-linejoin="round">
+            <rect x="9" y="3" width="6" height="11" rx="3"></rect>
+            <path d="M5 11a7 7 0 0 0 14 0"></path>
+            <path d="M12 18v3"></path>
           </svg>
         </div>
-        <div>
-          <h1 style="margin: 0; line-height: 1;">Impulse</h1>
-        </div>
+        <h1>Impulse</h1>
       </div>
 
       <nav class="sidebar-nav">
-        <button id="nav-home" class="nav-item active" onclick="switchView('home')"><span>Home</span><span
-            class="nav-count">Feed</span></button>
-        <button id="nav-snippets" class="nav-item" onclick="switchView('snippets')"><span>Snippets</span><span
-            id="snippet-count" class="nav-count" data-bind="snippets.length">0</span></button>
-        <button id="nav-dictionary" class="nav-item" onclick="switchView('dictionary')"><span>Dictionary</span><span
-            id="dictionary-count" class="nav-count" data-bind="vocabularyWords.length">0</span></button>
-        <button id="nav-achievements" class="nav-item"
-          onclick="switchView('achievements')"><span>Achievements</span><span id="achievement-count" class="nav-count"
-            data-bind="achievements.unlocked/total">0</span></button>
-        <button id="nav-challenges" class="nav-item" onclick="switchView('challenges')"><span>Challenges</span><span
-            class="nav-count">Daily</span></button>
+        <button id="nav-home" class="nav-item active" onclick="switchView('home')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
+            stroke-linejoin="round" aria-hidden="true">
+            <path d="M4 19V9l8-6 8 6v10"></path>
+            <path d="M10 19v-6h4v6"></path>
+          </svg>
+          <span>Home</span>
+        </button>
+        <button id="nav-snippets" class="nav-item" onclick="switchView('snippets')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
+            stroke-linejoin="round" aria-hidden="true">
+            <path d="M4 7h16"></path>
+            <path d="M4 12h10"></path>
+            <path d="M4 17h7"></path>
+          </svg>
+          <span>Snippets</span>
+          <span id="snippet-count" class="nav-count" data-bind="snippets.length">0</span>
+        </button>
+        <button id="nav-dictionary" class="nav-item" onclick="switchView('dictionary')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
+            stroke-linejoin="round" aria-hidden="true">
+            <path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5z"></path>
+            <path d="M4 20.5V5.5"></path>
+          </svg>
+          <span>Dictionary</span>
+          <span id="dictionary-count" class="nav-count" data-bind="vocabularyWords.length">0</span>
+        </button>
       </nav>
 
       <div class="sidebar-footer">
-        <div class="profile-card">
-          <div class="profile-avatar">I</div>
-          <div class="profile-meta">
-            <div>Rank: <span id="rank" data-bind="stats.rank">Word Warrior</span></div>
-            <div><span id="header-xp-display" data-bind="stats.totalWords">0</span> words</div>
-          </div>
-          <button class="gear-btn" onclick="openSettings()" title="Settings">&#9881;</button>
+        <button id="nav-settings" class="nav-item" onclick="openSettings()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
+            stroke-linejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"></path>
+          </svg>
+          <span>Settings</span>
+        </button>
+        <div class="sidebar-listening">
+          <span class="live-dot" aria-hidden="true"></span>
+          <span>Listening for <span id="listening-hotkey"></span></span>
         </div>
       </div>
     </aside>
 
     <main class="main-panel">
-      <div class="main-toolbar">
-        <button class="ghost-btn" onclick="copyLast()">Copy Last</button>
-        <div class="window-controls">
-          <button onclick="minimizeWindow()" aria-label="Minimize window" title="Minimize">−</button>
-          <button onclick="closeWindow()" aria-label="Close window" title="Close">×</button>
-        </div>
-      </div>
       <div id="tab-content"></div>
     </main>
   </div>
 
-  <div id="settings-modal" class="settings-modal" onclick="handleModalBackdrop(event)">
-    <div class="settings-dialog" role="dialog" aria-modal="true" aria-labelledby="settings-title">
-      <div class="settings-head">
-        <h2 id="settings-title">Settings</h2>
-        <button class="close-btn" onclick="closeSettings()" aria-label="Close settings" title="Close settings">×</button>
-      </div>
-      <div class="settings-body">
-        <aside class="settings-nav">
-          <button id="settings-nav-general" onclick="setSettingsTab('general')">General</button>
-          <button id="settings-nav-audio" onclick="setSettingsTab('audio')">Audio</button>
-          <button id="settings-nav-models" onclick="setSettingsTab('models')">Models</button>
-          <button id="settings-nav-data" onclick="setSettingsTab('data')">Data</button>
-          <button id="settings-nav-license" onclick="setSettingsTab('license')">License</button>
-        </aside>
-        <section id="settings-panel" class="settings-panel"></section>
-      </div>
-    </div>
-  </div>
-
   <script>
     let currentView = 'home';
-    let activeCategory = 'all';
-    let snippetScope = 'all';
-    let snippetSearch = '';
     let settingsTab = 'general';
     let pythonPollingStarted = false;
-    let achievementsInitializedFromBackend = false;
     let lastStatsDigest = '';
-    let lastAchievementsDigest = '';
     let lastRecentDigest = '';
     let lastModelSettingsDigest = '';
     let lastVocabularyDigest = '';
@@ -136,54 +105,45 @@
     let hotkeyRecording = false;
     let hotkeyCapturePressed = new Set();
     let hotkeyCaptureDraft = [];
+    // Settings page state. ollamaReachable gates the stylization rows and is
+    // probed once each time the view opens; licenseEditingForKey is the key
+    // the Change button was pressed for, so a successful activation (which
+    // changes the key) drops the field on its own.
+    let ollamaReachable = false;
+    let appVersion = '';
+    let licenseEditingForKey = null;
 
     let licenseState = { active: false, is_valid: false, key: null, reason: null, message: null, expires_at: null };
 
+    // Everything Home renders. Zeros and empty arrays until a loader fills
+    // them, so a fresh install shows no activity rather than fake activity.
+    //   todayWords, todayTakes, bestDay, totalWords, totalSessions, avgWpm
+    //     come from Bridge.stats.getHomeSummary() (SQLite);
+    //   last14Days from Bridge.stats.getChartData(14) (SQLite);
+    //   dayStreak from Bridge.stats.get() (JSON stats file);
+    //   recentTranscripts from Bridge.stats.getHistory() (JSON stats file).
     let stats = {
-      userName: 'User', xp: 2300, xpToNextLevel: 3500, level: 9, rank: 'Word Warrior', nextRank: 'Voice Virtuoso',
-      today: 823, thisWeek: 10430, thisMonth: 28490, avgWpm: 142, bestWpm: 187, totalWords: 54620,
-      totalSessions: 441, totalTime: '47h 23m', dayStreak: 8, weekStreak: 2,
-      recentTranscripts: [
-        { text: "Let's make this really interactive and fun...", words: 18, time: '03:33 PM' },
-        { text: 'The achievement system should feel rewarding', words: 12, time: '03:27 PM' },
-        { text: 'Please fix the syntax error for the audio pipeline', words: 10, time: '03:25 PM' }
-      ],
-      last7Days: [{ day: 'Sun', words: 737 }, { day: 'Mon', words: 5460 }, { day: 'Tue', words: 90 }, { day: 'Wed', words: 4177 }, { day: 'Thu', words: 12 }, { day: 'Fri', words: 1853 }, { day: 'Sat', words: 923 }],
-      records: { mostWordsDay: { value: 5460, date: '2026-01-12' }, fastestWpm: { value: 187, date: '2026-01-16' }, longestSession: { value: '2h 14m', date: '2026-01-12' }, longestStreak: { value: 14, date: '2026-01-31' } }
+      todayWords: 0,
+      todayTakes: 0,
+      bestDay: { words: 0, date: null },
+      totalWords: 0,
+      totalSessions: 0,
+      avgWpm: 0,
+      dayStreak: 0,
+      last14Days: [],
+      recentTranscripts: []
     };
 
-    const achievements = [
-      { id: 1, key: 'daily_100', category: 'milestones', name: 'Centurion', description: '100 words in a day', icon: '100', rarity: 'common', xp: 25, unlocked: true },
-      { id: 2, key: 'daily_500', category: 'milestones', name: 'Chatterbox', description: '500 words in a day', icon: '500', rarity: 'common', xp: 40, unlocked: true },
-      { id: 3, key: 'total_1k', category: 'milestones', name: 'Starter Stack', description: '1,000 total words', icon: '1K', rarity: 'common', xp: 25, unlocked: true },
-      { id: 4, key: 'total_10k', category: 'milestones', name: 'Wordsmith', description: '10,000 total words', icon: '10K', rarity: 'rare', xp: 120, unlocked: true },
-      { id: 5, key: 'speed_100', category: 'speed', name: 'Lightning', description: 'Reach 100 WPM', icon: '100', rarity: 'rare', xp: 75, unlocked: true },
-      { id: 6, key: 'speed_120', category: 'speed', name: 'Rapid Fire', description: 'Reach 120 WPM', icon: '120', rarity: 'rare', xp: 100, unlocked: true },
-      { id: 7, key: 'speed_150', category: 'speed', name: 'Speed Demon', description: 'Reach 150 WPM', icon: '150', rarity: 'epic', xp: 200, unlocked: false, progress: 95 },
-      { id: 8, key: 'streak_7', category: 'streaks', name: 'Full Week', description: '7-day streak', icon: '7D', rarity: 'rare', xp: 75, unlocked: true },
-      { id: 9, category: 'streaks', name: 'Monthly Master', description: '30-day streak', icon: '30D', rarity: 'epic', xp: 350, unlocked: false, progress: 27 },
-      { id: 10, category: 'accuracy', name: 'Precise', description: '98% session accuracy', icon: '98', rarity: 'rare', xp: 75, unlocked: true },
-      { id: 11, key: 'secret_whisper', category: 'quirky', name: 'Whisper Mode', description: 'Very quiet audio transcribed', icon: 'Q1', rarity: 'common', xp: 25, unlocked: true },
-      { id: 12, category: 'social', name: 'Beta Tester', description: 'Used during beta period', icon: 'SO', rarity: 'epic', xp: 200, unlocked: true },
-      { id: 13, category: 'secret', name: 'Hello World', description: 'Say hello world', icon: 'HW', rarity: 'rare', xp: 50, unlocked: true },
-      { id: 14, category: 'secret', name: 'Konami', description: 'Classic cheat code', icon: 'KN', rarity: 'legendary', xp: 500, unlocked: false, progress: 4 }
-    ];
-
-    const categories = [{ id: 'all', name: 'All' }, { id: 'milestones', name: 'Milestones' }, { id: 'speed', name: 'Speed' }, { id: 'streaks', name: 'Streaks' }, { id: 'accuracy', name: 'Accuracy' }, { id: 'quirky', name: 'Quirky' }, { id: 'social', name: 'Social' }, { id: 'secret', name: 'Secret' }];
-    const dailyChallenges = [{ id: 1, name: 'Word Count', target: 500, unit: 'words', xp: 50 }, { id: 2, name: 'Speed Goal', target: 120, unit: 'WPM', xp: 30 }, { id: 3, name: 'Marathon', target: 1000, unit: 'words', xp: 100 }];
-    const weeklyChallenges = [{ id: 1, name: 'Weekly Words', target: 5000, unit: 'words', xp: 200 }, { id: 2, name: 'Active Days', target: 5, unit: 'days', xp: 100 }, { id: 3, name: 'Speed Week', target: 100, unit: 'avg WPM', xp: 150 }];
-    let snippets = [
-      { id: 1, scope: 'personal', trigger: 'personal email', replacement: 'user@example.com' },
-      { id: 2, scope: 'personal', trigger: 'intro email', replacement: 'Hey, would love to find some time to chat later this week.' },
-      { id: 3, scope: 'shared', trigger: 'my calendly link', replacement: 'calendly.com/12345%448' }
-    ];
+    // Empty until Bridge.settings.getSnippets() / getVocabulary() fill them,
+    // so a fresh install shows no snippets rather than sample ones.
+    let snippets = [];
     let vocabularyWords = [];
     const settingsState = {
       launchBehavior: 'start_minimized',
-      theme: 'hot_pink',
+      theme: 'system',
       commandMode: true,
       autoCopy: true,
-      microphone: 'Default System Microphone',
+      microphone: 'default',
       vadSensitivity: 65,
       vadSilenceMs: 700,
       modelMode: 'auto',
@@ -196,19 +156,12 @@
       ollamaEndpoint: 'http://127.0.0.1:11434',
       telemetryEnabled: false
     };
-    const microphones = ['Default System Microphone', 'USB Audio Interface', 'Headset Microphone', 'Webcam Microphone'];
+    // Real input devices, loaded from the bridge when Settings opens.
+    let microphones = [{ value: 'default', label: 'Default System Microphone' }];
 
     const esc = (v) => String(v || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
     const digest = (v) => { try { return JSON.stringify(v); } catch { return String(Date.now()); } };
-    const unlockCount = () => achievements.filter(a => a.unlocked).length;
-    const xpPct = () => Math.max(0, Math.min(100, ((Number(stats.xp) || 0) / (Number(stats.xpToNextLevel) || 1)) * 100));
-    const headerXp = () => typeof stats.totalWords === 'number' ? stats.totalWords : 0;
-    const weekWords = () => {
-      const explicit = Number(stats.thisWeek);
-      if (Number.isFinite(explicit) && explicit > 0) return explicit;
-      const series = Array.isArray(stats.last7Days) ? stats.last7Days : [];
-      return series.reduce((total, day) => total + (Number(day.words) || 0), 0);
-    };
+    const fmtInt = (n) => Math.round(Number(n) || 0).toLocaleString('en-US');
     const modelLabel = (m) => {
       const map = { auto: 'Auto', turbo: 'Turbo', fast: 'Fast', base: 'Base', small: 'Small', medium: 'Medium', large: 'Large' };
       return map[String(m || '').toLowerCase()] || 'Base';
@@ -297,6 +250,9 @@
           getSnippets: () => invoke(a => a.get_snippets()),
           addSnippet: (t, r) => invoke(a => a.add_snippet(t, r)),
           deleteSnippet: (id) => invoke(a => a.delete_snippet(id)),
+          checkOllama: () => invoke(a => a.check_ollama()),
+          getInputDevices: () => invoke(a => a.get_input_devices()),
+          getAppVersion: () => invoke(a => a.get_app_version()),
         },
 
         transcription: {
@@ -308,12 +264,9 @@
 
         stats: {
           get: () => invoke(a => a.get_stats()),
-          getChartData: (d) => invoke(a => a.stats ? a.stats.get_chart_data(d || 7) : null),
-          getTotals: () => invoke(a => a.stats ? a.stats.get_totals() : null),
+          getHomeSummary: () => invoke(a => a.stats ? a.stats.get_home_summary() : null),
+          getChartData: (d) => invoke(a => a.stats ? a.stats.get_chart_data(d || 14) : null),
           getHistory: () => invoke(a => a.get_transcription_history()),
-          getAchievements: () => invoke(a => a.get_achievements()),
-          unlockAchievement: (id) => invoke(a => a.unlock_achievement(id)),
-          getActivity: () => invoke(a => a.get_activity_data()),
         },
 
         system: {
@@ -347,69 +300,19 @@
       },
     };
 
-    function normalize7(source) {
-      if (!Array.isArray(source) || source.length === 0) return [{ day: 'Sun', words: 0 }, { day: 'Mon', words: 0 }, { day: 'Tue', words: 0 }, { day: 'Wed', words: 0 }, { day: 'Thu', words: 0 }, { day: 'Fri', words: 0 }, { day: 'Sat', words: 0 }];
-      const out = source.map((x) => ({ day: String((x.day || 'NA')).slice(0, 3), words: Number(x.words) || 0 })).filter(Boolean);
-      if (out.length >= 7) return out.slice(-7);
-      while (out.length < 7) out.unshift({ day: 'NA', words: 0 });
-      return out;
-    }
-
-    // ================================================================
-    // Format adapters – translate SQLite controller responses into the
-    // shapes that renderHome() and updateSidebar() already consume.
-    // ================================================================
-
     /**
-     * Converts StatsController.get_chart_data(7) response to stats.last7Days format.
-     * Input:  {labels: ["Mon","Tue",...], datasets: [{label:"Words", data:[0,1234,...]}]}
-     * Output: [{day:"Mon", words:0}, {day:"Tue", words:1234}, ...]
+     * StatsController.get_chart_data(14) -> stats.last14Days.
+     * Input:  {dates: ["2026-08-19", ...], datasets: [{data: [620, ...]}]}
+     * Output: [{date: "2026-08-19", words: 620}, ...], oldest first, today last.
      */
-    function chartDataToLast7Days(chartData) {
-      if (!chartData || !Array.isArray(chartData.labels)) return null;
+    function chartDataToSeries(chartData) {
+      if (!chartData || !Array.isArray(chartData.dates)) return null;
       const values = (chartData.datasets && chartData.datasets[0] && chartData.datasets[0].data) || [];
-      return chartData.labels.map((label, i) => ({
-        day: String(label).slice(0, 3),
-        words: Number(values[i]) || 0,
-      }));
-    }
-
-    /**
-     * Merges StatsController.get_totals() into the global stats object.
-     * Input:  {totalWords: N, totalSessions: N, avgWpm: N, bestWpm: N}
-     * Effect: Updates stats.totalWords, stats.totalSessions, stats.avgWpm, stats.bestWpm
-     */
-    function mergeSqlTotals(totals) {
-      if (!totals || typeof totals !== 'object') return;
-      if (typeof totals.totalWords === 'number') stats.totalWords = totals.totalWords;
-      if (typeof totals.totalSessions === 'number') stats.totalSessions = totals.totalSessions;
-      if (typeof totals.avgWpm === 'number') stats.avgWpm = totals.avgWpm;
-      if (typeof totals.bestWpm === 'number') stats.bestWpm = totals.bestWpm;
-    }
-
-    /**
-     * Converts get_activity_data() response to stats.last7Days format.
-     * Input:  [["2026-02-08", 500], ["2026-02-09", 1200], ...]
-     * Output: [{day:"Sat", words:500}, {day:"Sun", words:1200}, ...]
-     */
-    function activityPairsToLast7Days(pairs) {
-      if (!Array.isArray(pairs)) return null;
-      const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-      return pairs.map((pair) => {
-        const dateStr = Array.isArray(pair) ? pair[0] : '';
-        const words = Array.isArray(pair) ? (Number(pair[1]) || 0) : 0;
-        const d = new Date(dateStr + 'T12:00:00');
-        const dayLabel = isNaN(d.getTime()) ? 'NA' : dayNames[d.getDay()];
-        return { day: dayLabel, words };
-      });
+      return chartData.dates.map((date, i) => ({ date: String(date), words: Number(values[i]) || 0 }));
     }
 
     function updateSidebar() {
       const snapshot = {
-        rank: String(stats.rank || 'Word Warrior'),
-        xp: Number(headerXp() || 0),
-        level: Number(stats.level || 9),
-        achievements: `${unlockCount()}/${achievements.length}`,
         snippets: String(snippets.length),
         dictionary: String(vocabularyWords.length),
       };
@@ -417,22 +320,19 @@
       if (currentDigest === lastSidebarDigest) return;
       lastSidebarDigest = currentDigest;
 
-      const rank = document.getElementById('rank');
-      const xp = document.getElementById('header-xp-display');
-      const lvl = document.getElementById('sidebar-level');
-      const ac = document.getElementById('achievement-count');
       const sc = document.getElementById('snippet-count');
       const dc = document.getElementById('dictionary-count');
-      if (rank) rank.textContent = snapshot.rank;
-      if (xp) xp.textContent = snapshot.xp.toLocaleString();
-      if (lvl) lvl.textContent = 'Lvl ' + snapshot.level;
-      if (ac) ac.textContent = snapshot.achievements;
       if (sc) sc.textContent = snapshot.snippets;
       if (dc) dc.textContent = snapshot.dictionary;
     }
 
+    function updateListeningLabel() {
+      const el = document.getElementById('listening-hotkey');
+      if (el) el.textContent = hotkeyDisplay(settingsState.hotkey);
+    }
+
     function updateNav() {
-      ['home', 'snippets', 'dictionary', 'achievements', 'challenges'].forEach((v) => {
+      ['home', 'snippets', 'dictionary', 'settings'].forEach((v) => {
         const b = document.getElementById('nav-' + v);
         if (!b) return;
         b.classList.toggle('active', v === currentView);
@@ -452,114 +352,173 @@
       if (views.includes(currentView)) scheduleRender();
     }
 
-    function isModelsSettingsVisible() {
-      const modal = document.getElementById('settings-modal');
-      return Boolean(modal && modal.classList.contains('is-open') && settingsTab === 'models');
+    function isSettingsTabVisible(tab) { return currentView === 'settings' && settingsTab === tab; }
+    function isModelsSettingsVisible() { return isSettingsTabVisible('models'); }
+
+    function switchView(v) {
+      currentView = v;
+      scheduleRender();
+      if (v === 'dictionary') loadVocabularyFromPython();
+      if (v === 'snippets') loadSnippetsFromPython();
+      if (v === 'settings') { loadOllamaReachability(); loadAppVersion(); loadInputDevices(); }
     }
 
-    function rarityClass(r) { return r === 'legendary' ? 'rarity-legendary' : r === 'epic' ? 'rarity-epic' : r === 'rare' ? 'rarity-rare' : 'rarity-common'; }
-    function actTime(t, i) { if (typeof t === 'string' && /\d{1,2}:\d{2}\s*[AP]M/i.test(t)) return t.toUpperCase(); if (typeof t === 'string' && /^\d+$/.test(t)) return 'RECENT'; return t || (i === 0 ? 'NOW' : i + 'm AGO'); }
-
-    function switchView(v) { currentView = v; scheduleRender(); if (v === 'dictionary') loadVocabularyFromPython(); if (v === 'snippets') loadSnippetsFromPython(); }
-    function setCategory(c) { activeCategory = c; if (currentView === 'achievements') scheduleRender(); }
-    function setSnippetScope(s) { snippetScope = s; scheduleRender(); }
-    function setSnippetSearch(s) { snippetSearch = String(s || ''); scheduleRender(); }
-
     // ================================================================
-    // Home view sub-renderers – each owns one visual region.
-    // renderHome() composes them into the full home layout.
+    // Home view. Layout and values lifted from
+    // docs/design/canvas-2026-09/Main.dc.html: header row, hero card
+    // (words today + record bar + three-column strip), 14-day graph,
+    // recent dictations. Each sub-renderer owns one card.
     // ================================================================
 
-    function renderWelcomeHeader() {
-      const weeklyTotal = weekWords();
+    const COPY_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"></rect><path d="M5 15V5a2 2 0 0 1 2-2h10"></path></svg>';
+    const TYPING_WPM = 40;
+
+    const kbdCaps = (keys) => keys.map((k) => `<span class="kbd">${esc(k)}</span>`).join('');
+    const shortDate = (iso) => {
+      const d = new Date(String(iso) + 'T12:00:00');
+      return isNaN(d.getTime()) ? '' : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    };
+
+    function renderHomeHeader() {
+      const today = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+      const recordKeys = hotkeyDisplay(settingsState.hotkey).split(' + ').filter(Boolean);
       return `
-    <header class="card home-header WelcomeHeader" data-source="Bridge.stats.get" data-update-fn="renderWelcomeHeader" style="position:relative;">
-      <div class="welcome-row WelcomeHeader__row">
-        <div class="DictateLead">
-          <p class="DictateLead__eyebrow">Dictate anywhere</p>
-          <h2 class="DictateLead__primary">
-            Hold <kbd class="Key">${esc(hotkeyDisplay(settingsState.hotkey))}</kbd> and talk
-          </h2>
-          <p class="DictateLead__secondary">
-            Or tap <kbd class="Key Key--sm">${esc(hotkeyDisplay(settingsState.hotkey))} + Alt</kbd>
-            once to record hands-free, and again to stop.
-          </p>
-        </div>
-        <div class="header-metrics WelcomeHeader__metrics">
-          <span class="metric-chip WelcomeHeader__chip" data-bind="stats.level">Lvl ${Number(stats.level) || 9}</span>
-          <span class="metric-chip metric-chip-xp WelcomeHeader__chip" data-bind="stats.xp">${Number(stats.xp || 0).toLocaleString()} XP</span>
-          <span class="metric-chip metric-chip-streak WelcomeHeader__chip" data-bind="stats.dayStreak">🔥 ${Number(stats.dayStreak || 0)} Day Streak</span>
-          <span class="metric-chip metric-chip-week WelcomeHeader__chip" data-bind="stats.thisWeek">${Number(weeklyTotal || 0).toLocaleString()} Weekly Words</span>
-        </div>
+    <header class="home-head">
+      <div class="home-title">
+        <h2>Today</h2>
+        <span class="home-date">${esc(today)}</span>
       </div>
-      <div class="xp-block XpProgress">
-        <div class="xp-meta"><span style="text-transform:uppercase; letter-spacing:0.1em; font-weight:700; color:var(--text);">Current Rank Progress</span><span style="color:var(--accent-light); font-weight:bold;">${Number(stats.xp || 0).toLocaleString()} / ${Number(stats.xpToNextLevel || 0).toLocaleString()}</span></div>
-        <div class="xp-track XpProgress__track"><div class="xp-fill XpProgress__fill" data-bind="stats.xp / stats.xpToNextLevel" style="width:${xpPct()}%"></div></div>
+      <div class="home-hint">
+        <span>Hold</span>${kbdCaps(recordKeys)}<span>and talk</span>
+        <span class="home-hint-divider" aria-hidden="true"></span>
+        ${kbdCaps([...recordKeys, 'Alt'])}<span>hands-free</span>
       </div>
     </header>`;
     }
 
     /**
-     * Renders the 7-day activity bar chart.
-     * Data source: Bridge.stats.getChartData(7) → stats.last7Days
-     * @param {Array} series - normalized 7-element array from normalize7()
-     * @param {number} weeklyTotal - sum of words this week
+     * Hero card: words today, dictation count, record bar against the best
+     * day, then Speed / Time saved / Streak.
+     *   speed      = avgWpm from the store; "--" until a take has measured one
+     *   time saved = todayWords / 40 - todayWords / avgWpm, minutes, floored at 0
+     *   streak     = stats.dayStreak, subline is all-time words
      */
-    function renderActivityGraph(series, weeklyTotal) {
-      const m = Math.max(1, ...series.map((s) => s.words));
-      const barMaxPx = 100;
-      const bars = series.map((s, i) => {
-        const words = Number(s.words) || 0;
-        const heightPx = words === 0 ? 2 : Math.max(4, Math.round((words / m) * barMaxPx));
-        return `<div class="mini-bar-col ActivityGraph__bar ${i === series.length - 1 ? 'is-today ActivityGraph__bar--today' : ''}" data-bind="stats.last7Days[${i}].words" title="${esc(s.day)}: ${words.toLocaleString()} words">
-          <div class="mini-bar-value ActivityGraph__value" style="font-weight:600;">${words > 0 ? words.toLocaleString() : ''}</div>
-          <div class="mini-bar" style="height:${heightPx}px; border-radius:4px; background:${i === series.length - 1 ? 'linear-gradient(180deg, rgba(3,218,198,0.9), rgba(3,218,198,0.2))' : 'linear-gradient(180deg, var(--accent), var(--accent-bg-strong))'}; transition:all 0.4s ease;"></div>
-          <span class="mini-day ActivityGraph__label" style="font-weight:500;">${esc(s.day)}</span>
-        </div>`;
-      }).join('');
+    function renderHeroCard() {
+      const words = Number(stats.todayWords) || 0;
+      const takes = Number(stats.todayTakes) || 0;
+      const best = Number(stats.bestDay && stats.bestDay.words) || 0;
+      const avgWpm = Number(stats.avgWpm) || 0;
+      const streak = Number(stats.dayStreak) || 0;
+
+      // bestDay includes today, so a record day reads words === best.
+      let recordPct = 0;
+      let recordText = 'No best day yet';
+      if (best > 0 && words >= best) {
+        recordPct = 100;
+        recordText = 'New best day';
+      } else if (best > 0) {
+        recordPct = Math.min(100, Math.round((words / best) * 100));
+        recordText = `${recordPct}% of your best day, ${fmtInt(best)}`;
+      }
+
+      const hasSpeed = avgWpm > 0;
+      const speedValue = hasSpeed ? `${fmtInt(avgWpm)} <span class="unit">wpm</span>` : '--';
+      const speedSub = hasSpeed ? `${(avgWpm / TYPING_WPM).toFixed(1)}x typing` : 'no data yet';
+      const savedMin = hasSpeed ? Math.max(0, words / TYPING_WPM - words / avgWpm) : null;
+      const savedValue = hasSpeed ? `${fmtInt(savedMin)} <span class="unit">min</span>` : '--';
+      const savedSub = hasSpeed ? 'estimate' : 'no data yet';
+
       return `
-    <section class="card home-right-chart ActivityGraph" data-source="Bridge.stats.get" data-update-fn="renderActivityGraph" style="position:relative; overflow:hidden;">
-      <div class="hero-card" style="position:relative; z-index:2; margin-bottom:16px;">
-        <div>
-          <h3 style="font-weight:800; font-size:22px;">Velocity</h3>
-          <p style="color:var(--muted); font-size:13px;">Words transcribed last 7 days</p>
+    <section class="card hero" data-source="Bridge.stats.getHomeSummary">
+      <div class="hero-words">
+        <span class="label">Words today</span>
+        <div class="hero-count">
+          <span class="hero-number mono">${fmtInt(words)}</span>
+          <span class="label">${fmtInt(takes)} ${takes === 1 ? 'dictation' : 'dictations'}</span>
         </div>
-        <div style="font-size:28px; ">📈</div>
+        <div class="hero-record">
+          <span class="rec"><i style="width:${recordPct}%;"></i></span>
+          <span class="mono rec-text">${esc(recordText)}</span>
+        </div>
       </div>
-      <div class="mini-bars" style="position:relative; z-index:2; height:140px; align-items:flex-end;">${bars}</div>
+      <div class="hero-divider" aria-hidden="true"></div>
+      <div class="hero-strip">
+        <div class="stat">
+          <span class="label">Speed</span>
+          <span class="value mono">${speedValue}</span>
+          <span class="delta">${esc(speedSub)}</span>
+        </div>
+        <div class="stat">
+          <span class="label">Time saved</span>
+          <span class="value mono">${savedValue}</span>
+          <span class="delta">${esc(savedSub)}</span>
+        </div>
+        <div class="stat">
+          <span class="label">Streak</span>
+          <span class="value mono">${fmtInt(streak)} <span class="unit">${streak === 1 ? 'day' : 'days'}</span></span>
+          <span class="delta">${fmtInt(stats.totalWords)} all time</span>
+        </div>
+      </div>
     </section>`;
     }
 
     /**
-     * Renders the right-column recent transcription timeline.
-     * Data source: Bridge.stats.getHistory() → stats.recentTranscripts
-     * @param {Array} transcripts - array of {text, fullText, words, time}
+     * Last 14 days. Bars scale to the best day so the tallest possible bar
+     * meets the dashed best-day line; today's bar is accent and keeps its
+     * tooltip open. Data: Bridge.stats.getChartData(14) -> stats.last14Days.
      */
-    function renderRecentTimeline(transcripts) {
-      const cards = (transcripts || []).map((t, i) => `<article class="timeline-card RecentTimeline__card" style="position:relative; overflow:hidden; transition:all 0.3s ease; cursor:pointer;" onmouseenter="this.style.borderColor='var(--accent-hover)'" onmouseleave="this.style.borderColor='transparent'">
-        <div style="position:absolute; inset:0; background:linear-gradient(90deg, transparent, rgba(255,255,255,0.03)); pointer-events:none;"></div>
-        <div class="timeline-time RecentTimeline__time" style="font-weight:600; color:var(--muted);">${esc(actTime(t.time, i))}</div>
-        <div class="timeline-body RecentTimeline__body">
-          <p style="color:var(--text);">${esc(t.fullText || t.text || 'No transcript')}</p>
-          <div class="timeline-meta RecentTimeline__meta" style="color:var(--accent); font-weight:bold; display:flex; align-items:center; gap:4px;">
-            <span style="font-size:16px;">+</span>${Number(t.words || 0)} words
-          </div>
-        </div>
-        <button class="copy-btn" onclick="copyTranscriptItem(${i})">Copy</button>
-      </article>`).join('');
+    function renderChartCard() {
+      const series = Array.isArray(stats.last14Days) ? stats.last14Days : [];
+      const best = Number(stats.bestDay && stats.bestDay.words) || 0;
+      const barMaxPx = 88;
+      const total = series.reduce((sum, d) => sum + (Number(d.words) || 0), 0);
+      const avg = series.length ? Math.round(total / series.length) : 0;
+      const bars = series.map((d, i) => {
+        const w = Number(d.words) || 0;
+        const h = (best > 0 && w > 0) ? Math.max(2, Math.round((w / best) * barMaxPx)) : 2;
+        const isToday = i === series.length - 1;
+        return `<div class="bar${isToday ? ' today' : ''}" title="${esc(shortDate(d.date))}"><i style="height:${h}px;"><span class="tip mono">${fmtInt(w)}</span></i></div>`;
+      }).join('');
+      const first = series.length ? shortDate(series[0].date) : '';
+      const mid = series.length > 2 ? shortDate(series[Math.floor(series.length / 2)].date) : '';
       return `
-    <section class="activity-section RecentTimeline" data-source="Bridge.stats.getHistory" data-update-fn="renderRecentTimeline" style="position:relative; overflow:hidden;">
-      <div class="section-head" style="position:relative; z-index:2; margin-bottom:16px;">
-        <div style="display:flex; flex-direction:column;">
-          <h3 style="font-size:20px; font-weight:800; color:var(--text);">Live Feed</h3>
-          <span style="font-size:12px;">Recent Dictations</span>
-        </div>
-        <div style="display:flex; align-items:center; gap:6px; background:rgba(255,255,255,0.05); padding:4px 8px; border-radius:99px; border:1px solid rgba(255,255,255,0.1);">
-          <div style="width:8px; height:8px; background:var(--accent); border-radius:50%; animation:ping-soft 2s cubic-bezier(0, 0, 0.2, 1) infinite;"></div>
-          <span style="color:var(--accent); font-weight:bold; font-size:10px; letter-spacing:1px; text-transform:uppercase;">Live</span>
-        </div>
+    <section class="card chart" data-source="Bridge.stats.getChartData">
+      <div class="chart-head">
+        <div class="chart-title"><h3>Last 14 days</h3><span>words per day</span></div>
+        <span class="mono chart-avg">avg ${fmtInt(avg)} / day</span>
       </div>
-      <div class="timeline-list RecentTimeline__list" style="position:relative; z-index:2;">${cards || '<div class="card empty-card" style="text-align:center;">No recent activity yet. Start speaking!</div>'}</div>
+      <div class="bars">
+        <span class="best"><span class="mono">best day ${fmtInt(best)}</span></span>
+        ${bars}
+      </div>
+      <div class="axis mono">
+        <span>${esc(first)}</span><span>${esc(mid)}</span><span class="axis-today">Today</span>
+      </div>
+    </section>`;
+    }
+
+    /**
+     * Recent dictations: time, two-line text, Copy on hover.
+     * Data: Bridge.stats.getHistory() -> stats.recentTranscripts (newest first).
+     */
+    function renderRecentCard() {
+      const items = Array.isArray(stats.recentTranscripts) ? stats.recentTranscripts : [];
+      const rows = items.map((t, i) => `<div class="row">
+        <span class="time mono">${esc(t.time || '')}</span>
+        <span class="text">${esc(t.fullText || t.text || '')}</span>
+        <button class="btn copy" onclick="copyTranscriptItem(${i})">${COPY_ICON}Copy</button>
+      </div>`).join('');
+      const empty = `<div class="row-empty">
+        <span>No dictations yet</span>
+        <span class="label">Hold ${esc(hotkeyDisplay(settingsState.hotkey))} and talk. Your takes show up here.</span>
+      </div>`;
+      return `
+    <section class="card recent" data-source="Bridge.stats.getHistory">
+      <div class="recent-head">
+        <h3>Recent dictations</h3>
+        <button class="btn" onclick="copyLast()" ${items.length ? '' : 'disabled'}>${COPY_ICON}Copy last</button>
+      </div>
+      ${rows || empty}
     </section>`;
     }
 
@@ -568,230 +527,291 @@
      * This is the entry point called by renderContent() when currentView === 'home'.
      */
     function renderHome() {
-      const series = normalize7(stats.last7Days);
-      const weeklyTotal = weekWords();
       return `
     <section class="home-view">
-      ${renderWelcomeHeader()}
-      <div class="home-left">
-        ${renderActivityGraph(series, weeklyTotal)}
-      </div>
-      <div class="home-right">
-        ${renderRecentTimeline(stats.recentTranscripts)}
-      </div>
+      ${renderHomeHeader()}
+      ${renderHeroCard()}
+      ${renderChartCard()}
+      ${renderRecentCard()}
     </section>`;
     }
 
+    // ================================================================
+    // Snippets and Dictionary. Same header, card, row and button
+    // patterns as Home (Main.dc.html); the inputs follow the control
+    // values in SettingsPage.dc.html. Form first, list under it.
+    // Every snippet is stored with scope "personal" (gui_host.add_snippet
+    // never passes a scope), so there is no scope filter to render.
+    // ================================================================
+
+    function renderViewHead(title, subline) {
+      return `
+    <header class="view-head">
+      <div class="view-title"><h2>${esc(title)}</h2><span class="view-sub">${esc(subline)}</span></div>
+    </header>`;
+    }
+
     function renderSnippets() {
-      const s = snippetSearch.trim().toLowerCase();
-      const filtered = snippets.filter((x) => (snippetScope === 'all' || x.scope === snippetScope) && (!s || (x.trigger + ' ' + x.replacement).toLowerCase().includes(s)));
-      const rows = filtered.map((x) => `<div class="snippet-row"><div class="snippet-key">${esc(x.trigger)}</div><div class="snippet-arrow">-></div><div class="snippet-value">${esc(x.replacement)}</div><button class="copy-btn" onclick="copySnippet(${x.id})">Copy</button><button class="copy-btn" onclick="deleteSnippet(${x.id})" style="margin-left:4px;opacity:0.7">Del</button></div>`).join('');
-      const pills = snippets.slice(0, 3).map((x) => `<div class="snippet-pill"><span>${esc(x.trigger)}</span><span class="arrow">-></span><span>${esc(x.replacement)}</span></div>`).join('');
+      const rows = snippets.map((x) => `<div class="row snippet">
+        <span class="trigger mono">"${esc(x.trigger)}"</span>
+        <span class="text">${esc(x.replacement)}</span>
+        <span class="row-actions">
+          <button class="btn" onclick="copySnippet(${Number(x.id)})">${COPY_ICON}Copy</button>
+          <button class="btn" onclick="deleteSnippet(${Number(x.id)})">Delete</button>
+        </span>
+      </div>`).join('');
+      const empty = `<div class="row-empty">
+        <span>No snippets yet</span>
+        <span class="label">Add a trigger above. Say it while dictating and the replacement gets typed instead.</span>
+      </div>`;
       return `
     <section class="snippets-view">
-      <header class="view-header card"><div><h2>Snippets</h2><p>Text replacement shortcuts for faster dictation cleanup.</p></div><button class="primary-btn" onclick="addSnippet()">Add new</button></header>
-      <section class="card snippet-banner"><h3>The stuff you should not have to re-type.</h3><p>Save shortcuts for emails, links, addresses, and recurring prompts.</p><div class="snippet-pill-row">${pills}</div></section>
-      <section class="snippet-controls card"><div class="scope-tabs"><button class="${snippetScope === 'all' ? 'active' : ''}" onclick="setSnippetScope('all')">All</button><button class="${snippetScope === 'personal' ? 'active' : ''}" onclick="setSnippetScope('personal')">Personal</button><button class="${snippetScope === 'shared' ? 'active' : ''}" onclick="setSnippetScope('shared')">Shared with team</button></div><input type="text" placeholder="Search snippets..." value="${esc(snippetSearch)}" oninput="setSnippetSearch(this.value)"></section>
-      <section class="snippet-list card">${rows || '<div class="empty-card">No snippets match this filter.</div>'}</section>
+      ${renderViewHead('Snippets', 'Say the trigger, Impulse types the replacement.')}
+      <form class="card add-form snippet-form" onsubmit="event.preventDefault();addSnippet();">
+        <input id="snippet-trigger-input" class="field" type="text" placeholder="If I say..." autocomplete="off" spellcheck="false">
+        <input id="snippet-replacement-input" class="field" type="text" placeholder="Type this..." autocomplete="off">
+        <button type="submit" class="btn primary">Add</button>
+      </form>
+      <section class="card list" data-source="Bridge.settings.getSnippets">${rows || empty}</section>
     </section>`;
     }
 
     function normalizeVocabularyWord(v) { return String(v || '').trim().replace(/\s+/g, ' '); }
 
+    // Rows carry no action: the bridge has add_vocabulary_word but no
+    // remove call, so nothing is invented here.
     function renderDictionary() {
-      const rows = vocabularyWords.map((w) => `<div class="dictionary-pill">${esc(w)}</div>`).join('');
+      const rows = vocabularyWords.map((w) => `<div class="row word"><span class="text">${esc(w)}</span></div>`).join('');
+      const empty = `<div class="row-empty">
+        <span>No words yet</span>
+        <span class="label">Add the names and jargon Whisper keeps getting wrong.</span>
+      </div>`;
       return `
     <section class="dictionary-view">
-      <header class="view-header card">
-        <div><h2>Dictionary</h2><p>Add names and jargon to bias Whisper transcription.</p></div>
-      </header>
-      <section class="card dictionary-editor">
-        <div class="dictionary-input-row">
-          <input id="dictionary-word-input" type="text" placeholder="Add word or phrase..." onkeydown="if(event.key==='Enter'){event.preventDefault();addVocabularyWord();}">
-          <button class="primary-btn" onclick="addVocabularyWord()">Add Word</button>
-        </div>
-        <p>Saved instantly to your local vocabulary file.</p>
-      </section>
-      <section class="card dictionary-list">${rows || '<div class="empty-card">No custom words yet.</div>'}</section>
+      ${renderViewHead('Dictionary', 'Names and jargon Whisper should get right.')}
+      <form class="card add-form word-form" onsubmit="event.preventDefault();addVocabularyWord();">
+        <input id="dictionary-word-input" class="field" type="text" placeholder="Add a word or phrase" autocomplete="off">
+        <button type="submit" class="btn primary">Add</button>
+      </form>
+      <section class="card list" data-source="Bridge.settings.getVocabulary">${rows || empty}</section>
     </section>`;
-    }
-
-    function renderAchievements() {
-      const set = { common: [0, 0], rare: [0, 0], epic: [0, 0], legendary: [0, 0] };
-      achievements.forEach((a) => { if (set[a.rarity]) { set[a.rarity][1] += 1; if (a.unlocked) set[a.rarity][0] += 1; } });
-      const rarity = ['common', 'rare', 'epic', 'legendary'].map((r) => `<div class="rarity-card ${rarityClass(r)}"><div>${r[0].toUpperCase() + r.slice(1)}</div><strong>${set[r][0]}/${set[r][1]}</strong></div>`).join('');
-      const cbtn = categories.map((c) => { const tot = c.id === 'all' ? achievements.length : achievements.filter((a) => a.category === c.id).length; const un = c.id === 'all' ? unlockCount() : achievements.filter((a) => a.category === c.id && a.unlocked).length; return `<button class="${activeCategory === c.id ? 'active' : ''}" onclick="setCategory('${c.id}')">${esc(c.name)} ${un}/${tot}</button>`; }).join('');
-      const items = (activeCategory === 'all' ? achievements : achievements.filter((a) => a.category === activeCategory)).map((a) => `<article class="achievement-card ${a.unlocked ? 'unlocked' : 'locked'} ${rarityClass(a.rarity)}" onclick="showAchievementDetail(${a.id})"><div class="achievement-icon">${a.unlocked ? esc(a.icon) : 'LOCK'}</div><h4>${esc(a.name)}</h4><p>${esc(a.description)}</p><div class="achievement-xp">+${a.xp} XP</div>${a.unlocked ? '' : `<div class="achievement-progress"><span style="width:${Math.max(0, Math.min(100, Number(a.progress || 0)))}%"></span></div>`}</article>`).join('');
-      return `<section class="achievements-view"><header class="view-header card"><div><h2>Achievements</h2><p>${unlockCount()} of ${achievements.length} unlocked</p></div></header><section class="rarity-grid">${rarity}</section><section class="category-filters">${cbtn}</section><section class="achievement-grid">${items}</section></section>`;
-    }
-
-    function challengeProgress(c, mode) {
-      if (mode === 'daily') { if (c.id === 1) return Number(stats.today) || 0; if (c.id === 2) return Number(stats.avgWpm) || 0; return Number(stats.today) || 0; }
-      if (c.id === 1) return weekWords();
-      if (c.id === 2) return Math.min(Number(stats.weekStreak) || 0, 7);
-      return Number(stats.avgWpm) || 0;
-    }
-
-    function renderChallenges() {
-      const daily = dailyChallenges.map((c) => { const p = challengeProgress(c, 'daily'); const pct = Math.max(0, Math.min(100, (p / c.target) * 100)); const ok = p >= c.target; return `<article class="challenge-card ${ok ? 'complete' : ''}" style="background:linear-gradient(135deg, rgba(255,255,255,0.02), transparent); border:1px solid rgba(255,255,255,0.05); padding:16px; border-radius:12px; position:relative; overflow:hidden;"><div style="position:absolute; inset:0; background:linear-gradient(90deg, transparent, rgba(255,255,255,0.02)); pointer-events:none;"></div><div class="challenge-head" style="position:relative; z-index:2;"><h4 style="color:var(--text); font-weight:700;">${esc(c.name)}</h4><span style="color:var(--accent); font-weight:bold;">+${c.xp} XP ${ok ? '✅' : ''}</span></div><div class="challenge-bar" style="background:rgba(0,0,0,0.5); border:1px solid rgba(255,255,255,0.05); box-shadow:inset 0 1px 3px rgba(0,0,0,0.5); border-radius:99px; height:8px; margin:10px 0; overflow:hidden;"><span style="width:${pct}%; background:linear-gradient(90deg, var(--accent), var(--accent-light)); position:relative;"><div style="position:absolute; inset:0; background:linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent); animation:shimmer 2s infinite;"></div></span></div><p style="color:var(--muted); font-size:12px; position:relative; z-index:2;">${Number(p).toLocaleString()} / ${c.target.toLocaleString()} ${esc(c.unit)}</p></article>`; }).join('');
-      const weekly = weeklyChallenges.map((c) => { const p = challengeProgress(c, 'weekly'); const pct = Math.max(0, Math.min(100, (p / c.target) * 100)); const ok = p >= c.target; return `<article class="challenge-card ${ok ? 'complete' : ''}" style="background:linear-gradient(135deg, rgba(255,255,255,0.02), transparent); border:1px solid rgba(255,255,255,0.05); padding:16px; border-radius:12px; position:relative; overflow:hidden;"><div style="position:absolute; inset:0; background:linear-gradient(90deg, transparent, rgba(255,255,255,0.02)); pointer-events:none;"></div><div class="challenge-head" style="position:relative; z-index:2;"><h4 style="color:var(--text); font-weight:700;">${esc(c.name)}</h4><span style="color:var(--accent); font-weight:bold;">+${c.xp} XP ${ok ? '✅' : ''}</span></div><div class="challenge-bar" style="background:rgba(0,0,0,0.5); border:1px solid rgba(255,255,255,0.05); box-shadow:inset 0 1px 3px rgba(0,0,0,0.5); border-radius:99px; height:8px; margin:10px 0; overflow:hidden;"><span style="width:${pct}%; background:linear-gradient(90deg, var(--accent), var(--accent-light)); position:relative;"><div style="position:absolute; inset:0; background:linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent); animation:shimmer 2s infinite;"></div></span></div><p style="color:var(--muted); font-size:12px; position:relative; z-index:2;">${Number(p).toLocaleString()} / ${c.target.toLocaleString()} ${esc(c.unit)}</p></article>`; }).join('');
-      return `<section class="challenges-view">
-        <header class="view-header card" style="position:relative; overflow:hidden;">
-          <div style="position:relative; z-index:2;"><h2>Active Challenges</h2><p>Daily and weekly targets with gamified XP rewards.</p></div>
-        </header>
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
-          <section class="challenge-section card" style="padding:20px;">
-            <div class="section-head" style="margin-bottom:16px;">
-              <h3 style="font-size:18px; font-weight:700;">Daily Missions</h3>
-              <span style="color:var(--accent); font-weight:600;">Resets in 5h</span>
-            </div>
-            <div class="challenge-stack" style="display:grid; gap:12px;">${daily}</div>
-          </section>
-          <section class="challenge-section card" style="padding:20px;">
-            <div class="section-head" style="margin-bottom:16px;">
-              <h3 style="font-size:18px; font-weight:700;">Weekly Operations</h3>
-              <span style="color:var(--green); font-weight:600;">Resets in 3d</span>
-            </div>
-            <div class="challenge-stack" style="display:grid; gap:12px;">${weekly}</div>
-          </section>
-        </div>
-        <section class="records-grid" style="display:grid; grid-template-columns:repeat(4, 1fr); gap:16px; margin-top:8px;">
-          <article class="record-card card" style="text-align:center; padding:24px 16px;">
-             <div style="width:40px; height:40px; margin:0 auto 12px; border-radius:12px; background:var(--accent-bg-strong); display:flex; align-items:center; justify-content:center; border:1px solid var(--accent-border);">🌟</div>
-             <h4 style="color:var(--muted); font-size:13px; margin-bottom:8px;">Most Words (Day)</h4>
-             <strong style="color:var(--text); font-size:24px; display:block; margin-bottom:4px;">${Number(stats.records.mostWordsDay.value || 0).toLocaleString()}</strong>
-             <span style="font-size:11px; color:var(--muted);">${esc(stats.records.mostWordsDay.date || 'N/A')}</span>
-          </article>
-          <article class="record-card card" style="text-align:center; padding:24px 16px;">
-             <div style="width:40px; height:40px; margin:0 auto 12px; border-radius:12px; background:rgba(3,218,198,0.15); display:flex; align-items:center; justify-content:center; border:1px solid rgba(3,218,198,0.3);">⚡</div>
-             <h4 style="color:var(--muted); font-size:13px; margin-bottom:8px;">Fastest WPM</h4>
-             <strong style="color:var(--text); font-size:24px; display:block; margin-bottom:4px;">${esc(stats.records.fastestWpm.value || '0')}</strong>
-             <span style="font-size:11px; color:var(--muted);">${esc(stats.records.fastestWpm.date || 'N/A')}</span>
-          </article>
-          <article class="record-card card" style="text-align:center; padding:24px 16px;">
-             <div style="width:40px; height:40px; margin:0 auto 12px; border-radius:12px; background:rgba(255,171,0,0.15); display:flex; align-items:center; justify-content:center; border:1px solid rgba(255,171,0,0.3);">⏳</div>
-             <h4 style="color:var(--muted); font-size:13px; margin-bottom:8px;">Longest Session</h4>
-             <strong style="color:var(--text); font-size:24px; display:block; margin-bottom:4px;">${esc(stats.records.longestSession.value || 'N/A')}</strong>
-             <span style="font-size:11px; color:var(--muted);">${esc(stats.records.longestSession.date || 'N/A')}</span>
-          </article>
-          <article class="record-card card" style="text-align:center; padding:24px 16px;">
-             <div style="width:40px; height:40px; margin:0 auto 12px; border-radius:12px; background:rgba(255,107,107,0.15); display:flex; align-items:center; justify-content:center; border:1px solid rgba(255,107,107,0.3);">🔥</div>
-             <h4 style="color:var(--muted); font-size:13px; margin-bottom:8px;">Best Streak</h4>
-             <strong style="color:var(--text); font-size:24px; display:block; margin-bottom:4px;">${esc(stats.records.longestStreak.value || '0')} days</strong>
-             <span style="font-size:11px; color:var(--muted);">${esc(stats.records.longestStreak.date || 'N/A')}</span>
-          </article>
-        </section>
-      </section>`;
     }
 
     function renderContent() {
       const content = document.getElementById('tab-content');
       if (!content) return;
       const y = content.scrollTop;
-      content.innerHTML = currentView === 'home' ? renderHome() : currentView === 'snippets' ? renderSnippets() : currentView === 'dictionary' ? renderDictionary() : currentView === 'achievements' ? renderAchievements() : renderChallenges();
+      content.innerHTML = currentView === 'snippets' ? renderSnippets()
+        : currentView === 'dictionary' ? renderDictionary()
+        : currentView === 'settings' ? renderSettings()
+        : renderHome();
       updateSidebar();
       updateNav();
       content.scrollTop = y;
     }
 
-    function renderSettingsPanel() {
-      ['general', 'audio', 'models', 'data', 'license'].forEach((t) => { const b = document.getElementById('settings-nav-' + t); if (b) b.classList.toggle('active', settingsTab === t); });
-      const panel = document.getElementById('settings-panel');
-      if (!panel) return;
-      if (settingsTab === 'general') {
-        panel.innerHTML = `
-      <h3>General</h3>
-      <div class="settings-row">
-        <div><h4>Launch Behavior</h4><p>Choose startup behavior.</p></div>
-        <select onchange="updateSetting('launchBehavior', this.value)">
-          <option value="start_minimized" ${settingsState.launchBehavior === 'start_minimized' ? 'selected' : ''}>Start minimized</option>
-          <option value="open_dashboard" ${settingsState.launchBehavior === 'open_dashboard' ? 'selected' : ''}>Open dashboard</option>
-        </select>
-      </div>
-      <div class="settings-row">
-        <div><h4>Theme</h4><p>Choose your dashboard color scheme.</p></div>
-        <select onchange="updateSetting('theme', this.value)">
-          <option value="hot_pink" ${settingsState.theme === 'hot_pink' ? 'selected' : ''}>Hot Pink</option>
-          <option value="neon_dark" ${settingsState.theme === 'neon_dark' ? 'selected' : ''}>Neon Dark</option>
-          <option value="midnight_green" ${settingsState.theme === 'midnight_green' ? 'selected' : ''}>Midnight Green</option>
-        </select>
-      </div>
-      <div class="settings-row">
-        <div><h4>Record Shortcut</h4><p>Press and hold this combo to start dictation.</p></div>
-        <div class="hotkey-control">
-          <input id="hotkey-record-input" class="hotkey-input" type="text" readonly value="${esc(hotkeyDisplay(settingsState.hotkey))}">
-          <button class="primary-btn hotkey-record-btn ${hotkeyRecording ? 'is-recording' : ''}" onclick="toggleHotkeyRecording()">${hotkeyRecording ? 'Press keys...' : 'Record Shortcut'}</button>
-        </div>
-      </div>
-      <div class="settings-row">
-        <div><h4>Command Mode</h4><p>Edit with voice commands.</p></div>
-        <label class="switch"><input type="checkbox" ${settingsState.commandMode ? 'checked' : ''} onchange="toggleSetting('commandMode')"><span></span></label>
-      </div>
-      <div class="settings-row">
-        <div><h4>Auto-copy transcript</h4><p>Copy latest output automatically.</p></div>
-        <label class="switch"><input type="checkbox" ${settingsState.autoCopy ? 'checked' : ''} onchange="toggleSetting('autoCopy')"><span></span></label>
-      </div>
-      <div class="settings-row">
-        <div><h4>Stylization Profile</h4><p>Clean: fillers removed, human text. Polished: light grammar fix via Ollama. (Ctrl+Win+Shift to cycle)</p></div>
-        <select onchange="updateSetting('stylizationProfile', this.value)">
-          ${['off', 'clean', 'polished'].map(p => '<option value="' + p + '"' + (settingsState.stylizationProfile === p ? ' selected' : '') + '>' + p.charAt(0).toUpperCase() + p.slice(1) + '</option>').join('')}
-        </select>
-      </div>
-      <div class="settings-row">
-        <div><h4>Ollama Model</h4><p>Model used for stylization.</p></div>
-        <input type="text" value="${esc(settingsState.ollamaModel)}" onchange="updateSetting('ollamaModel', this.value)" style="width:160px;background:var(--bg-secondary);color:var(--text-primary);border:1px solid var(--border);border-radius:6px;padding:4px 8px;">
-      </div>
-      <div class="settings-row">
-        <div><h4>Ollama Endpoint</h4><p>Base URL for Ollama API.</p></div>
-        <input type="text" value="${esc(settingsState.ollamaEndpoint)}" onchange="updateSetting('ollamaEndpoint', this.value)" style="width:220px;background:var(--bg-secondary);color:var(--text-primary);border:1px solid var(--border);border-radius:6px;padding:4px 8px;">
+    // ================================================================
+    // Settings view. Markup and control values lifted from
+    // docs/design/canvas-2026-09/SettingsPage.dc.html: page title with
+    // the tab row at its right, a .card of .setting rows, an uppercase
+    // section label before the Audio card. Model, Data and License reuse
+    // the same row pattern. Audio lives inside General as in the canvas.
+    // ================================================================
+
+    const SETTINGS_TABS = [
+      { id: 'general', label: 'General' },
+      { id: 'models', label: 'Model' },
+      { id: 'data', label: 'Data' },
+      { id: 'license', label: 'License' }
+    ];
+    const MODEL_OPTIONS = [
+      { id: 'auto', title: 'Auto', desc: 'Picks the best model for this machine (recommended).' },
+      { id: 'turbo', title: 'Turbo', desc: 'Highest accuracy. Needs a GPU to stay fast.' },
+      { id: 'base', title: 'Base', desc: 'Fast and light. Best on machines without a GPU.' }
+    ];
+    // Real range inputs; min/max drive the accent fill, text formats the readout.
+    const SLIDERS = {
+      vadSensitivity: { min: 1, max: 100, step: 1, text: (v) => String(Math.round(v)) },
+      vadSilenceMs: { min: 250, max: 2000, step: 50, text: (v) => (Number(v) / 1000).toFixed(1) + 's' }
+    };
+    const CHEVRON_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg>';
+
+    const settingRow = (name, help, control) => `<div class="setting">
+        <div class="setting-text"><div class="name">${esc(name)}</div>${help ? `<div class="help">${esc(help)}</div>` : ''}</div>
+        ${control ? `<div class="setting-control">${control}</div>` : ''}
       </div>`;
-        return;
-      }
-      if (settingsTab === 'audio') {
-        panel.innerHTML = `<h3>Audio</h3><div class="settings-row"><div><h4>Microphone Input</h4><p>Select the microphone source.</p></div><select onchange="updateSetting('microphone', this.value)">${microphones.map((m) => `<option value="${esc(m)}" ${settingsState.microphone === m ? 'selected' : ''}>${esc(m)}</option>`).join('')}</select></div><div class="settings-row slider-row"><div><h4>VAD Sensitivity</h4><p>Higher catches quieter speech.</p></div><div class="slider-wrap"><input type="range" min="1" max="100" value="${settingsState.vadSensitivity}" oninput="updateSetting('vadSensitivity', this.value, true)"><span id="value-vadSensitivity">${settingsState.vadSensitivity}</span></div></div><div class="settings-row slider-row"><div><h4>Silence Timeout (ms)</h4><p>Silence needed to stop capture.</p></div><div class="slider-wrap"><input type="range" min="250" max="2000" step="50" value="${settingsState.vadSilenceMs}" oninput="updateSetting('vadSilenceMs', this.value, true)"><span id="value-vadSilenceMs">${settingsState.vadSilenceMs}</span></div></div>`;
-        return;
-      }
-      if (settingsTab === 'models') {
-        const rows = [
-          { id: 'auto', title: 'Auto', desc: 'Picks the best model for this machine (recommended).' },
-          { id: 'turbo', title: 'Turbo', desc: 'Highest accuracy. Needs a GPU to stay fast.' },
-          { id: 'base', title: 'Base', desc: 'Fast and light. Best on machines without a GPU.' }
-        ];
-        const grid = rows.map((m) => `<button class="model-card ${settingsState.modelMode === m.id ? 'active' : ''}" onclick="selectModel('${m.id}')"><h4>${m.title}</h4><p>${m.desc}</p>${m.id === 'auto' ? `<span class="model-meta">Current: ${modelLabel(settingsState.activeModel)}${settingsState.vramTotalGb > 0 ? ` (${settingsState.vramTotalGb.toFixed(1)} GB VRAM)` : ''}</span>` : ''}</button>`).join('');
-        panel.innerHTML = `<h3>Models</h3><div class="model-grid model-grid-4">${grid}</div>`;
-        return;
-      }
-      if (settingsTab === 'data') {
-        panel.innerHTML = `<h3>Data</h3><div class="settings-row"><div><h4>Export History</h4><p>Download transcripts, snippets, and achievements.</p></div><button class="primary-btn" onclick="exportHistory()">Export History</button></div><div class="settings-row"><div><h4>Share Telemetry</h4><p>Opt in to anonymous crash/error diagnostics and setup-progress events (install, activation, first dictation). No audio or transcript content is ever sent.</p></div><label class="switch"><input type="checkbox" ${settingsState.telemetryEnabled ? 'checked' : ''} onchange="toggleSetting('telemetryEnabled')"><span></span></label></div><div class="settings-row"><div><h4>Snapshot</h4><p>${Number(stats.totalWords || 0).toLocaleString()} total words, ${(stats.recentTranscripts || []).length} recent transcripts, ${unlockCount()} achievements unlocked.</p></div></div>`;
-        return;
-      }
-      if (settingsTab === 'license') {
-        const betaMessage = betaExpiryMessage();
-        const expiryRow = betaMessage
-          ? `<div class="settings-row"><div><h4>Beta Window</h4><p style="color:${licenseState.is_valid ? 'var(--accent-warning)' : 'var(--text-secondary)'}">${esc(betaMessage)}</p></div></div>`
-          : '';
-        const expiryStamp = licenseState.expires_at
-          ? `<div class="settings-row"><div><h4>Expires At</h4><p>${esc(licenseState.expires_at)}</p></div></div>`
-          : '';
-        if (licenseState.is_valid) {
-          panel.innerHTML = `<h3>License</h3><div class="settings-row"><div><h4>Status</h4><p style="color:var(--accent-success)">Active and Valid</p><p style="color:var(--text-secondary);margin-top:4px;">${esc(licenseState.message || 'License validated and dictation is unlocked.')}</p></div></div>${expiryRow}${expiryStamp}<div class="settings-row"><div><h4>License Key</h4><p>${licenseState.key || 'Hidden'}</p></div><button class="primary-btn" onclick="deactivateLicense()">Deactivate</button></div>`;
-        } else {
-          panel.innerHTML = `<h3>License</h3><div class="settings-row"><div><h4>Status</h4><p style="color:var(--accent-error)">Inactive / Unlicensed</p><p style="color:var(--text-secondary);margin-top:4px;">${esc(licenseState.message || 'Enter your beta key to unlock dictation.')}</p></div></div>${expiryRow}${expiryStamp}<div class="settings-row"><div><h4>Activate</h4><p>Enter your license key to unlock.</p></div><div style="display:flex;gap:8px;flex-wrap:wrap;"><input type="text" id="settings-license-key" placeholder="License Key..." class="hotkey-input" aria-label="License key"><button class="primary-btn" onclick="activateLicenseSettings()">Activate</button></div></div>`;
-        }
-        return;
-      }
+    const toggleControl = (key, on, label) => `<button type="button" class="toggle${on ? ' on' : ''}" role="switch" aria-checked="${on ? 'true' : 'false'}" aria-label="${esc(label)}" onclick="toggleSetting('${key}')"></button>`;
+    const segControl = (key, options, current, label) => `<span class="seg" role="radiogroup" aria-label="${esc(label)}">${options.map((o) => `<button type="button" class="${o.value === current ? 'on' : ''}" role="radio" aria-checked="${o.value === current ? 'true' : 'false'}" onclick="updateSetting('${key}', '${esc(o.value)}')">${esc(o.label)}</button>`).join('')}</span>`;
+    const selectControl = (key, options, current, label) => {
+      const found = options.find((o) => o.value === current);
+      return `<span class="select"><span class="select-label">${esc(found ? found.label : current)}</span>${CHEVRON_ICON}<select aria-label="${esc(label)}" onchange="updateSetting('${key}', this.value)">${options.map((o) => `<option value="${esc(o.value)}" ${o.value === current ? 'selected' : ''}>${esc(o.label)}</option>`).join('')}</select></span>`;
+    };
+    // The thumb travels (track - 14 px), so the fill ends under its centre.
+    const sliderFill = (key, value) => {
+      const s = SLIDERS[key];
+      const pct = Math.max(0, Math.min(1, (Number(value) - s.min) / (s.max - s.min)));
+      return `calc((100% - 14px) * ${pct.toFixed(4)} + 7px)`;
+    };
+    const sliderControl = (key, label) => {
+      const s = SLIDERS[key];
+      const value = Number(settingsState[key]);
+      return `<span class="track"><i id="fill-${key}" style="width:${sliderFill(key, value)};"></i><input type="range" min="${s.min}" max="${s.max}" step="${s.step}" value="${value}" aria-label="${esc(label)}" oninput="updateSetting('${key}', this.value, true)"></span><span class="mono track-value" id="value-${key}">${esc(s.text(value))}</span>`;
+    };
+
+    function renderGeneralTab() {
+      const recordKeys = hotkeyDisplay(settingsState.hotkey).split(' + ').filter(Boolean);
+      const draftKeys = hotkeyRecording ? hotkeyDisplay(hotkeyCaptureDraft.join('+')).split(' + ').filter(Boolean) : [];
+      const recordControl = `<span class="keys" id="hotkey-record-keys">${kbdCaps(draftKeys.length ? draftKeys : recordKeys)}</span><button class="btn${hotkeyRecording ? ' is-recording' : ''}" onclick="toggleHotkeyRecording()">${hotkeyRecording ? 'Press keys...' : 'Change'}</button>`;
+      const micOptions = microphones.map((m) => ({ value: m.value, label: m.label }));
+      if (!micOptions.some((o) => o.value === settingsState.microphone)) micOptions.unshift({ value: settingsState.microphone, label: settingsState.microphone });
+      const themeOptions = [{ value: 'system', label: 'System' }, { value: 'dark', label: 'Dark' }, { value: 'light', label: 'Light' }];
+
+      const general = `<div class="card settings-card">
+        ${settingRow('Record shortcut', 'Hold to dictate. Release to paste.', recordControl)}
+        ${settingRow('Hands-free shortcut', 'Tap once to start, tap again to stop.', `<span class="keys">${kbdCaps([...recordKeys, 'Alt'])}</span>`)}
+        ${settingRow('Start with Windows', 'Launch minimized to the tray at sign-in.', toggleControl('launchBehavior', settingsState.launchBehavior === 'start_minimized', 'Start with Windows'))}
+        ${settingRow('Copy each dictation to the clipboard', 'In addition to pasting it where the cursor is.', toggleControl('autoCopy', settingsState.autoCopy, 'Copy each dictation to the clipboard'))}
+        ${settingRow('Command mode', 'Edit and interact with voice commands.', toggleControl('commandMode', settingsState.commandMode, 'Command mode'))}
+        ${settingRow('Appearance', 'Follows Windows by default.', segControl('theme', themeOptions, normalizeTheme(settingsState.theme), 'Appearance'))}
+      </div>`;
+
+      const audio = `<div class="section-label">Audio</div>
+      <div class="card settings-card">
+        ${settingRow('Microphone', 'Which input Impulse listens to.', selectControl('microphone', micOptions, settingsState.microphone, 'Microphone'))}
+        ${settingRow('Sensitivity', 'Higher picks up quieter speech.', sliderControl('vadSensitivity', 'Sensitivity'))}
+      </div>`;
+
+      // Only when the stored endpoint answered /api/tags on open.
+      const stylization = !ollamaReachable ? '' : `<div class="section-label">Stylization</div>
+      <div class="card settings-card">
+        ${settingRow('Stylization profile', 'Clean removes fillers. Polished adds a light grammar pass through Ollama. Ctrl + Win + Shift cycles.', selectControl('stylizationProfile', [{ value: 'off', label: 'Off' }, { value: 'clean', label: 'Clean' }, { value: 'polished', label: 'Polished' }], settingsState.stylizationProfile, 'Stylization profile'))}
+        ${settingRow('Ollama model', 'Model used for the polished profile.', `<input type="text" class="field" style="width:160px;" value="${esc(settingsState.ollamaModel)}" aria-label="Ollama model" onchange="updateSetting('ollamaModel', this.value)">`)}
+        ${settingRow('Ollama endpoint', 'Base URL for the Ollama API.', `<input type="text" class="field" style="width:220px;" value="${esc(settingsState.ollamaEndpoint)}" aria-label="Ollama endpoint" onchange="updateSetting('ollamaEndpoint', this.value)">`)}
+      </div>`;
+
+      return general + audio + stylization;
     }
 
-    function setSettingsTab(t) { settingsTab = t; renderSettingsPanel(); }
+    function renderModelsTab() {
+      const vram = settingsState.vramTotalGb > 0 ? `, ${settingsState.vramTotalGb.toFixed(1)} GB VRAM` : '';
+      const current = `Currently ${modelLabel(settingsState.activeModel).toLowerCase()}${vram}`;
+      const rows = MODEL_OPTIONS.map((m) => {
+        const on = settingsState.modelMode === m.id;
+        return `<button type="button" class="setting choice${on ? ' on' : ''}" role="radio" aria-checked="${on ? 'true' : 'false'}" onclick="selectModel('${m.id}')">
+          <div class="setting-text"><div class="name">${esc(m.title)}</div><div class="help">${esc(m.desc)}</div></div>
+          <span class="check" aria-hidden="true"></span>
+        </button>`;
+      }).join('');
+      return `<div class="settings-current">${esc(current)}</div><div class="card settings-card" role="radiogroup" aria-label="Model">${rows}</div>`;
+    }
+
+    function renderDataTab() {
+      const snapshot = `${fmtInt(stats.totalWords)} total words, ${(stats.recentTranscripts || []).length} recent transcripts.`;
+      return `<div class="card settings-card">
+        ${settingRow('Export history', 'Transcripts and snippets as a CSV.', `<button class="btn" onclick="exportHistory()">Export</button>`)}
+        ${settingRow('Share telemetry', 'Opt in to anonymous crash/error diagnostics and setup-progress events (install, activation, first dictation). No audio or transcript content is ever sent.', toggleControl('telemetryEnabled', settingsState.telemetryEnabled, 'Share telemetry'))}
+        ${settingRow('Snapshot', snapshot, '')}
+      </div>`;
+    }
+
+    function renderLicenseTab() {
+      const valid = Boolean(licenseState.is_valid);
+      const betaMessage = betaExpiryMessage();
+      const statusHelp = licenseState.message || (valid ? 'License validated and dictation is unlocked.' : 'Enter your license key to unlock dictation.');
+      const status = `<div class="card settings-card">
+        <div class="setting"><div class="setting-text"><div class="name ${valid ? 'status-on' : 'status-off'}">${valid ? 'Active' : 'Not active'}</div><div class="help">${esc(statusHelp)}</div></div></div>
+        ${betaMessage ? settingRow('Beta window', betaMessage, '') : ''}
+        ${licenseState.expires_at ? settingRow('Expires at', String(licenseState.expires_at), '') : ''}
+      </div>`;
+
+      const editing = valid && licenseEditingForKey !== null && licenseEditingForKey === licenseState.key;
+      const keyField = `<input type="text" id="settings-license-key" class="field" placeholder="License key" aria-label="License key" autocomplete="off" spellcheck="false"><button class="btn primary" onclick="activateLicenseSettings()">Activate</button>`;
+      let keyRow;
+      if (!valid) {
+        keyRow = settingRow('License key', 'Enter your license key to unlock.', keyField);
+      } else if (editing) {
+        keyRow = settingRow('License key', 'Enter a new key to replace the current one.', `${keyField}<button class="btn" onclick="setLicenseKeyEditing(false)">Cancel</button>`);
+      } else {
+        keyRow = settingRow('License key', String(licenseState.key || 'Hidden'), `<button class="btn" onclick="setLicenseKeyEditing(true)">Change</button><button class="btn" onclick="deactivateLicense()">Deactivate</button>`);
+      }
+      const key = `<div class="card settings-card">${keyRow}</div>`;
+      const about = `<div class="card settings-card">${settingRow('About Impulse', appVersion ? `Version ${appVersion}` : '', '')}</div>`;
+      return status + key + about;
+    }
+
+    function renderSettings() {
+      const tabs = SETTINGS_TABS.map((t) => `<button class="tab${settingsTab === t.id ? ' active' : ''}" onclick="setSettingsTab('${t.id}')">${esc(t.label)}</button>`).join('');
+      const body = settingsTab === 'models' ? renderModelsTab()
+        : settingsTab === 'data' ? renderDataTab()
+        : settingsTab === 'license' ? renderLicenseTab()
+        : renderGeneralTab();
+      return `
+    <section class="settings-view">
+      <header class="settings-head">
+        <h2>Settings</h2>
+        <div class="tabs">${tabs}</div>
+      </header>
+      ${body}
+    </section>`;
+    }
+
+    // Re-renders the Settings view when it is on screen. Kept under the
+    // old name so every caller (model, hotkey and license refreshes) is
+    // unchanged.
+    function renderSettingsPanel() { if (currentView === 'settings') scheduleRender(); }
+
+    function setLicenseKeyEditing(on) {
+      licenseEditingForKey = on ? licenseState.key : null;
+      renderSettingsPanel();
+    }
+
+    async function loadOllamaReachability() {
+      const reachable = Bridge.ready() ? Boolean(await Bridge.settings.checkOllama()) : false;
+      if (reachable === ollamaReachable) return;
+      ollamaReachable = reachable;
+      renderSettingsPanel();
+    }
+
+    async function loadInputDevices() {
+      if (!Bridge.ready()) return;
+      const list = await Bridge.settings.getInputDevices();
+      if (!Array.isArray(list) || !list.length) return;
+      const next = list.filter((d) => d && d.value).map((d) => ({ value: String(d.value), label: String(d.label || d.value) }));
+      if (JSON.stringify(next) === JSON.stringify(microphones)) return;
+      microphones = next;
+      renderSettingsPanel();
+    }
+
+    async function loadAppVersion() {
+      if (appVersion) return;
+      const v = await Bridge.settings.getAppVersion();
+      if (!v) return;
+      appVersion = String(v);
+      renderSettingsPanel();
+    }
+
+    function setSettingsTab(t) { settingsTab = t; setHotkeyRecording(false); renderSettingsPanel(); }
+    // Sliders (n = true) update their fill and readout in place: a re-render
+    // mid-drag would replace the input under the pointer.
     function updateSetting(k, v, n = false) {
       settingsState[k] = n ? Number(v) : v;
-      const e = document.getElementById('value-' + k);
-      if (e) e.textContent = String(settingsState[k]);
-      if (k === 'theme') applyTheme(settingsState[k]);
+      if (n && SLIDERS[k]) {
+        const e = document.getElementById('value-' + k);
+        if (e) e.textContent = SLIDERS[k].text(settingsState[k]);
+        const fill = document.getElementById('fill-' + k);
+        if (fill) fill.style.width = sliderFill(k, settingsState[k]);
+      } else {
+        if (k === 'theme') applyTheme(settingsState[k]);
+        renderSettingsPanel();
+      }
       persistSettingToBackend(k, settingsState[k]);
     }
+    // Start with Windows is the stored launch_behavior string: on is
+    // start_minimized, off is open_dashboard. The other toggles are booleans.
     function toggleSetting(k) {
-      settingsState[k] = !settingsState[k];
+      if (k === 'launchBehavior') settingsState.launchBehavior = settingsState.launchBehavior === 'start_minimized' ? 'open_dashboard' : 'start_minimized';
+      else settingsState[k] = !settingsState[k];
+      renderSettingsPanel();
       persistSettingToBackend(k, settingsState[k]);
     }
 
@@ -809,10 +829,25 @@
       await Bridge.settings.update(backendKeyMap[key] || key, value);
     }
 
+    // Stored values: 'system' (default), 'dark', 'light'. The old theme ids
+    // (hot_pink, neon_dark, midnight_green) all resolve to dark so existing
+    // settings files keep working; settings_manager.py rewrites them on load.
+    const systemThemeQuery = window.matchMedia ? window.matchMedia('(prefers-color-scheme: light)') : null;
+    function normalizeTheme(name) {
+      return (name === 'light' || name === 'dark' || name === 'system') ? name : 'dark';
+    }
     function applyTheme(name) {
-      const valid = ['hot_pink', 'neon_dark', 'midnight_green'];
-      if (!valid.includes(name)) name = 'hot_pink';
-      document.body.dataset.theme = name;
+      name = normalizeTheme(name);
+      settingsState.theme = name;
+      let resolved = name;
+      if (name === 'system') resolved = (systemThemeQuery && systemThemeQuery.matches) ? 'light' : 'dark';
+      document.documentElement.dataset.theme = resolved;
+      document.body.dataset.theme = resolved;
+    }
+    if (systemThemeQuery) {
+      const onSystemThemeChange = () => { if (settingsState.theme === 'system') applyTheme('system'); };
+      if (systemThemeQuery.addEventListener) systemThemeQuery.addEventListener('change', onSystemThemeChange);
+      else if (systemThemeQuery.addListener) systemThemeQuery.addListener(onSystemThemeChange);
     }
 
     function applyModelSettingsPayload(payload, emitAutoToast = false) {
@@ -857,13 +892,15 @@
         hotkeyCapturePressed = new Set();
         hotkeyCaptureDraft = [];
       }
-      if (settingsTab === 'general') renderSettingsPanel();
+      renderSettingsPanel();
     }
 
     async function saveHotkeySetting(value) {
       const normalized = String(value || '').toLowerCase();
       if (!Bridge.ready()) {
         settingsState.hotkey = normalized || settingsState.hotkey;
+        updateListeningLabel();
+        renderSettingsPanel();
         showToast('Shortcut updated');
         return true;
       }
@@ -873,6 +910,8 @@
         return false;
       }
       settingsState.hotkey = String(result.hotkey || settingsState.hotkey);
+      updateListeningLabel();
+      renderSettingsPanel();
       showToast('Shortcut set to ' + hotkeyDisplay(settingsState.hotkey));
       return true;
     }
@@ -906,8 +945,8 @@
       e.stopPropagation();
       hotkeyCapturePressed.add(key);
       hotkeyCaptureDraft = orderHotkeyTokens(Array.from(hotkeyCapturePressed));
-      const input = document.getElementById('hotkey-record-input');
-      if (input) input.value = hotkeyDisplay(hotkeyCaptureDraft.join('+'));
+      const keys = document.getElementById('hotkey-record-keys');
+      if (keys) keys.innerHTML = kbdCaps(hotkeyDisplay(hotkeyCaptureDraft.join('+')).split(' + ').filter(Boolean));
     }
 
     function onHotkeyCaptureKeyUp(e) {
@@ -922,29 +961,23 @@
       }
     }
 
+    // Settings is a view. This stays a named global because the sidebar row
+    // and the gui_host open_settings bridge method both address it by name.
     function openSettings() {
-      const m = document.getElementById('settings-modal');
-      if (!m) return;
-      m.classList.add('is-open');
-      document.body.classList.add('modal-open');
       settingsTab = 'general';
       setHotkeyRecording(false);
-      renderSettingsPanel();
+      switchView('settings');
     }
-    function closeSettings() {
-      const m = document.getElementById('settings-modal');
-      if (!m) return;
-      setHotkeyRecording(false);
-      m.classList.remove('is-open');
-      document.body.classList.remove('modal-open');
-    }
-    function handleModalBackdrop(e) { if (e.target && e.target.id === 'settings-modal') closeSettings(); }
 
+    // Reads the add form; a successful add re-renders the view, which
+    // rebuilds (and so clears) the form. Failures leave the text in place.
     async function addSnippet() {
-      const t = window.prompt('Snippet shortcut name');
-      if (!t) return;
-      const r = window.prompt('Replacement text');
-      if (!r) return;
+      const triggerInput = document.getElementById('snippet-trigger-input');
+      const replacementInput = document.getElementById('snippet-replacement-input');
+      const t = String(triggerInput ? triggerInput.value : '').trim();
+      const r = String(replacementInput ? replacementInput.value : '').trim();
+      if (!t) { if (triggerInput) triggerInput.focus(); return; }
+      if (!r) { if (replacementInput) replacementInput.focus(); return; }
       const result = await Bridge.settings.addSnippet(t, r);
       if (result && result.ok && Array.isArray(result.snippets)) {
         snippets = result.snippets;
@@ -1012,24 +1045,6 @@
     async function copySnippet(id) { const s = snippets.find((x) => x.id === id); if (!s) return; if (await copyText(s.replacement)) showToast('Snippet copied'); }
     function copyLast() { if ((stats.recentTranscripts || []).length > 0) copyTranscriptItem(0); }
 
-    function showConfetti() {
-      const c = document.getElementById('confetti-container');
-      if (!c) return;
-      c.innerHTML = '';
-      ['#bb86fc', '#03dac6', '#cf6679'].forEach((col) => {
-        for (let i = 0; i < 6; i += 1) {
-          const b = document.createElement('div');
-          b.className = 'confetti-bit';
-          b.style.left = Math.random() * 100 + '%';
-          b.style.animationDelay = Math.random() * 0.8 + 's';
-          b.style.animationDuration = (1.8 + Math.random() * 1.2) + 's';
-          b.style.backgroundColor = col;
-          c.appendChild(b);
-        }
-      });
-      setTimeout(() => { c.innerHTML = ''; }, 2800);
-    }
-
     function mountAnimatedNode(container, node, ttlMs = 2300) {
       if (!container || !node) return;
       container.appendChild(node);
@@ -1038,25 +1053,6 @@
         node.classList.remove('is-visible');
         setTimeout(() => { if (node.parentNode) node.parentNode.removeChild(node); }, 220);
       }, ttlMs);
-    }
-
-    function showAchievementPopup(a) {
-      const p = document.getElementById('achievement-popup');
-      if (!p) return;
-      p.innerHTML = '';
-      const card = document.createElement('div');
-      card.className = 'achievement-popup-card';
-      card.innerHTML = `<div class="achievement-popup-title">Achievement Unlocked</div><h4>${esc(a.name)}</h4><p>${esc(a.description)}</p><span>+${a.xp} XP</span>`;
-      mountAnimatedNode(p, card, 2600);
-    }
-
-    function showAchievementToast(a) {
-      const c = document.getElementById('achievement-toast-container');
-      if (!c) return;
-      const t = document.createElement('div');
-      t.className = 'achievement-toast';
-      t.innerHTML = `<strong>Achievement Unlocked</strong><span>${esc(a.name)}</span>`;
-      mountAnimatedNode(c, t, 2600);
     }
 
     function showToast(msg) {
@@ -1068,20 +1064,6 @@
       mountAnimatedNode(c, t, 2300);
     }
 
-    function showAchievementDetail(id) { const a = achievements.find((x) => x.id === id); if (!a || !a.unlocked) return; showAchievementPopup(a); showConfetti(); }
-
-    function applyUnlockedAchievements(ids, emit = false) {
-      const incoming = new Set((ids || []).map((x) => String(x)));
-      achievements.forEach((a) => {
-        const ok = incoming.has(String(a.id)) || (a.key && incoming.has(String(a.key)));
-        if (emit && ok && !a.unlocked) { showAchievementToast(a); showToast('Unlocked: ' + a.name); }
-        a.unlocked = ok;
-      });
-      updateSidebar();
-    }
-
-    function minimizeWindow() { Bridge.system.minimize(); }
-    function closeWindow() { if (Bridge.ready()) Bridge.system.close(); else window.close(); }
 
     async function exportHistory() {
       const result = await Bridge.system.exportCsv();
@@ -1090,7 +1072,7 @@
         return;
       }
       if (result) { showToast(result.error || 'Export failed'); return; }
-      const blob = new Blob([JSON.stringify({ exportedAt: new Date().toISOString(), stats, recentTranscripts: stats.recentTranscripts || [], unlockedAchievements: achievements.filter((a) => a.unlocked), snippets }, null, 2)], { type: 'application/json' });
+      const blob = new Blob([JSON.stringify({ exportedAt: new Date().toISOString(), stats, recentTranscripts: stats.recentTranscripts || [], snippets }, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -1102,28 +1084,21 @@
       showToast('History exported');
     }
 
+    // The JSON stats payload (get_stats / dashboard_stats.js) still carries
+    // the old XP fields; Home only reads the streak and the recent takes.
+    function applyJsonStats(data) {
+      stats.dayStreak = Number(data.dayStreak) || 0;
+      stats.recentTranscripts = Array.isArray(data.recentTranscripts) ? data.recentTranscripts : [];
+      lastRecentDigest = digest(stats.recentTranscripts.map((t) => t.fullText || t.text || ''));
+      renderIfCurrentViewIn(['home']);
+    }
+
     function loadStatsFromJSFile() {
       if (!window.WHISPER_STATS) return false;
       const d = digest(window.WHISPER_STATS);
       if (d === lastStatsDigest) return true;
-      Object.assign(stats, window.WHISPER_STATS);
-      stats.last7Days = normalize7(stats.last7Days || stats.last7_days || stats.last7DaysSeries);
-      if (!Array.isArray(stats.recentTranscripts)) stats.recentTranscripts = [];
       lastStatsDigest = d;
-      lastRecentDigest = digest((stats.recentTranscripts || []).map((t) => t.fullText || t.text || ''));
-      updateSidebar();
-      renderIfCurrentViewIn(['home', 'challenges']);
-      return true;
-    }
-
-    function loadAchievementsFromJSFile() {
-      if (!Array.isArray(window.WHISPER_ACHIEVEMENTS)) return false;
-      const d = digest(window.WHISPER_ACHIEVEMENTS.slice().sort());
-      if (d === lastAchievementsDigest) return true;
-      applyUnlockedAchievements(window.WHISPER_ACHIEVEMENTS, achievementsInitializedFromBackend);
-      achievementsInitializedFromBackend = true;
-      lastAchievementsDigest = d;
-      renderIfCurrentViewIn(['achievements']);
+      applyJsonStats(window.WHISPER_STATS);
       return true;
     }
 
@@ -1133,13 +1108,8 @@
       if (!data) { loadStatsFromJSFile(); return; }
       const d = digest(data);
       if (d === lastStatsDigest) return;
-      Object.assign(stats, data);
-      stats.last7Days = normalize7(data.last7Days || data.last7_days || data.last7DaysSeries);
-      if (!Array.isArray(stats.recentTranscripts)) stats.recentTranscripts = [];
       lastStatsDigest = d;
-      lastRecentDigest = digest((stats.recentTranscripts || []).map((t) => t.fullText || t.text || ''));
-      updateSidebar();
-      renderIfCurrentViewIn(['home', 'challenges']);
+      applyJsonStats(data);
     }
 
     async function loadRecentTranscriptionsFromPython() {
@@ -1150,18 +1120,6 @@
       stats.recentTranscripts = recent;
       lastRecentDigest = d;
       renderIfCurrentViewIn(['home']);
-    }
-
-    async function loadAchievementsFromPython() {
-      if (!Bridge.ready()) { loadAchievementsFromJSFile(); return; }
-      const ids = await Bridge.stats.getAchievements();
-      if (!Array.isArray(ids)) { loadAchievementsFromJSFile(); return; }
-      const d = digest(ids.slice().sort());
-      if (d === lastAchievementsDigest) return;
-      applyUnlockedAchievements(ids, achievementsInitializedFromBackend);
-      achievementsInitializedFromBackend = true;
-      lastAchievementsDigest = d;
-      renderIfCurrentViewIn(['achievements']);
     }
 
     async function loadModelSettingsFromPython() {
@@ -1192,7 +1150,8 @@
       if (d === lastHotkeyDigest) return;
       lastHotkeyDigest = d;
       settingsState.hotkey = nextHotkey || settingsState.hotkey;
-      if (settingsTab === 'general') renderSettingsPanel();
+      updateListeningLabel();
+      renderSettingsPanel();
     }
 
     async function loadSnippetsFromPython() {
@@ -1221,6 +1180,7 @@
       if (typeof s.vad_sensitivity === 'number') settingsState.vadSensitivity = s.vad_sensitivity;
       if (typeof s.vad_silence_ms === 'number') settingsState.vadSilenceMs = s.vad_silence_ms;
       if (s.stylization_profile) settingsState.stylizationProfile = s.stylization_profile;
+      if (s.ollama_model) settingsState.ollamaModel = s.ollama_model;
       if (s.ollama_endpoint) settingsState.ollamaEndpoint = s.ollama_endpoint;
       if (typeof s.telemetry_enabled === 'boolean') settingsState.telemetryEnabled = s.telemetry_enabled;
     }
@@ -1233,30 +1193,36 @@
     // ================================================================
 
     let lastChartDataDigest = '';
-    let lastTotalsDigest = '';
+    let lastHomeSummaryDigest = '';
 
     async function loadChartDataFromSqlite() {
-      const data = await Bridge.stats.getChartData(7);
+      const data = await Bridge.stats.getChartData(14);
       if (!data) return;
       const d = digest(data);
       if (d === lastChartDataDigest) return;
       lastChartDataDigest = d;
-      const converted = chartDataToLast7Days(data);
+      const converted = chartDataToSeries(data);
       if (converted) {
-        stats.last7Days = converted;
-        renderIfCurrentViewIn(['home', 'challenges']);
+        stats.last14Days = converted;
+        renderIfCurrentViewIn(['home']);
       }
     }
 
-    async function loadTotalsFromSqlite() {
-      const totals = await Bridge.stats.getTotals();
-      if (!totals) return;
-      const d = digest(totals);
-      if (d === lastTotalsDigest) return;
-      lastTotalsDigest = d;
-      mergeSqlTotals(totals);
-      updateSidebar();
-      renderIfCurrentViewIn(['home', 'challenges']);
+    async function loadHomeSummaryFromSqlite() {
+      const summary = await Bridge.stats.getHomeSummary();
+      if (!summary || typeof summary !== 'object') return;
+      const d = digest(summary);
+      if (d === lastHomeSummaryDigest) return;
+      lastHomeSummaryDigest = d;
+      stats.todayWords = Number(summary.todayWords) || 0;
+      stats.todayTakes = Number(summary.todayTakes) || 0;
+      stats.bestDay = summary.bestDay && typeof summary.bestDay === 'object'
+        ? { words: Number(summary.bestDay.words) || 0, date: summary.bestDay.date || null }
+        : { words: 0, date: null };
+      stats.totalWords = Number(summary.totalWords) || 0;
+      stats.totalSessions = Number(summary.totalSessions) || 0;
+      stats.avgWpm = Number(summary.avgWpm) || 0;
+      renderIfCurrentViewIn(['home']);
     }
 
     async function verifyBridgeHealth() { await Bridge.system.ping(); }
@@ -1324,16 +1290,14 @@
       }
     };
 
-    window.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeSettings(); });
     window.addEventListener('keydown', onHotkeyCaptureKeyDown, true);
     window.addEventListener('keyup', onHotkeyCaptureKeyUp, true);
 
     window.addEventListener('DOMContentLoaded', () => {
       applyTheme(settingsState.theme);
-      stats.last7Days = normalize7(stats.last7Days);
+      updateListeningLabel();
       renderContent();
       lastStatsDigest = digest(stats);
-      lastAchievementsDigest = digest(achievements.filter((a) => a.unlocked).map((a) => a.id).sort());
       lastRecentDigest = digest((stats.recentTranscripts || []).map((t) => t.fullText || t.text || ''));
       lastHotkeyDigest = digest(settingsState.hotkey);
 
@@ -1343,21 +1307,18 @@
         try {
           pollTick += 1;
           const jobs = [];
-          const statsHeavyView = currentView === 'home' || currentView === 'challenges';
-          const shouldPollStats = statsHeavyView || (pollTick % 15 === 0);
-          const shouldPollAchievements = currentView === 'achievements' || (pollTick % 15 === 0);
+          const shouldPollStats = currentView === 'home' || (pollTick % 15 === 0);
           const shouldPollModels = isModelsSettingsVisible() || (pollTick % 30 === 0);
           const shouldPollVocabulary = currentView === 'dictionary' || (pollTick % 30 === 0);
-          const shouldPollHotkey = (settingsTab === 'general' && document.body.classList.contains('modal-open')) || (pollTick % 30 === 0);
+          const shouldPollHotkey = isSettingsTabVisible('general') || (pollTick % 30 === 0);
           const shouldPollSnippets = currentView === 'snippets' || (pollTick % 30 === 0);
           const shouldPollUserSettings = (pollTick % 60 === 0);
 
           if (shouldPollStats) {
             jobs.push(loadStatsFromPython());
             jobs.push(loadChartDataFromSqlite());
-            jobs.push(loadTotalsFromSqlite());
+            jobs.push(loadHomeSummaryFromSqlite());
           }
-          if (shouldPollAchievements) jobs.push(loadAchievementsFromPython());
           if (currentView === 'home') jobs.push(loadRecentTranscriptionsFromPython());
           if (shouldPollModels) jobs.push(loadModelSettingsFromPython());
           if (shouldPollVocabulary) jobs.push(loadVocabularyFromPython());
@@ -1379,8 +1340,7 @@
         pythonPollingStarted = true;
         loadStatsFromPython();
         loadChartDataFromSqlite();
-        loadTotalsFromSqlite();
-        loadAchievementsFromPython();
+        loadHomeSummaryFromSqlite();
         loadRecentTranscriptionsFromPython();
         loadModelSettingsFromPython();
         loadVocabularyFromPython();
@@ -1393,7 +1353,7 @@
         return true;
       }
 
-      function startFallback() { setTimeout(() => { loadStatsFromJSFile(); loadAchievementsFromJSFile(); }, 120); }
+      function startFallback() { setTimeout(() => { loadStatsFromJSFile(); }, 120); }
 
       window.addEventListener('pywebviewready', () => { startPyPoll(); });
 

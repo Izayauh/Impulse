@@ -64,6 +64,7 @@ from whisper_local.model_selection import (
     save_state as save_model_selection_state,
 )
 from whisper_local.faster_whisper_backend import (
+    collapse_repeated_ngrams as _collapse_repeated_ngrams,
     model_name_for_mode as _faster_whisper_model_name,
     preload_model_with_fallback as _faster_whisper_preload_model_with_fallback,
     gpu_is_usable as _faster_whisper_gpu_is_usable,
@@ -264,11 +265,18 @@ SAMPLE_RATE_HZ = 16000  # 16kHz sample rate for Whisper compatibility
 AUDIO_CHANNELS = 1  # Mono recording for speech
 
 # Voice Activity Detection (VAD) thresholds
-# RMS_THRESH: Root Mean Square threshold for detecting voice activity
-# Lower values = more sensitive, higher values = less background noise pickup
 # Typical speaking voice is 0.01-0.05 RMS, whispers are 0.002-0.01
-RMS_THRESHOLD_VOICED = 0.002  # Minimum RMS to consider audio as "voiced"
+# The take gate (analyze_take_energy) is relative to each take's own noise
+# floor: a fixed RMS sat below laptop fan noise, so silent takes reached
+# Whisper and it invented words for them.
+RMS_THRESHOLD_VOICED = 0.002  # A lone peak frame must reach this to count as speech on its own
 SILENCE_RMS_THRESHOLD_CONFIG = 0.008  # Threshold for silence detection (higher = stricter)
+NOISE_FLOOR_FRACTION = 0.20  # the quietest 20 percent of frames define a take's floor
+NOISE_FLOOR_MIN_RMS = 1e-4  # digital silence must not turn dither into speech
+VOICED_RATIO_LOW_SENSITIVITY = 5.0  # sensitivity 1: a frame must be 5x the floor (14 dB)
+VOICED_RATIO_HIGH_SENSITIVITY = 1.5  # sensitivity 100: 1.5x the floor (3.5 dB)
+SPEECH_PEAK_RATIO = 10.0  # any frame 10x the floor (20 dB) is speech: always transcribe
+DEFAULT_VAD_SENSITIVITY = 65  # mirrors AppSettings.vad_sensitivity
 
 # Timing constants for recording
 MIN_SPEECH_DURATION_SEC = 0.2  # Minimum duration of speech to process (filters clicks/pops)
@@ -867,6 +875,40 @@ from whisper_local.stats import StatsTracker as NewStatsTracker
 stats_tracker = NewStatsTracker()
 debug_print(f"[DEBUG] Stats tracker initialized with file: {stats_tracker.stats_file}")
 
+# SQLite stats store shared with the dashboard, created on the first take.
+_take_stats_controller = None
+
+
+def _get_take_stats_controller():
+    global _take_stats_controller
+    if _take_stats_controller is None:
+        from whisper_local.controllers.stats_controller import StatsController
+        _take_stats_controller = StatsController(get_user_data_dir(), stats_tracker.stats_file)
+    return _take_stats_controller
+
+
+def _record_take_stats(text, model_used, audio_duration_sec, land=True):
+    """Record one take in both stats stores, then land the pill with the counts.
+
+    Runs on the stats thread so the paste path keeps its timing.
+    """
+    stats_tracker.record_transcription(text, model_used, audio_duration_sec)
+    word_count = len(text.split())
+    try:
+        wpm = 0.0
+        if audio_duration_sec and audio_duration_sec > 0:
+            wpm = float(round(word_count / (audio_duration_sec / 60.0)))
+            if wpm > stats_tracker.MAX_REASONABLE_WPM:
+                wpm = 0.0
+        controller = _get_take_stats_controller()
+        controller.record_transcription(word_count, model_used or "", float(audio_duration_sec or 0.0), wpm)
+        today_total = controller.get_today_words()
+    except Exception as e:
+        log_line(f"[stats] sqlite record failed: {e}", "warning")
+        today_total = stats_tracker.get_today_words()
+    if land:
+        _push_landed(word_count, today_total)
+
 # Global session tracking (tracks words at app start, not dashboard open)
 app_session_start_words = stats_tracker.data.get('total_words', 0)
 debug_print(f"[SESSION] App started with {app_session_start_words} total words")
@@ -1166,6 +1208,32 @@ OLLAMA_ENDPOINT = os.environ.get("WHISPER_OLLAMA_ENDPOINT", "http://127.0.0.1:11
 _flow_settings_mgr = None  # lazy SettingsManager for runtime setting reads
 
 
+def _get_flow_settings_mgr() -> SettingsManager:
+    global _flow_settings_mgr
+    if _flow_settings_mgr is None:
+        _flow_settings_mgr = SettingsManager(_user_dir)
+    return _flow_settings_mgr
+
+
+def current_take_settings() -> dict:
+    """Read the settings a take depends on, fresh from disk.
+
+    The dashboard writes user_settings.json from its own process, so the
+    engine cannot be told in memory; one small JSON read per take is what
+    makes the sensitivity slider and the microphone choice apply to the
+    next take instead of the next restart.
+    """
+    defaults = {"vad_sensitivity": DEFAULT_VAD_SENSITIVITY, "input_device": "default"}
+    try:
+        mgr = _get_flow_settings_mgr()
+        mgr.reload()
+        data = mgr.get_all()
+    except Exception as exc:
+        log_line(f"[settings] take settings unavailable, using defaults: {exc}", "warning")
+        return defaults
+    return {key: data.get(key, fallback) for key, fallback in defaults.items()}
+
+
 def _get_stylization_profile() -> str:
     """Return the active stylization profile.
 
@@ -1378,6 +1446,69 @@ def _win32_is_pressed(key_name: str) -> bool:
         except Exception:
             return False
     return any(_user32.GetAsyncKeyState(vk) & 0x8000 for vk in codes)
+
+
+# ---------------------------------------------------------------------------
+# Start menu guard
+# ---------------------------------------------------------------------------
+# Windows opens the Start menu when a Win key goes down and comes back up with
+# no other key pressed in between; keys already held before Win (Ctrl in
+# Ctrl+Win) do not count. Tapping a neutral key while Win is still down turns
+# the release into a chord release. The old code tapped only after the poll
+# saw the chord come up: if Win was the first key released, or the tap fell
+# inside the edge debounce, or latch mode skipped the hold branch, the Start
+# menu had already been decided.
+_VK_LWIN = 0x5B
+_VK_RWIN = 0x5C
+_VK_NONAME = 0xFF
+
+
+def _win_key_down() -> bool:
+    """True while either Windows key is physically held (LWIN or RWIN)."""
+    return any(_user32.GetAsyncKeyState(vk) & 0x8000 for vk in (_VK_LWIN, _VK_RWIN))
+
+
+def start_menu_guard_needed(hotkey_keys, edge: str, win_down: bool) -> bool:
+    """Decide whether to tap a neutral key now.
+
+    ``edge`` is ``"press"`` (hold chord just went down), ``"latch"`` (the
+    Ctrl+Win+Alt chord just went down) or ``"release"`` (hold chord just
+    came up). The tap only helps while a Win key is still down, so it is
+    skipped once Win itself has been released. The latch chord always
+    carries Win; the hold chord only needs the guard when it does.
+    """
+    if edge not in ("press", "latch", "release"):
+        return False
+    if not win_down:
+        return False
+    if edge == "latch":
+        return True
+    return any(str(k).lower() in ("windows", "win") for k in hotkey_keys)
+
+
+def _tap_neutral_key() -> bool:
+    """Inject a VK_NONAME down/up pair. True when Windows accepted both events."""
+    inputs = (INPUT * 2)()
+    inputs[0].type = INPUT_KEYBOARD
+    inputs[0].ki.wVk = _VK_NONAME
+    inputs[1].type = INPUT_KEYBOARD
+    inputs[1].ki.wVk = _VK_NONAME
+    inputs[1].ki.dwFlags = KEYEVENTF_KEYUP
+    sent = _user32.SendInput(2, ctypes.byref(inputs), ctypes.sizeof(INPUT))
+    return int(sent) == 2
+
+
+def _guard_start_menu(hotkey_keys, edge: str) -> bool:
+    """Run the guard decision against live key state and inject if needed. Never raises."""
+    try:
+        if not start_menu_guard_needed(hotkey_keys, edge, _win_key_down()):
+            return False
+        if _tap_neutral_key():
+            return True
+        log_line(f"[HOTKEY] Start menu guard: SendInput rejected the neutral key on {edge}", "warning")
+    except Exception as e:
+        log_line(f"[HOTKEY] Start menu guard failed on {edge}: {e}", "warning")
+    return False
 
 
 # ---------------------------------------------------------------------------
@@ -2450,6 +2581,20 @@ def set_status_safe(text, bg, fg="#ffffff", border=None):
         pass
 
 
+def _push_landed(word_count, today_total):
+    """Land the pill: "+N" and today's total for one second, then gone.
+
+    The Tk fallback pill has no landed moment, so it gets the old pasted status.
+    """
+    try:
+        if word_count > 0 and hasattr(gui, "show_landed"):
+            ui_queue.put((gui.show_landed, (int(word_count), int(today_total or 0))))
+            return
+    except Exception:
+        pass
+    set_status_safe("✅ Pasted!", Theme.SUCCESS, Theme.TEXT_PRIMARY, Theme.SUCCESS)
+
+
 def notify(msg):
     if NOTIFY:
         try:
@@ -3416,9 +3561,48 @@ def device_index_and_names():
     return idxs, labels
 
 
+_resolved_input_device_request = None  # the request the current mic was resolved from
+
+
+def _input_device_request_from_settings(value):
+    """Turn the stored input_device setting into a resolve request.
+
+    ``None`` means the system default. The dashboard stores either
+    "default" or a device label, which resolves by substring like the
+    FLOW_INPUT_DEVICE override does.
+    """
+    text = str(value or "").strip()
+    if not text or text.lower() in ("default", "default system microphone"):
+        return None
+    return text
+
+
+def _requested_input_device(take_settings=None):
+    """Where the mic choice comes from, in priority order: env, settings, system default.
+
+    The env var is read live (not the import-time copy) so the first-run
+    wizard and the device dialog, which set it at runtime, take effect.
+    """
+    env_value = os.environ.get("FLOW_INPUT_DEVICE") or INPUT_DEVICE
+    if env_value:
+        return str(env_value)
+    if take_settings is None:
+        take_settings = current_take_settings()
+    return _input_device_request_from_settings(take_settings.get("input_device"))
+
+
+def _sync_input_device_from_settings(take_settings) -> None:
+    """Re-resolve the microphone when the choice changed since it was last resolved."""
+    requested = _requested_input_device(take_settings)
+    if requested == _resolved_input_device_request:
+        return
+    log_line(f"[mic] input device request changed to {requested!r}; re-resolving")
+    resolve_input_device()
+
+
 def resolve_input_device():
     """Resolve the input device index and validate settings. Sets globals."""
-    global selected_input_device_idx, selected_input_device_name
+    global selected_input_device_idx, selected_input_device_name, _resolved_input_device_request
     devices = list_input_devices()
     if not devices:
         notify("No input-capable audio devices found.")
@@ -3426,7 +3610,8 @@ def resolve_input_device():
         selected_input_device_name = None
         return
 
-    requested = INPUT_DEVICE
+    requested = _requested_input_device()
+    _resolved_input_device_request = requested
     idx = None
     name = None
     try:
@@ -3651,6 +3836,19 @@ def _resolve_whisper_exe(bin_path: str) -> str:
         f"Please ensure whisper-cli.exe is installed correctly."
     )
 
+def whisper_cpp_hallucination_guard_args(is_whisper_cli: bool) -> list:
+    """Flags that keep whisper.cpp from inventing text on silence and noise.
+
+    Checked against ``runtime\\bin\\whisper-cli.exe --help``: ``-nf`` skips
+    the temperature fallback (the retries at high temperature are where
+    fabricated words come from, and each one is another full decode on
+    CPU) and ``-sns`` suppresses the non-speech tokens ("[Music]",
+    "(laughs)") that silence tends to decode to. Legacy main.exe builds
+    predate ``-sns``, so they get nothing rather than a bad-args re-run.
+    """
+    return ["-nf", "-sns"] if is_whisper_cli else []
+
+
 def build_whisper_cmd(exe, model_path, wav_path, base_args=None):
     base_args = base_args or []
     extra_args = shlex.split(os.getenv("FLOW_WHISPER_ARGS", ""))
@@ -3673,18 +3871,87 @@ def build_whisper_cmd(exe, model_path, wav_path, base_args=None):
 
 # Recording timing - using centralized constants
 MIN_SEC = MIN_SPEECH_DURATION_SEC
-RMS_THRESH = RMS_THRESHOLD_VOICED
 PREROLL_SEC = PREROLL_DURATION_SEC
 POSTROLL_SEC = POSTROLL_DURATION_SEC
 
+
+def voiced_ratio_for_sensitivity(sensitivity) -> float:
+    """Map the 1..100 dashboard slider to a ratio over the noise floor.
+
+    Higher sensitivity picks up quieter speech, so the ratio falls as the
+    slider rises. Interpolated in log space so each step feels even.
+    """
+    try:
+        value = float(sensitivity)
+    except (TypeError, ValueError):
+        value = float(DEFAULT_VAD_SENSITIVITY)
+    position = (min(100.0, max(1.0, value)) - 1.0) / 99.0
+    span = VOICED_RATIO_HIGH_SENSITIVITY / VOICED_RATIO_LOW_SENSITIVITY
+    return VOICED_RATIO_LOW_SENSITIVITY * span ** position
+
+
+def estimate_noise_floor(frame_rms) -> float:
+    """Noise floor of a take: the loudest of its quietest 20 percent of frames.
+
+    Taking the top of that band rather than its mean keeps a few all-zero
+    frames (the first reads after a stream opens) from dragging the floor
+    to nothing, which would make fan noise count as speech.
+    """
+    values = sorted(float(v) for v in frame_rms)
+    if not values:
+        return NOISE_FLOOR_MIN_RMS
+    count = max(1, int(len(values) * NOISE_FLOOR_FRACTION))
+    return max(values[count - 1], NOISE_FLOOR_MIN_RMS)
+
+
+def analyze_take_energy(frame_rms, sensitivity, frame_sec=AUDIO_BLOCK_DURATION_SEC) -> dict:
+    """Decide whether a take holds speech worth sending to Whisper.
+
+    A frame is voiced when it exceeds the take's noise floor by the ratio
+    the sensitivity slider selects. The take has speech when voiced time
+    reaches MIN_SEC, or when any frame clears the floor by SPEECH_PEAK_RATIO
+    and RMS_THRESHOLD_VOICED in absolute terms, so a short word said clearly
+    is never dropped. Silence and steady fan noise fail both tests.
+    """
+    frames = [float(v) for v in frame_rms]
+    floor = estimate_noise_floor(frames)
+    threshold = floor * voiced_ratio_for_sensitivity(sensitivity)
+    voiced_sec = sum(frame_sec for v in frames if v > threshold)
+    peak = max(frames) if frames else 0.0
+    peak_ratio = peak / floor if floor > 0 else 0.0
+    if voiced_sec >= MIN_SEC:
+        reason = "voiced"
+    elif peak_ratio >= SPEECH_PEAK_RATIO and peak >= RMS_THRESHOLD_VOICED:
+        reason = "peak"
+    else:
+        reason = "silent"
+    return {
+        "noise_floor": floor,
+        "threshold": threshold,
+        "voiced_sec": voiced_sec,
+        "peak_ratio": peak_ratio,
+        "has_speech": reason != "silent",
+        "reason": reason,
+    }
+
+
 def record_loop():
-    """Record while recording_flag is set; write to WAV on stop with RMS gate."""
+    """Record while recording_flag is set; write to WAV on stop with a noise-floor gate."""
     log_line("[rec] start")
     # Skip slow toast notification - UI pill already shows listening state
     data = []
-    voiced_samples = 0
+    frame_rms = []
     block_dur = AUDIO_BLOCK_DURATION_SEC
     last_hud_push_ts = 0.0
+
+    # Settings are re-read at the start of every take so a slider moved in
+    # the dashboard (its own process) reaches this take, not the next restart.
+    take_settings = current_take_settings()
+    sensitivity = take_settings.get("vad_sensitivity", DEFAULT_VAD_SENSITIVITY)
+    try:
+        _sync_input_device_from_settings(take_settings)
+    except Exception as e:
+        log_line(f"[mic] device sync failed: {e}", "warning")
 
     if selected_input_device_idx is None:
         set_status_safe("❌ Mic not ready", Theme.ERROR, Theme.TEXT_PRIMARY, Theme.ERROR)
@@ -3701,8 +3968,7 @@ def record_loop():
                     break
                 data.append(block.copy())
                 rms = float(np.sqrt(np.mean(block * block) + 1e-12))
-                if rms > RMS_THRESH:
-                    voiced_samples += block.shape[0]
+                frame_rms.append(rms)
                 now_ts = time.time()
                 if now_ts - last_hud_push_ts >= 0.03:
                     try:
@@ -3715,8 +3981,14 @@ def record_loop():
         set_status_safe("Mic open error", Theme.ERROR)
         return
 
-    if not data or (voiced_samples / SAMPLE_RATE) < MIN_SEC:
-        safe_print("[rec] stop, no speech detected")
+    verdict = analyze_take_energy(frame_rms, sensitivity, block_dur)
+    gate_detail = (
+        f"floor={verdict['noise_floor']:.5f} threshold={verdict['threshold']:.5f} "
+        f"voiced={verdict['voiced_sec']:.2f}s peak_ratio={verdict['peak_ratio']:.1f} "
+        f"sensitivity={sensitivity}"
+    )
+    if not data or not verdict["has_speech"]:
+        log_line(f"[rec] stop, no speech detected ({gate_detail})")
         try:
             if os.path.exists(WAV_TMP):
                 os.remove(WAV_TMP)
@@ -3724,6 +3996,7 @@ def record_loop():
             pass
         set_status_safe("🔇 No speech detected", Theme.WARNING, Theme.BG_DARK, Theme.WARNING)
         return
+    log_line(f"[rec] speech gate passed by {verdict['reason']} ({gate_detail})")
 
     try:
         audio = np.concatenate(data, axis=0)
@@ -4013,12 +4286,14 @@ def run_whisper(filename, bin_path, model_path=None, speed_profile="standard"):
     num_threads = "2"  # Optimal for GPU mode
     
     is_whisper_cli = os.path.basename(exe).lower() == "whisper-cli.exe"
+    guard_args = whisper_cpp_hallucination_guard_args(is_whisper_cli)
     whisper_args = [
         "-l", "en",
         "-nt",
         "-mc", "0",
         "-bs", str(batch_size),
         "-t", num_threads,
+        *guard_args,
     ]
     if not is_whisper_cli:
         # Legacy main.exe builds support explicit GPU-layer control.
@@ -4056,6 +4331,7 @@ def run_whisper(filename, bin_path, model_path=None, speed_profile="standard"):
         cpu_args = [
             "-l", "en", "-nt", "-mc", "0",
             "-bs", str(cpu_batch_size), "-t", cpu_threads,
+            *guard_args,
             "-otxt", "-of", out_txt[:-4],
             "--no-gpu", "--prompt", initial_prompt,
         ]
@@ -4079,6 +4355,7 @@ def run_whisper(filename, bin_path, model_path=None, speed_profile="standard"):
         nofa_args = [
             "-l", "en", "-nt", "-mc", "0",
             "-bs", str(batch_size), "-t", num_threads,
+            *guard_args,
             "-otxt", "-of", out_txt[:-4],
             "--prompt", initial_prompt,
         ]
@@ -4293,6 +4570,11 @@ def _run_fixed_model_transcription(filename: str, bin_path: str):
 
     safe_print(f"[whisper-smart] faster-whisper unavailable; falling back to whisper.cpp ({err})")
     rc, text, err = run_whisper(filename, bin_path, model_path=model_path, speed_profile="fast")
+    if rc == 0 and text:
+        # Same repeat collapse the faster-whisper path applies in the backend.
+        text, collapsed = _collapse_repeated_ngrams(text)
+        if collapsed:
+            log_line(f"[whisper-smart] collapsed {collapsed} repeated runs in whisper.cpp output", "debug")
     return rc, text, err, f"{model_used} (whisper.cpp fallback)"
 
 
@@ -4607,10 +4889,10 @@ def _transcribe_and_paste(wav_path):
         if our_window_focused:
             # Dashboard has focus - just copy to clipboard, don't auto-paste
             pyperclip.copy(text)
-            # Record stats async
+            # Record stats async; the stats thread lands the pill with the counts
             word_count = len(text.split())
             threading.Thread(
-                target=stats_tracker.record_transcription,
+                target=_record_take_stats,
                 args=(text, model_used, audio_duration_sec),
                 daemon=True,
             ).start()
@@ -4630,7 +4912,6 @@ def _transcribe_and_paste(wav_path):
                     debug_print(f"[ACHIEVEMENT] Error in delayed check: {e}")
             threading.Thread(target=check_achievements_delayed, daemon=True).start()
 
-            set_status_safe("📋 Copied!", Theme.SUCCESS, Theme.TEXT_PRIMARY, Theme.SUCCESS)
             pending_status_timer = threading.Timer(1.5, lambda: set_status_safe("🎤 Ready", Theme.BG_ELEVATED, Theme.TEXT_PRIMARY, Theme.PINK_PRIMARY))
             pending_status_timer.start()
             safe_print("Copied to clipboard (dashboard focused)")
@@ -4639,10 +4920,11 @@ def _transcribe_and_paste(wav_path):
             # active_app_context is the window that had focus when recording
             # started, which is the window the text is going back into.
             if instant_paste(text, active_app_context):
-                # Record stats async (don't block the paste experience)
+                # Record stats async (don't block the paste experience);
+                # the stats thread lands the pill with the counts
                 word_count = len(text.split())
                 threading.Thread(
-                    target=stats_tracker.record_transcription,
+                    target=_record_take_stats,
                     args=(text, model_used, audio_duration_sec),
                     daemon=True,
                 ).start()
@@ -4662,7 +4944,6 @@ def _transcribe_and_paste(wav_path):
                         debug_print(f"[ACHIEVEMENT] Error in delayed check: {e}")
                 threading.Thread(target=check_achievements_delayed, daemon=True).start()
 
-                set_status_safe("✅ Pasted!", Theme.SUCCESS, Theme.TEXT_PRIMARY, Theme.SUCCESS)
                 pending_status_timer = threading.Timer(1.5, lambda: set_status_safe("🎤 Ready", Theme.BG_ELEVATED, Theme.TEXT_PRIMARY, Theme.PINK_PRIMARY))
                 pending_status_timer.start()
                 safe_print("Pasted OK")
@@ -4676,8 +4957,8 @@ def _transcribe_and_paste(wav_path):
             pyperclip.copy(text)
             word_count = len(text.split())
             threading.Thread(
-                target=stats_tracker.record_transcription,
-                args=(text, model_used, audio_duration_sec),
+                target=_record_take_stats,
+                args=(text, model_used, audio_duration_sec, False),
                 daemon=True,
             ).start()
 
@@ -5337,6 +5618,9 @@ def run_whisper_main_loop():
 
             if latch_chord_down and not getattr(poll_hotkey, "_latch_chord_was_down", False):
                 # Rising edge of latch chord – toggle latch mode
+                # Guard now, while all three keys are down, so no release
+                # order of Ctrl/Win/Alt can end in a bare Win tap.
+                _guard_start_menu(active_hotkey_keys, "latch")
                 now = time.time()
                 if (now - last_edge_ts) * 1000 > EDGE_COOLDOWN_MS:
                     last_edge_ts = now
@@ -5360,6 +5644,14 @@ def run_whisper_main_loop():
             # Normal hold-to-record (only when not in latch mode)
             # ------------------------------------------------------------------
             now = time.time()
+            # Start menu guard on every hold-chord edge: in latch mode too,
+            # and outside the debounce, so a quick tap is covered. The press
+            # edge is the reliable one (Win is certainly down); the release
+            # edge is a second chance when Ctrl came up first.
+            if down and not was_down:
+                _guard_start_menu(active_hotkey_keys, "press")
+            elif was_down and not down:
+                _guard_start_menu(active_hotkey_keys, "release")
             if not latch_recording:
                 if down and not was_down and (now - last_edge_ts) * 1000 > EDGE_COOLDOWN_MS:
                     last_edge_ts = now
@@ -5368,20 +5660,6 @@ def run_whisper_main_loop():
                 if (not down) and was_down and (now - last_edge_ts) * 1000 > EDGE_COOLDOWN_MS:
                     last_edge_ts = now
                     log_line("[HOTKEY] Release detected — stopping recording")
-                    
-                    # Prevent Windows Start Menu from popping up after releasing hotkeys with Windows key
-                    if any(k in active_hotkey_keys for k in ["windows", "win"]):
-                        try:
-                            inputs = (INPUT * 2)()
-                            inputs[0].type = INPUT_KEYBOARD
-                            inputs[0].ki.wVk = 0xFF  # VK_NONAME
-                            inputs[1].type = INPUT_KEYBOARD
-                            inputs[1].ki.wVk = 0xFF
-                            inputs[1].ki.dwFlags = KEYEVENTF_KEYUP
-                            ctypes.windll.user32.SendInput(2, ctypes.byref(inputs), ctypes.sizeof(INPUT))
-                        except Exception as e:
-                            log_line(f"[HOTKEY] Start menu suppression failed: {e}", "warning")
-                            
                     threading.Thread(target=stop_recording_and_transcribe, daemon=True).start()
             was_down = down
 

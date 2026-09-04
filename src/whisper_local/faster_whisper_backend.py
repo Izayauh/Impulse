@@ -3,17 +3,34 @@
 from __future__ import annotations
 
 import ctypes
+import logging
 import os
+import re
 import site
 import sys
 import threading
-from typing import Dict, List, Tuple
+from typing import Dict, Iterable, List, Tuple
 
+
+logger = logging.getLogger(__name__)
 
 _MODEL_CACHE: Dict[Tuple[str, str, str], object] = {}
 _MODEL_CACHE_LOCK = threading.Lock()
 _DLL_DIRECTORY_HANDLES = []
 _CUDA_DLL_HANDLES = []
+
+# Dictation-tuned decode guards. Whisper fabricates words on silence and
+# noise and loops on phrases; these keep that output away from the paste.
+# Silero VAD cuts the non-speech stretches before decoding: a pause has to
+# last half a second to split a segment, and each segment keeps 200 ms of
+# padding so word onsets are not clipped.
+VAD_PARAMETERS = {"min_silence_duration_ms": 500, "speech_pad_ms": 200}
+NO_SPEECH_PROB_MAX = 0.6  # above this the decoder itself says "not speech"
+AVG_LOGPROB_MIN = -1.0  # below this the decode is a guess, not a transcript
+REPEAT_NGRAM_MAX_WORDS = 6
+REPEAT_MIN_RUN = 3
+
+_VAD_ASSET_WARNED = False
 
 # What a real CUDA attempt taught us: None = untried, True/False = observed.
 # Device visibility alone is not proof the GPU can run inference here.
@@ -271,6 +288,128 @@ def preload_model_with_fallback(model_name: str, has_gpu: bool):
     raise RuntimeError("; ".join(errors))
 
 
+def segment_is_speech(avg_logprob, no_speech_prob) -> bool:
+    """Whisper's own confidence read on a segment.
+
+    faster-whisper only skips a window when both signals fail together; for
+    dictation either one alone is enough to say the text was not spoken.
+    Missing values keep the segment.
+    """
+    try:
+        if no_speech_prob is not None and float(no_speech_prob) > NO_SPEECH_PROB_MAX:
+            return False
+        if avg_logprob is not None and float(avg_logprob) < AVG_LOGPROB_MIN:
+            return False
+    except (TypeError, ValueError):
+        return True
+    return True
+
+
+def filter_segments(segments: Iterable) -> Tuple[List[str], int, int]:
+    """Keep the segments that read as speech. Returns (texts, dropped, total)."""
+    texts: List[str] = []
+    dropped = 0
+    total = 0
+    for segment in segments:
+        total += 1
+        text = (getattr(segment, "text", "") or "").strip()
+        if not text:
+            continue
+        if not segment_is_speech(
+            getattr(segment, "avg_logprob", None), getattr(segment, "no_speech_prob", None)
+        ):
+            dropped += 1
+            continue
+        texts.append(text)
+    return texts, dropped, total
+
+
+def _repeat_key(token: str) -> str:
+    return re.sub(r"[^\w']+", "", token.lower())
+
+
+def _collapse_line(tokens: List[str], max_n: int, min_run: int) -> Tuple[List[str], int]:
+    keys = [_repeat_key(t) for t in tokens]
+    out: List[str] = []
+    runs = 0
+    i = 0
+    while i < len(tokens):
+        collapsed = False
+        for n in range(1, max_n + 1):
+            if i + n * min_run > len(tokens):
+                break
+            unit = keys[i : i + n]
+            if not any(unit):
+                continue
+            count = 1
+            while keys[i + count * n : i + (count + 1) * n] == unit:
+                count += 1
+            if count >= min_run:
+                kept = tokens[i : i + n]
+                # Keep the run's final token so its trailing punctuation survives.
+                kept[-1] = tokens[i + count * n - 1]
+                out.extend(kept)
+                i += count * n
+                runs += 1
+                collapsed = True
+                break
+        if not collapsed:
+            out.append(tokens[i])
+            i += 1
+    return out, runs
+
+
+def collapse_repeated_ngrams(
+    text: str, max_n: int = REPEAT_NGRAM_MAX_WORDS, min_run: int = REPEAT_MIN_RUN
+) -> Tuple[str, int]:
+    """Collapse a phrase repeated ``min_run`` or more times in a row to one copy.
+
+    Whisper loops on noise ("thank you. thank you. thank you. thank you.");
+    nobody dictates the same words three times running. Comparison ignores
+    case and punctuation; lines are handled separately and a line without a
+    run is returned untouched. Returns (text, runs_collapsed).
+    """
+    if not text:
+        return text, 0
+    total_runs = 0
+    lines_out: List[str] = []
+    for line in text.splitlines():
+        tokens = line.split()
+        if len(tokens) < min_run:
+            lines_out.append(line)
+            continue
+        runs_in_line = 0
+        while True:
+            tokens, runs = _collapse_line(tokens, max_n, min_run)
+            if not runs:
+                break
+            runs_in_line += runs
+        total_runs += runs_in_line
+        lines_out.append(" ".join(tokens) if runs_in_line else line)
+    return "\n".join(lines_out), total_runs
+
+
+def _vad_filter_available() -> bool:
+    """True when the bundled Silero model is present.
+
+    A frozen build that did not collect faster_whisper's assets has no VAD
+    model; failing the whole transcription for that would be worse than the
+    hallucinations the filter prevents, so it degrades to the old behaviour.
+    """
+    global _VAD_ASSET_WARNED
+    try:
+        from faster_whisper.utils import get_assets_path
+
+        if os.path.isfile(os.path.join(get_assets_path(), "silero_vad_v6.onnx")):
+            return True
+    except Exception:
+        pass
+    if not _VAD_ASSET_WARNED:
+        _VAD_ASSET_WARNED = True
+        logger.warning("[faster-whisper] Silero VAD asset missing; transcribing without vad_filter")
+    return False
+
+
 def transcribe(
     filename: str,
     model_name: str,
@@ -281,15 +420,28 @@ def transcribe(
     initial_prompt: str,
 ):
     model, ct2_model = preload_model(model_name, device, compute_type)
+    use_vad = _vad_filter_available()
     segments, _info = model.transcribe(
         filename,
         language="en",
         beam_size=beam_size,
+        # A single temperature: the fallback retries at 0.2..1.0 are where
+        # fabricated words come from, and on CPU they multiply decode time.
+        temperature=0.0,
         condition_on_previous_text=False,
-        vad_filter=False,
+        vad_filter=use_vad,
+        vad_parameters=dict(VAD_PARAMETERS) if use_vad else None,
         initial_prompt=initial_prompt,
     )
-    text = " ".join((segment.text or "").strip() for segment in segments).strip()
+    texts, dropped, total = filter_segments(segments)
+    text, collapsed = collapse_repeated_ngrams(" ".join(texts).strip())
+    if dropped or collapsed:
+        logger.debug(
+            "[faster-whisper] post-filter: dropped %d of %d segments as non-speech, collapsed %d repeated runs",
+            dropped,
+            total,
+            collapsed,
+        )
     return text, ct2_model
 
 

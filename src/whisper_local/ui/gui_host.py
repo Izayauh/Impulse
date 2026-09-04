@@ -415,6 +415,15 @@ class AppApi:
             return self.set_model_mode(str(value or "auto"))
         return self.settings.update(key, value)
 
+    def get_app_version(self) -> str:
+        return self.settings.get_app_version()
+
+    def check_ollama(self) -> bool:
+        return self.settings.check_ollama()
+
+    def get_input_devices(self) -> List[Dict[str, str]]:
+        return self.settings.get_input_devices()
+
     def get_vocabulary(self) -> List[str]:
         return self.settings.get_vocabulary()
 
@@ -441,6 +450,16 @@ class AppApi:
     # These stay at root until a dedicated controller absorbs them.
     # ======================================================================
 
+    @staticmethod
+    def _clock_label(timestamp: str) -> str:
+        """'2026-09-01T16:12:33.123456' -> '4:12 PM'. Anything unparseable -> 'recent'."""
+        try:
+            stamp = datetime.fromisoformat(str(timestamp))
+        except (TypeError, ValueError):
+            return "recent"
+        hour = stamp.hour % 12 or 12
+        return f"{hour}:{stamp.minute:02d} {'PM' if stamp.hour >= 12 else 'AM'}"
+
     def _format_recent_transcripts(self, raw_stats: Dict[str, Any]) -> List[Dict[str, Any]]:
         recent = raw_stats.get("recent_transcripts", [])
         formatted: List[Dict[str, Any]] = []
@@ -454,7 +473,7 @@ class AppApi:
                         "text": preview,
                         "fullText": full_text,
                         "words": item.get("word_count", len(full_text.split())),
-                        "time": timestamp[-5:] if timestamp else "recent",
+                        "time": self._clock_label(timestamp) if timestamp else "recent",
                     }
                 )
             elif isinstance(item, str):
@@ -674,11 +693,12 @@ def _run_webview_dashboard() -> None:
         api = AppApi()
         _api_instance = api
 
-        # Impulse dashboard has a sidebar layout and needs wider window
-        win_w = 1200 if is_impulse else 1100
-        win_h = 800 if is_impulse else 740
-        min_w = 900 if is_impulse else 900
-        min_h = 600 if is_impulse else 600
+        # pywebview sizes the outer frame; the legacy dashboard is designed for
+        # an 1100 x 740 client area, so add the Windows frame (18 x 46 at 100%).
+        win_w = 1200 if is_impulse else 1118
+        win_h = 800 if is_impulse else 786
+        min_w = 900 if is_impulse else 918
+        min_h = 600 if is_impulse else 646
 
         window = webview.create_window(
             title="Impulse Dashboard",

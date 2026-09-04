@@ -5,6 +5,23 @@ All notable changes to Impulse will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.7] - 2026-09-04
+
+### Changed
+
+- **Dashboard redesign**: words-first Home (today's count, best-day record bar, 14-day graph, recent dictations with copy), sidebar shell, Settings as a tabbed page, two themes (dark and light) on bundled Geist fonts. Achievements, challenges, XP and level rendering removed.
+- **Pill**: four moments (listening, working sweep, one-second landed count, idle). No halo or pink border.
+- **Settings**: microphone select lists real input devices; Stop-after-silence slider removed (no engine consumer).
+
+### Fixed
+
+- Silent takes no longer reach Whisper: noise-floor gate tied to the sensitivity slider.
+- Fabricated text: VAD filter, single-temperature decode, non-speech segment filter and repeated-phrase collapse. Silero VAD model now bundled in the frozen build.
+- Sensitivity and microphone settings re-read at the start of every take.
+- Start menu no longer opens on the Win-key hotkey release.
+- Home stats merge older JSON-only history so past days are not read as zero.
+- Dashboard window opens at a true 1100x740 client area.
+
 ## [1.0.0-beta.1] - 2026-03-03
 
 ### Added

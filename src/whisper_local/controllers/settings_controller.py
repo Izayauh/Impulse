@@ -7,7 +7,9 @@ Handles hotkey, vocabulary, and snippets as sub-domains.
 from __future__ import annotations
 
 from typing import Any, Dict, List
+from urllib import request
 
+from whisper_local.config import APP_VERSION
 from whisper_local.settings_manager import SettingsManager
 from whisper_local.hotkey_settings import (
     load_hotkey,
@@ -54,6 +56,57 @@ class SettingsController:
     def save(self, data: Dict[str, Any]) -> Dict[str, Any]:
         ok = self._mgr.update_many(data)
         return {"ok": ok, "settings": self._mgr.get_all()}
+
+    # -- settings page helpers ---------------------------------------------
+
+    def get_app_version(self) -> str:
+        """Version string for the About row on the Settings page."""
+        return APP_VERSION
+
+    def check_ollama(self, timeout_sec: float = 0.5) -> bool:
+        """True when the stored Ollama endpoint answers GET /api/tags.
+
+        The Settings page calls this once when it opens and hides the
+        stylization rows when it returns False, so the probe is short: a
+        half-second budget, any failure reads as unreachable.
+        """
+        endpoint = str(self._mgr.get_all().get("ollama_endpoint") or "").strip().rstrip("/")
+        if not endpoint:
+            return False
+        try:
+            req = request.Request(f"{endpoint}/api/tags", method="GET")
+            with request.urlopen(req, timeout=float(timeout_sec)):
+                return True
+        except Exception:
+            return False
+
+    def get_input_devices(self) -> List[Dict[str, str]]:
+        """Input-capable audio devices for the Microphone select.
+
+        The first entry is always the system default. Values are the device
+        labels the engine resolves by substring (see
+        flow_local_dictation._input_device_request_from_settings), so what
+        the user picks here is exactly what the next take listens to.
+        """
+        devices: List[Dict[str, str]] = [{"value": "default", "label": "Default System Microphone"}]
+        try:
+            import sounddevice as sd
+
+            seen = set()
+            for dev in sd.query_devices():
+                try:
+                    if int(dev.get("max_input_channels", 0) or 0) <= 0:
+                        continue
+                    name = str(dev.get("name") or "").strip()
+                except AttributeError:
+                    continue
+                if not name or name in seen:
+                    continue
+                seen.add(name)
+                devices.append({"value": name, "label": name})
+        except Exception:
+            pass
+        return devices
 
     # -- hotkey -------------------------------------------------------------
 
